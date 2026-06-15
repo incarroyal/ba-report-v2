@@ -114,10 +114,11 @@ input:focus,select:focus{outline:none;border-color:var(--c-primary);box-shadow:0
   .psheet *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 
   /* ===== 페이지 헤더 ===== */
-  .phead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5mm;}
+  .phead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5mm;gap:8mm;}
+  .phead .lt{flex:1;min-width:0;}
   .phead .eb{font-size:8pt;font-weight:800;color:#B0894C;letter-spacing:3.5px;margin-bottom:2mm;}
-  .phead h2{font-size:18pt;font-weight:800;color:#0E2C4D;letter-spacing:-0.4px;margin:0;line-height:1.1;}
-  .phead .rt{text-align:right;padding-top:1mm;}
+  .phead h2{font-size:18pt;font-weight:800;color:#0E2C4D;letter-spacing:-0.4px;margin:0;line-height:1.1;white-space:nowrap;}
+  .phead .rt{text-align:right;padding-top:1mm;flex-shrink:0;}
   .phead .rt .nm{font-size:9.5pt;font-weight:800;color:#0E2C4D;}
   .phead .rt .dt{font-size:7.5pt;font-weight:600;color:#9AA6B6;margin-top:0.8mm;letter-spacing:0.3px;}
   .phead .rt .logo{font-size:8.5pt;font-weight:800;color:#B0894C;letter-spacing:1.5px;margin-bottom:1.5mm;}
@@ -1603,7 +1604,7 @@ let PPG = 0;
 function pChrome(eyebrow, title, cust, dstr, pn){
   PPG++;
   return `<div class="phead">
-    <div><div class="eb">${esc(eyebrow)}</div><h2>${esc(title)}</h2></div>
+    <div class="lt"><div class="eb">${esc(eyebrow)}</div><h2>${esc(title)}</h2></div>
     <div class="rt"><div class="logo">ROYAL INSURANCE</div><div class="nm">${esc(cust)}님 보장분석</div><div class="dt">${dstr}${pn?' · '+esc(pn):''}</div></div>
   </div>`;
 }
@@ -1633,61 +1634,105 @@ function buildPrintHTML(){
   PPG++;
   h += `<div class="psheet" style="padding:0;">
     <div style="position:absolute;inset:0;background:#0E2C4D;"></div>
-    <div style="position:absolute;top:0;right:0;bottom:0;width:38%;background:linear-gradient(160deg,#143862,#0B2540);"></div>
-    <div style="position:absolute;top:0;right:38%;width:0.8mm;bottom:0;background:#B0894C;"></div>
+    <div style="position:absolute;top:0;right:0;bottom:0;width:38%;background:linear-gradient(160deg,#163C68,#0A2240);"></div>
+    <div style="position:absolute;top:0;right:38%;width:0.8mm;bottom:0;background:linear-gradient(180deg,#C9A765,#8A6A38);"></div>
     <!-- 우측 대형 워터마크 텍스트 -->
-    <div style="position:absolute;right:5mm;top:50%;transform:translateY(-50%);text-align:right;font-size:30pt;font-weight:800;color:rgba(255,255,255,.07);letter-spacing:3px;line-height:1.18;">COVERAGE<br>ANALYSIS<br>REPORT</div>
+    <div style="position:absolute;right:6mm;top:50%;transform:translateY(-50%);text-align:right;font-size:29pt;font-weight:800;color:rgba(201,167,101,.10);letter-spacing:3px;line-height:1.22;">COVERAGE<br>ANALYSIS<br>REPORT</div>
+    <!-- 우측 상단 골드 포인트 -->
+    <div style="position:absolute;right:14mm;top:24mm;width:11mm;height:0.6mm;background:#C9A765;"></div>
     <!-- 좌측 콘텐츠 -->
-    <div style="position:absolute;left:18mm;top:34mm;right:44%;">
-      <div style="display:inline-block;font-size:9pt;font-weight:800;color:#C9A765;letter-spacing:4px;border:0.5pt solid rgba(201,167,101,.5);padding:1.8mm 5mm;border-radius:8mm;">INSURANCE COVERAGE ANALYSIS</div>
-      <div style="font-size:44pt;font-weight:800;color:#fff;letter-spacing:-1.5px;margin:9mm 0 4mm;line-height:1.05;">보장분석<br>리포트</div>
-      <div style="width:18mm;height:1.2mm;background:#B0894C;margin:6mm 0;"></div>
-      <div style="font-size:13pt;font-weight:700;color:#DCE6F2;margin-bottom:5mm;">${esc(cust)}님의 보험, 객관적으로 분석해 드립니다</div>
-      <div style="font-size:10pt;color:#9DB2CC;font-weight:500;line-height:1.85;">현재 가입 현황을 객관적으로 진단하고,<br>납입 중인 보험료를 더 효율적으로 활용할 수 있는 방안을 제안드립니다.</div>
+    <div style="position:absolute;left:19mm;top:33mm;right:44%;">
+      <div style="display:inline-block;font-size:8.5pt;font-weight:800;color:#C9A765;letter-spacing:3.5px;border:0.5pt solid rgba(201,167,101,.45);padding:2mm 5.5mm;border-radius:8mm;">INSURANCE COVERAGE ANALYSIS</div>
+      <div style="font-size:46pt;font-weight:800;color:#fff;letter-spacing:-1.8px;margin:10mm 0 5mm;line-height:1.02;">보장분석<br>리포트</div>
+      <div style="width:20mm;height:1.4mm;background:#C9A765;margin:6mm 0 7mm;border-radius:1mm;"></div>
+      <div style="font-size:13.5pt;font-weight:700;color:#EAF1F9;margin-bottom:5mm;letter-spacing:-0.2px;">${esc(cust)}님의 보험, 객관적으로 분석해 드립니다</div>
+      <div style="font-size:10pt;color:#9DB2CC;font-weight:500;line-height:1.9;">현재 가입 현황을 객관적으로 진단하고,<br>납입 중인 보험료를 더 효율적으로 활용할 수 있는 방안을 제안드립니다.</div>
     </div>
     <!-- 좌측 하단 메타 -->
-    <div style="position:absolute;left:18mm;bottom:22mm;right:44%;border-top:0.5pt solid rgba(255,255,255,.15);padding-top:6mm;font-size:10pt;font-weight:600;">
+    <div style="position:absolute;left:19mm;bottom:23mm;right:44%;border-top:0.5pt solid rgba(255,255,255,.16);padding-top:6mm;font-size:10pt;font-weight:600;">
       <div style="display:flex;margin-bottom:3.5mm;"><span style="color:#7E93AD;width:30mm;">분석일자</span><span style="color:#fff;font-weight:700;">${dstr}</span></div>
       ${pn?`<div style="display:flex;"><span style="color:#7E93AD;width:30mm;">담당 설계사</span><span style="color:#fff;font-weight:700;">${esc(pn)}${pp?'  ·  '+esc(pp):''}</span></div>`:''}
     </div>
-    <div style="position:absolute;right:5mm;bottom:14mm;font-size:8pt;font-weight:800;color:#C9A765;letter-spacing:2px;">ROYAL INSURANCE</div>
+    <div style="position:absolute;right:6mm;bottom:14mm;font-size:8pt;font-weight:800;color:#C9A765;letter-spacing:2px;">ROYAL INSURANCE</div>
   </div>`;
 
-  // ===== 2. 한눈에 보는 요약 =====
+  // ===== 2. 한눈에 보는 요약 (가치 제안 + 시각화) =====
   const sCur = sumPrem(curContracts()), sAft = sumPrem(afterContracts()), sDiff = sAft - sCur;
-  const upCnt = compareData().filter(r=>r.d>0).length;
+  const cmpAll = compareData();
+  const upCnt = cmpAll.filter(r=>r.d>0).length;
   const cntOf = st => S.contracts.filter(c=>c.status===st).length;
   const diag = buildDiagnosis().slice(0,3);
   const dCol = {'중복':'#0E2C4D','부족':'#C0392B','갱신':'#B8860B','확인':'#1565C0','분석':'#0E2C4D'};
+  // 핵심 메시지
+  const headline = sDiff<0
+    ? `월 ${fmtWon(-sDiff)}을 절감하면서, 핵심 보장 ${upCnt}개 항목을 강화합니다`
+    : sDiff===0
+    ? `보험료 부담은 그대로 유지하면서, 보장 ${upCnt}개 항목을 강화합니다`
+    : `월 ${fmtWon(sDiff)}의 추가 부담으로, 핵심 보장 ${upCnt}개 항목을 강화합니다`;
+  // 보험료 막대 (현재 vs 개선 후)
+  const barMax = Math.max(sCur, sAft, 1);
+  const barW = v => (v/barMax*100).toFixed(1);
+  // 주요 보장 강화 top (증가분 큰 순)
+  const ups = cmpAll.filter(r=>r.d>0).sort((a,b)=>b.d-a.d).slice(0,5);
+  const upMax = ups.length ? Math.max(...ups.map(r=>r.b)) : 1;
   h += `<div class="psheet">${chrome('EXECUTIVE SUMMARY', '한눈에 보는 보장 요약')}
-    <div class="pcards" style="margin-bottom:6mm;">
-      <div class="pcard"><div class="topbar" style="background:#B0894C;"></div>
-        <div class="lb">월 납입 보험료</div>
-        <div style="font-size:9.5pt;font-weight:700;color:#A7B2C0;margin-bottom:1mm;"><s>${fmtWon(sCur)}</s> <span style="color:#1B4470;font-weight:800;">→</span></div>
-        <div class="v" style="color:#0E2C4D;">${(sAft).toLocaleString()}<span class="u">원</span></div>
-        <div style="display:inline-block;margin-top:3mm;padding:1.4mm 4mm;border-radius:7mm;font-size:8.5pt;font-weight:800;
-          background:${sDiff<=0?'#E7F3EC':'#FBF3E0'};color:${sDiff<=0?'#1F8A5B':'#B8860B'};">
-          ${sDiff===0?'변동 없음':(sDiff<0?`▼ 월 ${fmtWon(-sDiff)} 절감`:`▲ 월 ${fmtWon(sDiff)} 증가`)}</div>
-      </div>
-      <div class="pcard"><div class="topbar" style="background:#1B4470;"></div>
-        <div class="lb">보장 강화</div>
-        <div class="v" style="color:#1B4470;">${upCnt}<span class="u">개 담보</span></div>
-        <div class="sub">신규 가입·증액으로<br>보완되는 담보 항목 수</div>
-      </div>
-      <div class="pcard dark">
-        <div class="lb">계약 구조 변화</div>
-        <div style="display:flex;gap:6mm;margin-top:1.5mm;">
-          ${[['유지',cntOf('유지')],['리모델링',cntOf('리모델링')],['이체중지',cntOf('이체중지')],['신규',cntOf('제안')]]
-            .map(([t,n])=>`<div><div style="font-size:18pt;font-weight:800;color:#fff;line-height:1;">${n}</div><div style="font-size:7.5pt;color:#A9C2DD;font-weight:700;margin-top:1mm;">${t}</div></div>`).join('')}
+    <!-- 핵심 메시지 -->
+    <div style="background:#0E2C4D;border-radius:4mm;padding:6.5mm 7mm;margin-bottom:6mm;position:relative;overflow:hidden;">
+      <div style="position:absolute;top:0;left:0;width:1.5mm;height:100%;background:#B0894C;"></div>
+      <div style="font-size:8pt;font-weight:800;color:#C9A765;letter-spacing:2.5px;margin-bottom:2.5mm;">CONSULTING SUMMARY</div>
+      <div style="font-size:16pt;font-weight:800;color:#fff;letter-spacing:-0.5px;line-height:1.3;">${headline}</div>
+    </div>
+    <div style="display:flex;gap:6mm;margin-bottom:6mm;">
+      <!-- 보험료 변화 막대 -->
+      <div style="flex:1.3;">
+        <div class="ptit" style="margin-bottom:4mm;">월 납입 보험료 변화</div>
+        <div style="border:0.5pt solid #E5E9F0;border-radius:3.5mm;padding:5.5mm 6mm;box-shadow:0 1pt 3pt rgba(14,44,77,.05);">
+          ${[['현재', sCur, '#94A3B5', false],['개선 후', sAft, '#0E2C4D', true]].map(([lb,v,col,strong])=>`
+            <div style="margin-bottom:${lb==='현재'?'5mm':'0'};">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1.8mm;">
+                <span style="font-size:9pt;font-weight:700;color:#6B7888;">${lb}</span>
+                <span style="font-size:${strong?'15pt':'12pt'};font-weight:800;color:${strong?'#0E2C4D':'#94A3B5'};letter-spacing:-0.3px;">${v.toLocaleString()}<span style="font-size:9pt;">원</span></span>
+              </div>
+              <div style="height:${strong?'7mm':'5.5mm'};background:#EEF1F6;border-radius:1.5mm;overflow:hidden;">
+                <div style="width:${barW(v)}%;height:100%;background:${strong?'linear-gradient(90deg,#143862,#0E2C4D)':col};border-radius:1.5mm;"></div>
+              </div>
+            </div>`).join('')}
+          <div style="margin-top:5mm;padding-top:4mm;border-top:0.5pt solid #EEF1F6;text-align:center;">
+            <span style="display:inline-block;padding:2mm 6mm;border-radius:7mm;font-size:10pt;font-weight:800;
+              background:${sDiff<=0?'#E7F3EC':'#FBF3E0'};color:${sDiff<=0?'#1F8A5B':'#B8860B'};">
+              ${sDiff===0?'월 보험료 변동 없음':(sDiff<0?`▼ 월 ${fmtWon(-sDiff)} 절감`:`▲ 월 ${fmtWon(sDiff)} 증가`)}</span>
+          </div>
         </div>
-        <div class="sub" style="margin-top:3.5mm;">불필요한 보장은 정리하고,<br>부족한 보장은 채웁니다.</div>
+      </div>
+      <!-- 우측: 핵심 지표 + 계약 구조 -->
+      <div style="flex:1;display:flex;flex-direction:column;gap:4mm;">
+        <div style="display:flex;gap:4mm;">
+          <div class="pcard" style="padding:4mm 4.5mm;"><div class="topbar" style="background:#B0894C;"></div>
+            <div class="lb">보장 강화</div><div class="v" style="color:#1B4470;">${upCnt}<span class="u">개</span></div>
+            <div class="sub">증액·신규 항목</div></div>
+          <div class="pcard" style="padding:4mm 4.5mm;"><div class="topbar" style="background:#1F8A5B;"></div>
+            <div class="lb">보유 계약</div><div class="v" style="color:#0E2C4D;">${cntOf('유지')+cntOf('리모델링')+cntOf('이체중지')+cntOf('증권확인')}<span class="u">건</span></div>
+            <div class="sub">현재 가입 중</div></div>
+        </div>
+        <div class="pcard dark" style="flex:1;padding:4.5mm 5mm;">
+          <div class="lb">계약 구조</div>
+          <div style="display:flex;gap:5mm;margin-top:2.5mm;">
+            ${[['유지',cntOf('유지'),'#7FD4A8'],['리모델링',cntOf('리모델링'),'#F0B27A'],['이체중지',cntOf('이체중지'),'#E8908A'],['신규',cntOf('제안'),'#8FB8E8']]
+              .map(([t,n,c])=>`<div><div style="font-size:17pt;font-weight:800;color:${n>0?c:'#3A557A'};line-height:1;">${n}</div><div style="font-size:7.5pt;color:#A9C2DD;font-weight:700;margin-top:1mm;">${t}</div></div>`).join('')}
+          </div>
+          <div class="sub" style="margin-top:3.5mm;">불필요한 보장은 정리하고, 부족한 보장은 채웁니다.</div>
+        </div>
       </div>
     </div>
-    <div class="ptit">진단 요약</div>
+    <!-- 진단 요약 -->
+    <div class="ptit">핵심 진단</div>
     <div class="pcards">
-      ${diag.map(d=>`<div class="dcard">
-        <span class="stbadge" style="background:${dCol[d.tag]||'#0E2C4D'};color:#fff;">${d.tag}</span>
-        <div class="dt2">${esc(d.title)}</div>
+      ${diag.map((d,i)=>`<div class="dcard">
+        <div style="display:flex;align-items:center;gap:2.5mm;margin-bottom:2.5mm;">
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:6mm;height:6mm;border-radius:50%;background:${dCol[d.tag]||'#0E2C4D'};color:#fff;font-size:8pt;font-weight:800;">${i+1}</span>
+          <span class="stbadge" style="background:${(dCol[d.tag]||'#0E2C4D')}1A;color:${dCol[d.tag]||'#0E2C4D'};">${d.tag}</span>
+        </div>
+        <div class="dt2" style="margin-top:0;">${esc(d.title)}</div>
         <div class="dd">${esc(d.desc)}</div></div>`).join('')}
     </div>${pFoot(cust)}</div>`;
 
@@ -1759,8 +1804,12 @@ function buildPrintHTML(){
   const cmp = compareData();
   const curP = sumPrem(curContracts()), aftP = sumPrem(afterContracts()), dropP = sumPrem(dropContracts());
   const cmpRow = r => `<tr class="zebra"><td class="grp" style="font-size:8pt;${r.g?'':'background:#fff;border-bottom-color:#EAEEF4;'}">${esc(r.g)}</td><td class="cv">${esc(r.cat)}</td>
-    <td>${pAmt(r.a)}</td><td style="font-weight:700;">${pAmt(r.b)}</td>
-    <td class="c ${r.d>0?'up':r.d<0?'dn':''}" style="white-space:nowrap;font-size:8pt;">${r.d===0?'<span style="color:#C5CDD8;">–</span>':(r.d>0?'▲'+fmtMan(r.d):'▼'+fmtMan(-r.d))}</td></tr>`;
+    <td style="color:#94A3B5;">${pAmt(r.a)}</td><td style="font-weight:800;color:#0E2C4D;">${pAmt(r.b)}</td>
+    <td class="c" style="white-space:nowrap;">${r.d===0
+      ? '<span style="color:#C5CDD8;font-size:8pt;">유지</span>'
+      : r.d>0
+      ? `<span style="display:inline-block;font-size:7.5pt;font-weight:800;color:#1F8A5B;background:#E7F3EC;padding:0.5mm 2.2mm;border-radius:5mm;">▲ ${fmtMan(r.d)}</span>`
+      : `<span style="display:inline-block;font-size:7.5pt;font-weight:800;color:#C0392B;background:#FBE9E7;padding:0.5mm 2.2mm;border-radius:5mm;">▼ ${fmtMan(-r.d)}</span>`}</td></tr>`;
   const cmpTbl = part => `<table class="pt" style="width:49%;"><colgroup>${['12%','36%','17%','17%','18%'].map(w=>`<col style="width:${w}">`).join('')}</colgroup>
     <tr><th class="c">구분</th><th class="l">담보</th><th>현재</th><th>개선 후</th><th class="c">증감</th></tr>
     ${part.map(cmpRow).join('')}</table>`;
