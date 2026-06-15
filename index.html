@@ -80,8 +80,10 @@ input:focus,select:focus{outline:none;border-color:var(--c-primary);box-shadow:0
 .cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px;margin-top:6px;}
 .citem{border:1.5px solid var(--c-line);border-radius:10px;padding:13px 14px;background:#fff;position:relative;transition:.12s;}
 .citem.editing{border-color:var(--c-primary);box-shadow:0 0 0 3px rgba(18,169,157,.12);}
-.citem .nm{font-weight:700;font-size:13.5px;line-height:1.45;cursor:pointer;padding-right:8px;}
-.citem .nm:hover{color:var(--c-teal-deep);}
+.citem .ctop{cursor:pointer;border-radius:8px;margin:-3px -4px 0;padding:3px 4px;transition:.12s;}
+.citem .ctop:hover{background:var(--c-teal-bg-1);}
+.citem .ctop:hover .nm{color:var(--c-teal-deep);}
+.citem .nm{font-weight:700;font-size:13.5px;line-height:1.45;padding-right:8px;}
 .citem .mt{font-size:12px;color:var(--c-text-muted);margin-top:5px;display:flex;gap:8px;flex-wrap:wrap;}
 .citem .foot{display:flex;justify-content:space-between;align-items:center;margin-top:9px;flex-wrap:wrap;gap:6px;}
 .stchip{display:inline-flex;border-radius:8px;overflow:hidden;border:1px solid var(--c-line);}
@@ -130,25 +132,44 @@ input:focus,select:focus{outline:none;border-color:var(--c-primary);box-shadow:0
 }
 .delbtn{background:none;border:none;color:var(--c-text-faint);cursor:pointer;font-size:13px;padding:2px 5px;}
 .delbtn:hover{color:var(--c-danger);}
-/* 비교표 담보·구분 숨기기 */
-.rowdel{background:none;border:none;color:var(--c-text-faint);cursor:pointer;font-size:11px;padding:0 4px;line-height:1;opacity:.35;transition:.12s;vertical-align:1px;}
+/* 비교표 담보·구분 수정/삭제 */
+.rowdel{display:inline;background:none;border:none;color:var(--c-text-faint);cursor:pointer;font-size:11px;padding:0 3px;line-height:1;opacity:.35;transition:.12s;vertical-align:1px;}
 table.pv tr:hover .rowdel{opacity:1;}
 .rowdel:hover{color:var(--c-danger);transform:scale(1.2);}
-.rowdel.g{display:block;margin:4px auto 0;opacity:.5;color:rgba(255,255,255,.85);}
+.rowdel.edit:hover{color:var(--c-primary);}
+.rowdel.g{display:inline-block;opacity:.5;color:rgba(255,255,255,.85);}
+table.pv tr:hover .rowdel.g{opacity:1;}
 .rowdel.g:hover{color:#fff;}
+.rowacts{display:inline-flex;gap:2px;margin-left:4px;vertical-align:1px;}
+.rowacts.g{display:flex;justify-content:center;margin:4px 0 0;}
 .hidbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--c-text-muted);font-weight:600;}
 .hchip{display:inline-flex;align-items:center;gap:5px;background:var(--c-teal-bg-2);border:1px solid var(--c-line-teal);
   border-radius:99px;padding:3px 10px;font-size:11.5px;font-weight:700;color:var(--c-teal-deepest);cursor:pointer;transition:.12s;}
 .hchip:hover{background:var(--c-teal-bg-3);}
 .hchip i{font-style:normal;font-size:10px;}
-/* editor */
-#editor{display:none;}
+/* editor — 모달 팝업 */
+.modal{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:120;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 16px;}
+.modal.on{display:flex;}
+.modal .mbox{background:#fff;border-radius:16px;width:100%;max-width:920px;box-shadow:0 24px 70px rgba(0,0,0,.3);overflow:hidden;animation:mpop .16s ease-out;}
+.modal .mbox.sm{max-width:440px;}
+@keyframes mpop{from{opacity:0;transform:translateY(-12px);}to{opacity:1;transform:none;}}
+.mhead{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid var(--c-line);
+  background:linear-gradient(135deg,var(--c-teal-bg-1),var(--c-teal-bg-2));}
+.mhead .mt1{font-size:15px;font-weight:800;color:var(--c-teal-deepest);}
+.mhead .mt2{font-size:12px;color:var(--c-text-muted);font-weight:600;margin-top:2px;}
+.mclose{background:none;border:none;font-size:22px;line-height:1;color:var(--c-text-faint);cursor:pointer;padding:2px 6px;border-radius:6px;}
+.mclose:hover{background:rgba(0,0,0,.06);color:var(--c-text);}
+.mbody{padding:20px 22px;}
+.mfoot{display:flex;gap:8px;justify-content:flex-end;padding:14px 22px;border-top:1px solid var(--c-line);background:#fafdfc;}
 #editor table{width:100%;border-collapse:collapse;margin-top:10px;}
 #editor th{background:var(--c-teal-bg-2);font-size:12px;color:var(--c-teal-deepest);padding:7px 8px;text-align:left;border:1px solid var(--c-line);}
 #editor td{border:1px solid var(--c-line);padding:4px 6px;}
 #editor td input,#editor td select{width:100%;border:1px solid transparent;background:transparent;padding:5px 6px;font-size:13px;}
 #editor td input:hover,#editor td select:hover{border-color:var(--c-line);}
 #editor td input:focus,#editor td select:focus{background:#fff;border-color:var(--c-primary);box-shadow:none;}
+.fgrid{display:flex;flex-direction:column;gap:12px;}
+.fgrid label{display:block;font-size:12px;font-weight:700;color:var(--c-text-2);margin-bottom:4px;}
+.fgrid input{width:100%;}
 .note{background:var(--c-teal-bg-1);border-left:3px solid var(--c-primary);border-radius:4px;padding:11px 15px;
   color:var(--c-text-2);font-size:12.5px;margin-top:12px;}
 /* preview */
@@ -241,30 +262,6 @@ table.pv tr.sum td{background:var(--c-teal-bg-3);font-weight:800;}
   <div style="margin-top:14px;display:flex;gap:8px;">
     <button class="btn ghost sm" onclick="addManual()">+ 계약 직접 추가</button>
   </div>
-
-  <div id="editor">
-    <hr style="border:none;border-top:1px solid var(--c-line);margin:18px 0 14px;">
-    <div class="inrow">
-      <div><label>보험사</label><input type="text" id="edIns" style="width:150px;"></div>
-      <div><label>상품명</label><input type="text" id="edName" style="width:280px;"></div>
-      <div><label>월 보험료(원)</label><input type="number" id="edPrem" style="width:115px;"></div>
-      <div><label>계약일</label><input type="text" id="edStart" style="width:110px;" placeholder="2023.01.10"></div>
-      <div><label>보장만기</label><input type="text" id="edEnd" style="width:110px;" placeholder="2043.01.10"></div>
-      <div><label>납입(횟수)</label><input type="text" id="edPay" style="width:90px;" placeholder="41/240"></div>
-      <div><label>납입기간</label><input type="text" id="edPayTerm" style="width:95px;" placeholder="월납/20년"></div>
-      <div><label>보험사 고객센터</label><input type="text" id="edCs" style="width:115px;" placeholder="1588-0000"></div>
-      <div><label>분류 외 보험</label><label style="display:flex;align-items:center;gap:6px;font-weight:600;padding-top:8px;cursor:pointer;">
-        <input type="checkbox" id="edSpecial" style="width:16px;height:16px;accent-color:var(--c-primary);"> 운전자·치매·연금 등</label></div>
-    </div>
-    <table>
-      <thead><tr><th style="width:42%">담보명</th><th style="width:30%">표준 분류</th><th style="width:18%">가입금액(만원)</th><th style="width:10%"></th></tr></thead>
-      <tbody id="covBody"></tbody>
-    </table>
-    <div style="margin-top:10px;display:flex;gap:8px;">
-      <button class="btn ghost sm" onclick="addCovRow()">+ 담보 추가</button>
-      <button class="btn primary sm" onclick="closeEditor()">편집 완료</button>
-    </div>
-  </div>
 </div>
 
 <!-- STEP 3 -->
@@ -294,7 +291,7 @@ table.pv tr.sum td{background:var(--c-teal-bg-3);font-weight:800;}
     <span><i style="background:var(--c-purple)"></i>신규 제안</span>
   </div>
   <h2 style="font-size:14px;margin:14px 0 8px;">보장 종합 비교 (현재 → 개선 후)
-    <span style="font-size:11.5px;font-weight:600;color:var(--c-text-muted);margin-left:8px;">행에 마우스를 올리면 나타나는 ✕로 필요 없는 담보·구분을 숨길 수 있습니다 (PPT·PDF에도 동일 적용)</span></h2>
+    <span style="font-size:11.5px;font-weight:600;color:var(--c-text-muted);margin-left:8px;">행에 마우스를 올리면 ✎(이름·금액 수정) · ✕(리포트에서 빼기) 버튼이 나타납니다. 수정·삭제는 PPT·PDF에도 동일 적용됩니다.</span></h2>
   <div class="tblwrap" id="cmpWrap"></div>
   <div class="hidbar" id="hiddenBar" style="display:none;"></div>
   <h2 style="font-size:14px;margin:20px 0 8px;">계약별 보장 매트릭스</h2>
@@ -321,6 +318,54 @@ table.pv tr.sum td{background:var(--c-teal-bg-3);font-weight:800;}
 </div>
 
 <div id="overlay"><div class="box"><div class="spin"></div><div class="t1" id="ovT1">분석 중...</div><div class="t2" id="ovT2"></div></div></div>
+
+<!-- 계약 편집 모달 -->
+<div class="modal" id="editModal">
+  <div class="mbox" id="editor">
+    <div class="mhead">
+      <div><div class="mt1" id="edTitle">계약 편집</div><div class="mt2">담보 내역과 계약 정보를 수정한 뒤 저장하세요</div></div>
+      <button class="mclose" onclick="closeEditor()">×</button>
+    </div>
+    <div class="mbody">
+      <div class="inrow">
+        <div><label>보험사</label><input type="text" id="edIns" style="width:150px;"></div>
+        <div><label>상품명</label><input type="text" id="edName" style="width:280px;"></div>
+        <div><label>월 보험료(원)</label><input type="number" id="edPrem" style="width:115px;"></div>
+        <div><label>계약일</label><input type="text" id="edStart" style="width:110px;" placeholder="2023.01.10"></div>
+        <div><label>보장만기</label><input type="text" id="edEnd" style="width:110px;" placeholder="2043.01.10"></div>
+        <div><label>납입(횟수)</label><input type="text" id="edPay" style="width:90px;" placeholder="41/240"></div>
+        <div><label>납입기간</label><input type="text" id="edPayTerm" style="width:95px;" placeholder="월납/20년"></div>
+        <div><label>보험사 고객센터</label><input type="text" id="edCs" style="width:115px;" placeholder="1588-0000"></div>
+        <div><label>분류 외 보험</label><label style="display:flex;align-items:center;gap:6px;font-weight:600;padding-top:8px;cursor:pointer;">
+          <input type="checkbox" id="edSpecial" style="width:16px;height:16px;accent-color:var(--c-primary);"> 운전자·치매·연금 등</label></div>
+      </div>
+      <table>
+        <thead><tr><th style="width:42%">담보명</th><th style="width:30%">표준 분류</th><th style="width:18%">가입금액(만원)</th><th style="width:10%"></th></tr></thead>
+        <tbody id="covBody"></tbody>
+      </table>
+      <div style="margin-top:10px;"><button class="btn ghost sm" onclick="addCovRow()">+ 담보 추가</button></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn ghost sm" onclick="delContract(editingId)">계약 삭제</button>
+      <button class="btn primary sm" onclick="closeEditor()">저장하고 닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 비교표 담보/구분 편집 모달 -->
+<div class="modal" id="cmpModal">
+  <div class="mbox sm">
+    <div class="mhead">
+      <div><div class="mt1" id="cmpMTitle">담보 수정</div><div class="mt2" id="cmpMSub"></div></div>
+      <button class="mclose" onclick="closeCmpEdit()">×</button>
+    </div>
+    <div class="mbody"><div class="fgrid" id="cmpMFields"></div></div>
+    <div class="mfoot">
+      <button class="btn ghost sm" onclick="closeCmpEdit()">취소</button>
+      <button class="btn primary sm" onclick="saveCmpEdit()">저장</button>
+    </div>
+  </div>
+</div>
 <div id="printArea"></div>
 
 <script>
@@ -341,18 +386,21 @@ const GROUPS = [
 const ALL_CATS = GROUPS.flatMap(g=>g[1]);
 
 /* ================= 상태 ================= */
-let S = { contracts: [], hiddenCats: [] };   // {id, src, status:'유지'|'리모델링'|'이체중지'|'증권확인'|'제안', insurer, productName, monthlyPremium, payProgress, period, covs:[{name,category,amt}]}
+let S = { contracts: [], hiddenCats: [], catLabels: {}, groupLabels: {}, cmpAmt: {} };   // {id, src, status:'유지'|'리모델링'|'이체중지'|'증권확인'|'제안', insurer, productName, monthlyPremium, payProgress, period, covs:[{name,category,amt}]}
 let editingId = null;
 const $ = s => document.querySelector(s);
 const uid = () => 'c' + Math.random().toString(36).slice(2,9);
 const API = '/.netlify/functions/ai-parse';
 const LSKEY = 'baReportV2';
 
-// 구버전 데이터 호환: '해지' → '리모델링', hiddenCats 보장
+// 구버전 데이터 호환: '해지' → '리모델링', 신규 필드 보장
 function migrateState(st){
   if(!st) return st;
   (st.contracts||[]).forEach(c=>{ if(c.status==='해지') c.status='리모델링'; });
   if(!Array.isArray(st.hiddenCats)) st.hiddenCats = [];
+  if(!st.catLabels || typeof st.catLabels!=='object') st.catLabels = {};
+  if(!st.groupLabels || typeof st.groupLabels!=='object') st.groupLabels = {};
+  if(!st.cmpAmt || typeof st.cmpAmt!=='object') st.cmpAmt = {};
   return st;
 }
 
@@ -393,6 +441,8 @@ const dropContracts  = () => S.contracts.filter(c=>DROP_ST.includes(c.status));
 const sumPrem = arr => arr.reduce((s,c)=> s + (+c.monthlyPremium||0), 0);
 const isHiddenCat = cat => (S.hiddenCats||[]).includes(cat);
 const visCats = items => items.filter(cat=>!isHiddenCat(cat));
+const catLabel = cat => (S.catLabels && S.catLabels[cat]) || cat;
+const groupLabel = g => (S.groupLabels && S.groupLabels[g]) || g;
 
 // 보험사 고객센터 대표번호 (자동 입력용 — 변경 가능성이 있으므로 편집 가능, 추후 데이터 교체 예정)
 const CS_MAP = {
@@ -675,13 +725,15 @@ function renderContracts(){
     d.className = 'citem' + (c.id===editingId?' editing':'');
     const isProp = c.status==='제안';
     d.innerHTML = `
-      <div class="nm" onclick="openEditor('${c.id}')">${esc(c.insurer)} · ${esc(c.productName)} ${c.special?'<span class="badge sp">분류외</span>':''}</div>
-      <div class="mt">
-        <span>월 ${fmtWon(c.monthlyPremium)}</span>
-        ${c.payProgress?`<span>납입 ${esc(c.payProgress)}</span>`:''}
-        <span>담보 ${c.covs.length}개</span>
+      <div class="ctop" onclick="openEditor('${c.id}')" title="클릭하면 상세 편집 창이 열립니다">
+        <div class="nm">${esc(c.insurer)} · ${esc(c.productName)} ${c.special?'<span class="badge sp">분류외</span>':''}</div>
+        <div class="mt">
+          <span>월 ${fmtWon(c.monthlyPremium)}</span>
+          ${c.payProgress?`<span>납입 ${esc(c.payProgress)}</span>`:''}
+          <span>담보 ${c.covs.length}개</span>
+        </div>
+        ${DROP_ST.includes(c.status)?`<div class="csline">☎ 보험사 고객센터: ${esc(c.csPhone||'번호 입력 필요 (카드 클릭)')}</div>`:''}
       </div>
-      ${DROP_ST.includes(c.status)?`<div class="csline">☎ 보험사 고객센터: ${esc(c.csPhone||'번호 입력 필요 (카드 클릭)')}</div>`:''}
       <div class="foot">
         ${isProp
           ? `<span class="badge prop">신규 제안</span>`
@@ -723,7 +775,9 @@ const splitPeriod = p => { const a = String(p||'').split('~').map(s=>s.trim()); 
 function openEditor(id){
   editingId = id;
   const c = S.contracts.find(x=>x.id===id); if(!c) return;
-  $('#editor').style.display = 'block';
+  $('#edTitle').textContent = (c.insurer || c.productName) ? `${c.insurer||''} ${c.productName||''}`.trim() : '계약 편집';
+  $('#editModal').classList.add('on');
+  document.body.style.overflow = 'hidden';
   $('#edIns').value = c.insurer; $('#edName').value = c.productName;
   $('#edPrem').value = c.monthlyPremium;
   const [ps, pe] = splitPeriod(c.period);
@@ -731,7 +785,6 @@ function openEditor(id){
   $('#edPay').value = c.payProgress||''; $('#edPayTerm').value = c.payTerm||'';
   $('#edCs').value = c.csPhone||''; $('#edSpecial').checked = !!c.special;
   renderCovRows(c); renderContracts();
-  $('#editor').scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 function renderCovRows(c){
   const tb = $('#covBody'); tb.innerHTML = '';
@@ -762,7 +815,10 @@ function closeEditor(){
     c.payProgress = $('#edPay').value.trim(); c.payTerm = $('#edPayTerm').value.trim();
     c.csPhone = $('#edCs').value.trim(); c.special = $('#edSpecial').checked;
   }
-  editingId = null; $('#editor').style.display = 'none'; refreshAll(); persist();
+  editingId = null;
+  $('#editModal').classList.remove('on');
+  document.body.style.overflow = '';
+  refreshAll(); persist();
 }
 
 /* ================= 미리보기 ================= */
@@ -793,17 +849,28 @@ function renderStats(){
 }
 
 function renderCmpTable(){
-  const cur = curContracts(), aft = afterContracts();
-  let html = '<table class="pv"><thead><tr><th style="width:90px;">구분</th><th style="text-align:left;">담보</th><th>현재</th><th>개선 후</th><th>증감</th></tr></thead><tbody>';
-  activeRows().forEach(([g, items])=>{
-    items.forEach((cat, i)=>{
-      const a = cur.reduce((s,c)=>s+catAmt(c,cat),0);
-      const b = aft.reduce((s,c)=>s+catAmt(c,cat),0);
-      const d = b - a;
-      html += '<tr>' + (i===0?`<td class="grp" rowspan="${items.length}">${g}<button class="rowdel g" onclick="hideGroup('${g}')" title="'${g}' 구분 전체를 리포트에서 숨기기">✕</button></td>`:'') +
-        `<td class="cov">${cat} <button class="rowdel" onclick="hideCat('${cat}')" title="이 담보를 리포트에서 숨기기">✕</button></td><td>${fmtMan(a)||'-'}</td><td>${fmtMan(b)||'-'}</td>` +
-        `<td class="${d>0?'up':d<0?'dn':''}">${d===0?'':(d>0?'▲ '+fmtMan(d):'▼ '+fmtMan(-d))}</td></tr>`;
-    });
+  const rows = compareData();
+  // 그룹별 rowspan 계산 (gKey 기준 — 연속 구간)
+  const spans = {};
+  rows.forEach((r,i)=>{ if(r.gKey){ let n=1; for(let j=i+1;j<rows.length && !rows[j].gKey;j++) n++; spans[i]=n; } });
+  let html = '<table class="pv"><thead><tr><th style="width:104px;">구분</th><th style="text-align:left;">담보</th><th>현재</th><th>개선 후</th><th>증감</th></tr></thead><tbody>';
+  rows.forEach((r,i)=>{
+    const d = r.d;
+    html += '<tr>';
+    if(r.gKey){
+      html += `<td class="grp" rowspan="${spans[i]}">${esc(r.g)}
+        <span class="rowacts g">
+          <button class="rowdel edit g" onclick="editGroup('${esc(r.gKey)}')" title="구분 이름 수정">✎</button>
+          <button class="rowdel g" onclick="hideGroup('${esc(r.gKey)}')" title="'${esc(r.g)}' 구분 전체를 리포트에서 빼기 (복원 가능)">✕</button>
+        </span></td>`;
+    }
+    html += `<td class="cov">${esc(r.cat)}
+      <span class="rowacts">
+        <button class="rowdel edit" onclick="editCat('${esc(r.catKey)}')" title="담보 이름·금액 수정">✎</button>
+        <button class="rowdel" onclick="hideCat('${esc(r.catKey)}')" title="이 담보를 리포트에서 빼기 (복원 가능)">✕</button>
+      </span></td>`;
+    html += `<td>${fmtMan(r.a)||'-'}</td><td>${fmtMan(r.b)||'-'}</td>` +
+      `<td class="${d>0?'up':d<0?'dn':''}">${d===0?'':(d>0?'▲ '+fmtMan(d):'▼ '+fmtMan(-d))}</td></tr>`;
   });
   html += '</tbody></table>';
   $('#cmpWrap').innerHTML = html;
@@ -832,9 +899,65 @@ function renderHiddenBar(){
   const list = S.hiddenCats||[];
   if(!list.length){ bar.style.display='none'; bar.innerHTML=''; return; }
   bar.style.display='flex';
-  bar.innerHTML = `<span>숨긴 담보 ${list.length}개 (클릭하면 복원):</span>` +
-    list.map(cat=>`<span class="hchip" onclick="unhideCat('${cat}')">${cat} <i>↩</i></span>`).join('') +
+  bar.innerHTML = `<span>리포트에서 뺀 항목 ${list.length}개 (클릭하면 복원):</span>` +
+    list.map(cat=>`<span class="hchip" onclick="unhideCat('${esc(cat)}')">${esc(catLabel(cat))} <i>↩</i></span>`).join('') +
     `<button class="btn gray sm" onclick="unhideAll()">모두 복원</button>`;
+}
+
+/* ----- 담보·구분 이름/금액 수정 (미리보기 + PPT + PDF 공통 반영) ----- */
+let cmpEdit = null;   // {type:'cat'|'group', key}
+function editCat(catKey){
+  cmpEdit = {type:'cat', key:catKey};
+  const cur = curContracts(), aft = afterContracts();
+  const o = (S.cmpAmt||{})[catKey] || {};
+  const a = o.a!=null ? o.a : cur.reduce((s,c)=>s+catAmt(c,catKey),0);
+  const b = o.b!=null ? o.b : aft.reduce((s,c)=>s+catAmt(c,catKey),0);
+  $('#cmpMTitle').textContent = '담보 수정';
+  $('#cmpMSub').textContent = `표준 분류: ${catKey}`;
+  $('#cmpMFields').innerHTML = `
+    <div><label>담보 표시 이름</label><input type="text" id="cmpNm" value="${esc(catLabel(catKey))}"></div>
+    <div><label>현재 금액 (만원)</label><input type="number" id="cmpA" value="${a||0}"></div>
+    <div><label>개선 후 금액 (만원)</label><input type="number" id="cmpB" value="${b||0}"></div>
+    <div style="font-size:11.5px;color:var(--c-text-muted);font-weight:600;line-height:1.6;">
+      금액을 비워두거나 0으로 두면 계약에서 자동 계산된 값으로 되돌아갑니다.<br>이름·금액 수정은 화면 미리보기와 PPT·PDF에 모두 반영됩니다.</div>`;
+  $('#cmpModal').classList.add('on'); document.body.style.overflow='hidden';
+  setTimeout(()=>$('#cmpNm').focus(), 50);
+}
+function editGroup(gKey){
+  cmpEdit = {type:'group', key:gKey};
+  $('#cmpMTitle').textContent = '구분 수정';
+  $('#cmpMSub').textContent = `표준 구분: ${gKey}`;
+  $('#cmpMFields').innerHTML = `
+    <div><label>구분 표시 이름</label><input type="text" id="cmpNm" value="${esc(groupLabel(gKey))}"></div>
+    <div style="font-size:11.5px;color:var(--c-text-muted);font-weight:600;line-height:1.6;">
+      구분 이름은 화면 미리보기와 PPT·PDF에 모두 반영됩니다.<br>각 담보의 금액은 담보별 ✎ 버튼에서 수정할 수 있습니다.</div>`;
+  $('#cmpModal').classList.add('on'); document.body.style.overflow='hidden';
+  setTimeout(()=>$('#cmpNm').focus(), 50);
+}
+function closeCmpEdit(){ cmpEdit=null; $('#cmpModal').classList.remove('on'); document.body.style.overflow=''; }
+function saveCmpEdit(){
+  if(!cmpEdit) return closeCmpEdit();
+  const nm = $('#cmpNm').value.trim();
+  if(cmpEdit.type==='group'){
+    if(!S.groupLabels) S.groupLabels={};
+    if(!nm || nm===cmpEdit.key) delete S.groupLabels[cmpEdit.key];
+    else S.groupLabels[cmpEdit.key] = nm;
+  }else{
+    if(!S.catLabels) S.catLabels={};
+    if(!nm || nm===cmpEdit.key) delete S.catLabels[cmpEdit.key];
+    else S.catLabels[cmpEdit.key] = nm;
+    // 금액 오버라이드
+    if(!S.cmpAmt) S.cmpAmt={};
+    const a = parseInt($('#cmpA').value), b = parseInt($('#cmpB').value);
+    const auto = { a: curContracts().reduce((s,c)=>s+catAmt(c,cmpEdit.key),0),
+                   b: afterContracts().reduce((s,c)=>s+catAmt(c,cmpEdit.key),0) };
+    const rec = {};
+    if(!isNaN(a) && a>0 && a!==auto.a) rec.a = a;
+    if(!isNaN(b) && b>0 && b!==auto.b) rec.b = b;
+    if(rec.a!=null || rec.b!=null) S.cmpAmt[cmpEdit.key] = rec;
+    else delete S.cmpAmt[cmpEdit.key];
+  }
+  closeCmpEdit(); refreshPreviewOnly(); persist();
 }
 
 function renderMatrix(){
@@ -849,7 +972,7 @@ function renderMatrix(){
   const cur = curContracts(), aft = afterContracts();
   activeRows().forEach(([g, items])=>{
     items.forEach((cat,i)=>{
-      html += '<tr>' + (i===0?`<td class="grp" rowspan="${items.length}">${g}</td>`:'') + `<td class="cov">${cat}</td>`;
+      html += '<tr>' + (i===0?`<td class="grp" rowspan="${items.length}">${esc(groupLabel(g))}</td>`:'') + `<td class="cov">${esc(catLabel(cat))}</td>`;
       cs.forEach(c=>{ const v = catAmt(c,cat); html += `<td>${v?fmtMan(v):''}</td>`; });
       html += `<td class="tot">${fmtMan(cur.reduce((s,c)=>s+catAmt(c,cat),0))||'-'}</td>`;
       html += `<td class="tot">${fmtMan(aft.reduce((s,c)=>s+catAmt(c,cat),0))||'-'}</td></tr>`;
@@ -904,10 +1027,10 @@ function detailChunks(list, per=4){
   const out = [];
   for(let i=0;i<list.length;i+=per){
     const grp = list.slice(i, i+per);
-    const cats = [];   // [{g(첫행만), cat}]
+    const cats = [];   // [{g(첫행만), cat(표시라벨), catKey, span}]
     GROUPS.forEach(([g, items])=>{
       const live = visCats(items).filter(cat => grp.some(c=>catAmt(c,cat)>0));
-      live.forEach((cat,k)=> cats.push({g: k===0?g:'', cat, span: k===0?live.length:0}));
+      live.forEach((cat,k)=> cats.push({g: k===0?groupLabel(g):'', cat: catLabel(cat), catKey: cat, span: k===0?live.length:0}));
     });
     out.push({grp, cats});
   }
@@ -915,14 +1038,17 @@ function detailChunks(list, per=4){
 }
 function compareData(){
   const cur = curContracts(), aft = afterContracts();
+  const ov = S.cmpAmt || {};
   const rows = [];
   GROUPS.forEach(([g, items])=>{
     const live = visCats(items).map(cat=>{
-      const a = cur.reduce((s,c)=>s+catAmt(c,cat),0);
-      const b = aft.reduce((s,c)=>s+catAmt(c,cat),0);
-      return {cat, a, b, d: b-a};
+      let a = cur.reduce((s,c)=>s+catAmt(c,cat),0);
+      let b = aft.reduce((s,c)=>s+catAmt(c,cat),0);
+      const o = ov[cat];
+      if(o){ if(o.a!=null) a = o.a; if(o.b!=null) b = o.b; }
+      return {catKey:cat, cat:catLabel(cat), a, b, d: b-a};
     }).filter(r=>r.a||r.b);
-    live.forEach((r,k)=> rows.push({g: k===0?g:'', ...r}));
+    live.forEach((r,k)=> rows.push({g: k===0?groupLabel(g):'', gKey: k===0?g:'', ...r}));
   });
   return rows;
 }
@@ -1058,11 +1184,11 @@ function buildDiagnosis(){
   const out = [];
   const dupCats = ALL_CATS.filter(cat => cur.filter(c=>catAmt(c,cat)>0).length >= 2);
   if(dupCats.length) out.push({tag:'중복', color:C.NAVY,
-    title:'중복 가입 보장 확인', desc:`${dupCats.slice(0,3).join(', ')} 등 ${dupCats.length}개 항목이 둘 이상 계약에 중복됩니다. 정리 시 보험료 절감이 가능합니다.`});
+    title:'중복 가입 보장 확인', desc:`${dupCats.slice(0,3).map(catLabel).join(', ')} 등 ${dupCats.length}개 항목이 둘 이상 계약에 중복됩니다. 정리 시 보험료 절감이 가능합니다.`});
   const KEY = ['일반암진단비','뇌혈관질환진단비','허혈성심장질환진단비','질병후유장해','질병사망'];
   const gaps = KEY.filter(cat => aft.reduce((s,c)=>s+catAmt(c,cat),0) === 0);
   if(gaps.length) out.push({tag:'부족', color:C.RED,
-    title:'보장 공백 영역', desc:`${gaps.join(', ')} 보장이 부족하거나 없습니다. 우선 보완을 검토하시길 권장합니다.`});
+    title:'보장 공백 영역', desc:`${gaps.map(catLabel).join(', ')} 보장이 부족하거나 없습니다. 우선 보완을 검토하시길 권장합니다.`});
   const ren = cur.filter(c=>/갱신/.test(c.productName));
   if(ren.length) out.push({tag:'갱신', color:C.AMBER,
     title:'갱신형 보험료 인상 주의', desc:`${ren.length}건이 갱신형으로 추정됩니다. 연령 증가에 따라 보험료가 오를 수 있어 비갱신 전환을 검토할 수 있습니다.`});
@@ -1130,11 +1256,11 @@ function addDetailSlides(p, list, eyebrow, baseTitle){
       ...grp.map(c=> td([c.payProgress, c.payTerm].filter(Boolean).join(' · ')||'-', {align:'center', fontSize:9, fill:{color:C.ROWBLUE}})) ]);
 
     // 담보 행 (대분류 세로 셀 rowspan)
-    cats.forEach(({g, cat, span})=>{
+    cats.forEach(({g, cat, catKey, span})=>{
       const row = [];
       if(span) row.push(catCell(g, span));
       row.push(td(cat, {align:'left', fill:{color:C.CARD}, color:C.GRAY, fontSize:10}));
-      grp.forEach(c=>{ const v = catAmt(c, cat); row.push(td(v?fmtMan(v):'', {color: v?C.INK:C.LINE})); });
+      grp.forEach(c=>{ const v = catAmt(c, catKey); row.push(td(v?fmtMan(v):'', {color: v?C.INK:C.LINE})); });
       rows.push(row);
     });
 
@@ -1388,9 +1514,9 @@ function buildPrintHTML(){
     <tr><td colspan="2" class="grp">월 보험료</td>${grp.map(c=>`<td class="c hl">${fmtWon(c.monthlyPremium)}</td>`).join('')}</tr>
     <tr><td colspan="2" class="grp">보장기간</td>${grp.map(c=>{const[a,b]=splitPeriod(c.period);return `<td class="c" style="font-size:8pt;">${esc(a&&b?a+' ~ '+b:(a||b||'-'))}</td>`;}).join('')}</tr>
     <tr><td colspan="2" class="grp">납입</td>${grp.map(c=>`<td class="c">${esc([c.payProgress,c.payTerm].filter(Boolean).join(' · ')||'-')}</td>`).join('')}</tr>
-    ${cats.map(({g,cat,span})=>`<tr>${span?`<td class="grp" rowspan="${span}">${esc(g)}</td>`:''}
+    ${cats.map(({g,cat,catKey,span})=>`<tr>${span?`<td class="grp" rowspan="${span}">${esc(g)}</td>`:''}
       <td class="l" style="background:#fcfefd;">${esc(cat)}</td>
-      ${grp.map(c=>{const v=catAmt(c,cat);return `<td>${v?fmtMan(v):''}</td>`;}).join('')}</tr>`).join('')}
+      ${grp.map(c=>{const v=catAmt(c,catKey);return `<td>${v?fmtMan(v):''}</td>`;}).join('')}</tr>`).join('')}
     </table>${pFoot(cust)}</div>`;
   }).join('');
   h += dSec(curContracts().filter(c=>!c.special), '03 · CURRENT COVERAGE', '계약별 보장 상세');
@@ -1509,6 +1635,20 @@ function bindDrop(zoneId, inputId, handler, multi){
 bindDrop('#dropReport', '#fileReport', handleReport, false);
 bindDrop('#dropProp',   '#fileProp',   handleProposals, true);
 ['custName','plannerName','plannerPhone'].forEach(id=> document.getElementById(id).addEventListener('change', persist));
+
+// 모달: 배경(어두운 영역) 클릭 시 닫기
+$('#editModal').addEventListener('mousedown', e=>{ if(e.target.id==='editModal') closeEditor(); });
+$('#cmpModal').addEventListener('mousedown', e=>{ if(e.target.id==='cmpModal') closeCmpEdit(); });
+// 모달: ESC 닫기 / Enter 저장(비교표 수정)
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape'){
+    if($('#cmpModal').classList.contains('on')) closeCmpEdit();
+    else if($('#editModal').classList.contains('on')) closeEditor();
+  } else if(e.key==='Enter' && $('#cmpModal').classList.contains('on') && e.target.tagName==='INPUT'){
+    e.preventDefault(); saveCmpEdit();
+  }
+});
+
 checkRestore();
 </script>
 </body>
