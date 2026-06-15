@@ -130,18 +130,23 @@ input:focus,select:focus{outline:none;border-color:var(--c-primary);box-shadow:0
   .pstat.navy .lb{color:#8FB4DC;} .pstat.navy .v{color:#fff;}
   .memoline{border-bottom:0.75pt solid #cbd5e1;height:10mm;}
 }
-.delbtn{background:none;border:none;color:var(--c-text-faint);cursor:pointer;font-size:13px;padding:2px 5px;}
-.delbtn:hover{color:var(--c-danger);}
-/* 비교표 담보·구분 수정/삭제 */
-.rowdel{display:inline;background:none;border:none;color:var(--c-text-faint);cursor:pointer;font-size:11px;padding:0 3px;line-height:1;opacity:.35;transition:.12s;vertical-align:1px;}
-table.pv tr:hover .rowdel{opacity:1;}
-.rowdel:hover{color:var(--c-danger);transform:scale(1.2);}
-.rowdel.edit:hover{color:var(--c-primary);}
-.rowdel.g{display:inline-block;opacity:.5;color:rgba(255,255,255,.85);}
-table.pv tr:hover .rowdel.g{opacity:1;}
-.rowdel.g:hover{color:#fff;}
-.rowacts{display:inline-flex;gap:2px;margin-left:4px;vertical-align:1px;}
-.rowacts.g{display:flex;justify-content:center;margin:4px 0 0;}
+.delbtn{appearance:none;-webkit-appearance:none;background:#fde8e8;border:none;color:var(--c-danger);cursor:pointer;font-size:12px;font-weight:700;padding:3px 9px;border-radius:5px;font-family:inherit;transition:.12s;}
+.delbtn:hover{background:var(--c-danger);color:#fff;}
+/* 비교표 담보·구분 수정/삭제 — 색상 구분 칩 */
+.rowacts{display:inline-flex;gap:4px;margin-left:6px;vertical-align:middle;opacity:0;transition:.12s;}
+.rowacts.g{display:flex;justify-content:center;gap:4px;margin:5px 0 0;opacity:.85;}
+table.pv tr:hover .rowacts{opacity:1;}
+table.pv td.grp:hover .rowacts.g{opacity:1;}
+.ract{appearance:none;-webkit-appearance:none;border:none;border-radius:5px;font-size:10.5px;font-weight:700;cursor:pointer;padding:2px 7px;font-family:inherit;white-space:nowrap;line-height:1.5;transition:.12s;}
+.ract.edit{background:var(--c-teal-bg-2);color:var(--c-teal-deep);}
+.ract.edit:hover{background:var(--c-primary);color:#fff;}
+.ract.del{background:#fde8e8;color:var(--c-danger);}
+.ract.del:hover{background:var(--c-danger);color:#fff;}
+/* 구분 셀(teal 배경) 위에서는 밝은 칩으로 */
+.ract.edit.g{background:rgba(255,255,255,.92);color:var(--c-teal-deep);}
+.ract.edit.g:hover{background:#fff;}
+.ract.del.g{background:rgba(255,255,255,.92);color:var(--c-danger);}
+.ract.del.g:hover{background:#fff;}
 .hidbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--c-text-muted);font-weight:600;}
 .hchip{display:inline-flex;align-items:center;gap:5px;background:var(--c-teal-bg-2);border:1px solid var(--c-line-teal);
   border-radius:99px;padding:3px 10px;font-size:11.5px;font-weight:700;color:var(--c-teal-deepest);cursor:pointer;transition:.12s;}
@@ -169,6 +174,13 @@ table.pv tr:hover .rowdel.g{opacity:1;}
 .cov-scroll{max-height:46vh;overflow-y:auto;border:1px solid var(--c-line);border-radius:10px;}
 .cov-scroll table{margin:0;}
 .cov-scroll thead th{position:sticky;top:0;z-index:1;}
+.restore-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;padding:10px 12px;
+  background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;font-size:12px;color:#9a3412;font-weight:700;}
+.restore-bar .rlabel{display:flex;align-items:center;gap:6px;}
+.restore-bar .rchip{display:inline-flex;align-items:center;gap:5px;background:#fff;border:1px solid #fdba74;
+  border-radius:99px;padding:4px 11px;font-size:11.5px;font-weight:700;color:#c2410c;cursor:pointer;transition:.12s;}
+.restore-bar .rchip:hover{background:#ffedd5;}
+.restore-bar .rchip i{font-style:normal;font-size:11px;}
 .mfoot{display:flex;gap:8px;justify-content:flex-end;padding:14px 22px;border-top:1px solid var(--c-line);background:#fafdfc;}
 #editor table{width:100%;border-collapse:collapse;margin-top:10px;}
 #editor th{background:var(--c-teal-bg-2);font-size:12px;color:var(--c-teal-deepest);padding:7px 8px;text-align:left;border:1px solid var(--c-line);}
@@ -202,6 +214,8 @@ table.pv td.cov{text-align:left;font-weight:600;background:#fcfefd;}
 table.pv td.tot{font-weight:700;background:var(--c-teal-bg-1);}
 table.pv td.up{color:var(--c-success);font-weight:700;} table.pv td.dn{color:var(--c-danger);font-weight:700;}
 table.pv tr.sum td{background:var(--c-teal-bg-3);font-weight:800;}
+table.pv tr.info td{background:#f8fafc;font-weight:700;color:var(--c-text-2);}
+table.pv tr.info td:first-child{color:var(--c-teal-deepest);}
 .legend{display:flex;gap:16px;font-size:12.5px;font-weight:700;margin:0 0 10px;}
 .legend i{display:inline-block;width:11px;height:11px;margin-right:5px;border-radius:3px;vertical-align:-1px;}
 /* overlay */
@@ -299,12 +313,13 @@ table.pv tr.sum td{background:var(--c-teal-bg-3);font-weight:800;}
     <span><i style="background:#d97706"></i>증권확인 필요</span>
     <span><i style="background:var(--c-purple)"></i>신규 제안</span>
   </div>
-  <h2 style="font-size:14px;margin:14px 0 8px;">보장 종합 비교 (현재 → 개선 후)
+  <h2 style="font-size:14px;margin:14px 0 8px;">유지 계약 담보상세
+    <span style="font-size:11.5px;font-weight:600;color:var(--c-text-muted);margin-left:8px;">계약별 담보 가입금액과 월 보험료·총 납입·납입기간·납입회차·만기를 함께 표시합니다.</span></h2>
+  <div class="tblwrap" id="mtxWrap"></div>
+  <h2 style="font-size:14px;margin:20px 0 8px;">보장 종합 비교 (현재 → 개선 후)
     <span style="font-size:11.5px;font-weight:600;color:var(--c-text-muted);margin-left:8px;">행에 마우스를 올리면 ✎(이름·금액 수정) · ✕(리포트에서 빼기) 버튼이 나타납니다. 수정·삭제는 PPT·PDF에도 동일 적용됩니다.</span></h2>
   <div class="tblwrap" id="cmpWrap"></div>
   <div class="hidbar" id="hiddenBar" style="display:none;"></div>
-  <h2 style="font-size:14px;margin:20px 0 8px;">계약별 보장 매트릭스</h2>
-  <div class="tblwrap" id="mtxWrap"></div>
   <div class="note">금액 단위: 만원 · 실손/일당 담보는 가입금액 기준이며, 실제 지급 조건은 약관을 따릅니다. 본 자료는 고객 이해를 돕기 위한 참고자료입니다.</div>
 </div>
 
@@ -361,6 +376,7 @@ table.pv tr.sum td{background:var(--c-teal-bg-3);font-weight:800;}
           <tbody id="covBody"></tbody>
         </table>
       </div>
+      <div class="restore-bar" id="covRestoreBar" style="display:none;"></div>
     </div>
     <div class="mfoot">
       <button class="btn ghost sm" onclick="delContract(editingId)">계약 삭제</button>
@@ -405,6 +421,7 @@ const ALL_CATS = GROUPS.flatMap(g=>g[1]);
 /* ================= 상태 ================= */
 let S = { contracts: [], hiddenCats: [], catLabels: {}, groupLabels: {}, cmpAmt: {} };   // {id, src, status:'유지'|'리모델링'|'이체중지'|'증권확인'|'제안', insurer, productName, monthlyPremium, payProgress, period, covs:[{name,category,amt}]}
 let editingId = null;
+let deletedCovs = [];   // 모달 세션 동안 삭제한 담보 임시 보관 (복원용, 저장 안 됨)
 const $ = s => document.querySelector(s);
 const uid = () => 'c' + Math.random().toString(36).slice(2,9);
 const API = '/.netlify/functions/ai-parse';
@@ -456,6 +473,20 @@ const curContracts   = () => S.contracts.filter(c=>CUR_ST.includes(c.status));
 const afterContracts = () => S.contracts.filter(c=>AFT_ST.includes(c.status));
 const dropContracts  = () => S.contracts.filter(c=>DROP_ST.includes(c.status));
 const sumPrem = arr => arr.reduce((s,c)=> s + (+c.monthlyPremium||0), 0);
+// 납입회차 "41/240" → 총 240회. 없으면 payTerm "20년납"에서 20*12=240회 추정
+function totalPayCount(c){
+  const m = String(c.payProgress||'').match(/\/\s*(\d+)/);
+  if(m) return parseInt(m[1]);
+  const yr = String(c.payTerm||'').match(/(\d+)\s*년/);
+  if(yr) return parseInt(yr[1])*12;
+  const mo = String(c.payTerm||'').match(/(\d+)\s*(개월|회)/);
+  if(mo) return parseInt(mo[1]);
+  return 0;
+}
+// 총 납입 보험료 = 월 보험료 × 총 납입횟수 (원)
+const totalPrem = c => (+c.monthlyPremium||0) * totalPayCount(c);
+// 만기: period "계약일 ~ 만기일"의 뒷부분
+const maturityOf = c => { const a = String(c.period||'').split('~').map(s=>s.trim()); return a[1] || '-'; };
 const isHiddenCat = cat => (S.hiddenCats||[]).includes(cat);
 const visCats = items => items.filter(cat=>!isHiddenCat(cat));
 const catLabel = cat => (S.catLabels && S.catLabels[cat]) || cat;
@@ -792,6 +823,7 @@ const splitPeriod = p => { const a = String(p||'').split('~').map(s=>s.trim()); 
 function openEditor(id){
   editingId = id;
   const c = S.contracts.find(x=>x.id===id); if(!c) return;
+  deletedCovs = [];   // 새 계약 편집 시작 — 이전 삭제 이력 비움
   $('#edTitle').textContent = (c.insurer || c.productName) ? `${c.insurer||''} ${c.productName||''}`.trim() : '계약 편집';
   $('#editModal').classList.add('on');
   document.body.style.overflow = 'hidden';
@@ -801,7 +833,7 @@ function openEditor(id){
   $('#edStart').value = ps; $('#edEnd').value = pe;
   $('#edPay').value = c.payProgress||''; $('#edPayTerm').value = c.payTerm||'';
   $('#edCs').value = c.csPhone||''; $('#edSpecial').checked = !!c.special;
-  renderCovRows(c); renderContracts();
+  renderCovRows(c); renderDeletedCovBar(); renderContracts();
 }
 function renderCovRows(c){
   const tb = $('#covBody'); tb.innerHTML = '';
@@ -825,7 +857,31 @@ function updCov(i, k, val){
   c.covs[i][k] = (k==='amt') ? (parseInt(val)||0) : val;
   refreshPreviewOnly(); persist();
 }
-function delCov(i){ const c = S.contracts.find(x=>x.id===editingId); c.covs.splice(i,1); renderCovRows(c); refreshPreviewOnly(); persist(); }
+function delCov(i){
+  const c = S.contracts.find(x=>x.id===editingId); if(!c) return;
+  const removed = c.covs.splice(i,1)[0];   // 삭제 담보 보관 (복원용)
+  if(removed) deletedCovs.unshift(removed);
+  renderCovRows(c); renderDeletedCovBar(); refreshPreviewOnly(); persist();
+}
+function restoreCov(idx){
+  const c = S.contracts.find(x=>x.id===editingId); if(!c) return;
+  const v = deletedCovs.splice(idx,1)[0];
+  if(v) c.covs.push(v);
+  renderCovRows(c); renderDeletedCovBar(); refreshPreviewOnly(); persist();
+}
+function restoreAllCovs(){
+  const c = S.contracts.find(x=>x.id===editingId); if(!c) return;
+  while(deletedCovs.length) c.covs.push(deletedCovs.shift());
+  renderCovRows(c); renderDeletedCovBar(); refreshPreviewOnly(); persist();
+}
+function renderDeletedCovBar(){
+  const bar = $('#covRestoreBar'); if(!bar) return;
+  if(!deletedCovs.length){ bar.style.display='none'; bar.innerHTML=''; return; }
+  bar.style.display='flex';
+  bar.innerHTML = `<span class="rlabel">↩ 방금 삭제한 담보 ${deletedCovs.length}개 — 잘못 지웠다면 눌러서 되살리세요:</span>` +
+    deletedCovs.map((v,idx)=>`<span class="rchip" onclick="restoreCov(${idx})" title="복원">${esc(v.name||v.category||'담보')}${v.amt?` · ${(+v.amt).toLocaleString()}만`:''} <i>↩</i></span>`).join('') +
+    (deletedCovs.length>1?`<button class="btn ghost sm" onclick="restoreAllCovs()" style="padding:4px 10px;">모두 복원</button>`:'');
+}
 function addCovRow(){
   const c = S.contracts.find(x=>x.id===editingId); if(!c) return;
   c.covs.push({name:'', category:'기타', amt:0}); renderCovRows(c);
@@ -888,14 +944,14 @@ function renderCmpTable(){
     if(r.gKey){
       html += `<td class="grp" rowspan="${spans[i]}">${esc(r.g)}
         <span class="rowacts g">
-          <button class="rowdel edit g" onclick="editGroup('${esc(r.gKey)}')" title="구분 이름 수정">✎</button>
-          <button class="rowdel g" onclick="hideGroup('${esc(r.gKey)}')" title="'${esc(r.g)}' 구분 전체를 리포트에서 빼기 (복원 가능)">✕</button>
+          <button class="ract edit g" onclick="editGroup('${esc(r.gKey)}')" title="구분 이름 수정">✎ 수정</button>
+          <button class="ract del g" onclick="hideGroup('${esc(r.gKey)}')" title="'${esc(r.g)}' 구분 전체를 리포트에서 빼기 (복원 가능)">✕ 삭제</button>
         </span></td>`;
     }
     html += `<td class="cov">${esc(r.cat)}
       <span class="rowacts">
-        <button class="rowdel edit" onclick="editCat('${esc(r.catKey)}')" title="담보 이름·금액 수정">✎</button>
-        <button class="rowdel" onclick="hideCat('${esc(r.catKey)}')" title="이 담보를 리포트에서 빼기 (복원 가능)">✕</button>
+        <button class="ract edit" onclick="editCat('${esc(r.catKey)}')" title="담보 이름·금액 수정">✎ 수정</button>
+        <button class="ract del" onclick="hideCat('${esc(r.catKey)}')" title="이 담보를 리포트에서 빼기 (복원 가능)">✕ 삭제</button>
       </span></td>`;
     html += `<td>${fmtMan(r.a)||'-'}</td><td>${fmtMan(r.b)||'-'}</td>` +
       `<td class="${d>0?'up':d<0?'dn':''}">${d===0?'':(d>0?'▲ '+fmtMan(d):'▼ '+fmtMan(-d))}</td></tr>`;
@@ -1006,10 +1062,27 @@ function renderMatrix(){
       html += `<td class="tot">${fmtMan(aft.reduce((s,c)=>s+catAmt(c,cat),0))||'-'}</td></tr>`;
     });
   });
-  // 보험료 행
-  html += `<tr class="sum"><td colspan="2" style="text-align:center;">월 보험료</td>`;
+  // 계약 요약 정보 행 (월 보험료 / 총 납입 보험료 / 납입기간 / 납입회차 / 만기)
+  const colSpanTail = 2;   // 현재·개선 후 합계 칸
+  html += `<tr class="sum"><td colspan="2" style="text-align:center;">월 납입 보험료</td>`;
   cs.forEach(c=> html += `<td>${(c.monthlyPremium||0).toLocaleString()}</td>`);
   html += `<td>${sumPrem(cur).toLocaleString()}</td><td>${sumPrem(aft).toLocaleString()}</td></tr>`;
+
+  html += `<tr class="info"><td colspan="2" style="text-align:center;">총 납입 보험료</td>`;
+  cs.forEach(c=>{ const t = totalPrem(c); html += `<td>${t?t.toLocaleString():'-'}</td>`; });
+  html += `<td>${cur.reduce((s,c)=>s+totalPrem(c),0).toLocaleString()}</td><td>${aft.reduce((s,c)=>s+totalPrem(c),0).toLocaleString()}</td></tr>`;
+
+  html += `<tr class="info"><td colspan="2" style="text-align:center;">납입기간</td>`;
+  cs.forEach(c=> html += `<td>${esc(c.payTerm||'-')}</td>`);
+  html += `<td colspan="${colSpanTail}"></td></tr>`;
+
+  html += `<tr class="info"><td colspan="2" style="text-align:center;">납입회차</td>`;
+  cs.forEach(c=> html += `<td>${esc(c.payProgress||'-')}</td>`);
+  html += `<td colspan="${colSpanTail}"></td></tr>`;
+
+  html += `<tr class="info"><td colspan="2" style="text-align:center;">만기</td>`;
+  cs.forEach(c=> html += `<td style="font-size:11px;">${esc(maturityOf(c))}</td>`);
+  html += `<td colspan="${colSpanTail}"></td></tr>`;
   html += '</tbody></table>';
   $('#mtxWrap').innerHTML = html;
 }
