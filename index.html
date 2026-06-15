@@ -160,6 +160,15 @@ table.pv tr:hover .rowdel.g{opacity:1;}
 .mclose{background:none;border:none;font-size:22px;line-height:1;color:var(--c-text-faint);cursor:pointer;padding:2px 6px;border-radius:6px;}
 .mclose:hover{background:rgba(0,0,0,.06);color:var(--c-text);}
 .mbody{padding:20px 22px;}
+.msec{display:flex;align-items:center;justify-content:space-between;margin:0 0 9px;}
+.msec:not(:first-child){margin-top:20px;}
+.msec .t{font-size:13.5px;font-weight:800;color:var(--c-teal-deepest);display:flex;align-items:center;gap:8px;}
+.msec .t::before{content:"";width:4px;height:15px;background:linear-gradient(180deg,#16b8ab,#0e9a8f);border-radius:2px;}
+.msec .cnt{font-size:12px;font-weight:700;color:var(--c-primary);background:var(--c-teal-bg-2);border-radius:99px;padding:1px 9px;}
+.basic-box{background:var(--c-teal-bg-1);border:1px solid var(--c-line);border-radius:10px;padding:14px 16px;}
+.cov-scroll{max-height:46vh;overflow-y:auto;border:1px solid var(--c-line);border-radius:10px;}
+.cov-scroll table{margin:0;}
+.cov-scroll thead th{position:sticky;top:0;z-index:1;}
 .mfoot{display:flex;gap:8px;justify-content:flex-end;padding:14px 22px;border-top:1px solid var(--c-line);background:#fafdfc;}
 #editor table{width:100%;border-collapse:collapse;margin-top:10px;}
 #editor th{background:var(--c-teal-bg-2);font-size:12px;color:var(--c-teal-deepest);padding:7px 8px;text-align:left;border:1px solid var(--c-line);}
@@ -327,23 +336,31 @@ table.pv tr.sum td{background:var(--c-teal-bg-3);font-weight:800;}
       <button class="mclose" onclick="closeEditor()">×</button>
     </div>
     <div class="mbody">
-      <div class="inrow">
-        <div><label>보험사</label><input type="text" id="edIns" style="width:150px;"></div>
-        <div><label>상품명</label><input type="text" id="edName" style="width:280px;"></div>
-        <div><label>월 보험료(원)</label><input type="number" id="edPrem" style="width:115px;"></div>
-        <div><label>계약일</label><input type="text" id="edStart" style="width:110px;" placeholder="2023.01.10"></div>
-        <div><label>보장만기</label><input type="text" id="edEnd" style="width:110px;" placeholder="2043.01.10"></div>
-        <div><label>납입(횟수)</label><input type="text" id="edPay" style="width:90px;" placeholder="41/240"></div>
-        <div><label>납입기간</label><input type="text" id="edPayTerm" style="width:95px;" placeholder="월납/20년"></div>
-        <div><label>보험사 고객센터</label><input type="text" id="edCs" style="width:115px;" placeholder="1588-0000"></div>
-        <div><label>분류 외 보험</label><label style="display:flex;align-items:center;gap:6px;font-weight:600;padding-top:8px;cursor:pointer;">
-          <input type="checkbox" id="edSpecial" style="width:16px;height:16px;accent-color:var(--c-primary);"> 운전자·치매·연금 등</label></div>
+      <div class="msec"><div class="t">계약 기본 정보</div></div>
+      <div class="basic-box">
+        <div class="inrow">
+          <div><label>보험사</label><input type="text" id="edIns" style="width:150px;"></div>
+          <div><label>상품명</label><input type="text" id="edName" style="width:280px;"></div>
+          <div><label>월 보험료(원)</label><input type="number" id="edPrem" style="width:115px;"></div>
+          <div><label>계약일</label><input type="text" id="edStart" style="width:110px;" placeholder="2023.01.10"></div>
+          <div><label>보장만기</label><input type="text" id="edEnd" style="width:110px;" placeholder="2043.01.10"></div>
+          <div><label>납입(횟수)</label><input type="text" id="edPay" style="width:90px;" placeholder="41/240"></div>
+          <div><label>납입기간</label><input type="text" id="edPayTerm" style="width:95px;" placeholder="월납/20년"></div>
+          <div><label>보험사 고객센터</label><input type="text" id="edCs" style="width:115px;" placeholder="1588-0000"></div>
+          <div><label>분류 외 보험</label><label style="display:flex;align-items:center;gap:6px;font-weight:600;padding-top:8px;cursor:pointer;">
+            <input type="checkbox" id="edSpecial" style="width:16px;height:16px;accent-color:var(--c-primary);"> 운전자·치매·연금 등</label></div>
+        </div>
       </div>
-      <table>
-        <thead><tr><th style="width:42%">담보명</th><th style="width:30%">표준 분류</th><th style="width:18%">가입금액(만원)</th><th style="width:10%"></th></tr></thead>
-        <tbody id="covBody"></tbody>
-      </table>
-      <div style="margin-top:10px;"><button class="btn ghost sm" onclick="addCovRow()">+ 담보 추가</button></div>
+      <div class="msec">
+        <div class="t">담보 내역 <span class="cnt" id="covCount">0개</span></div>
+        <button class="btn ghost sm" onclick="addCovRow()">+ 담보 추가</button>
+      </div>
+      <div class="cov-scroll">
+        <table>
+          <thead><tr><th style="width:42%">담보명</th><th style="width:30%">표준 분류</th><th style="width:18%">가입금액(만원)</th><th style="width:10%"></th></tr></thead>
+          <tbody id="covBody"></tbody>
+        </table>
+      </div>
     </div>
     <div class="mfoot">
       <button class="btn ghost sm" onclick="delContract(editingId)">계약 삭제</button>
@@ -788,6 +805,11 @@ function openEditor(id){
 }
 function renderCovRows(c){
   const tb = $('#covBody'); tb.innerHTML = '';
+  const cnt = $('#covCount'); if(cnt) cnt.textContent = `${c.covs.length}개`;
+  if(!c.covs.length){
+    tb.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--c-text-muted);padding:18px;font-weight:600;">등록된 담보가 없습니다. 아래 ‘+ 담보 추가’로 입력하세요.</td></tr>`;
+    return;
+  }
   c.covs.forEach((v,i)=>{
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -804,7 +826,13 @@ function updCov(i, k, val){
   refreshPreviewOnly(); persist();
 }
 function delCov(i){ const c = S.contracts.find(x=>x.id===editingId); c.covs.splice(i,1); renderCovRows(c); refreshPreviewOnly(); persist(); }
-function addCovRow(){ const c = S.contracts.find(x=>x.id===editingId); c.covs.push({name:'', category:'기타', amt:0}); renderCovRows(c); }
+function addCovRow(){
+  const c = S.contracts.find(x=>x.id===editingId); if(!c) return;
+  c.covs.push({name:'', category:'기타', amt:0}); renderCovRows(c);
+  const rows = $('#covBody').querySelectorAll('tr');
+  const last = rows[rows.length-1]; const inp = last && last.querySelector('input');
+  if(inp) inp.focus();
+}
 function closeEditor(){
   const c = S.contracts.find(x=>x.id===editingId);
   if(c){
