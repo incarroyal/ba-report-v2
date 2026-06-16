@@ -124,8 +124,8 @@ input:focus,select:focus{outline:none;border-color:var(--c-primary);box-shadow:0
   .phead .rt .logo{font-size:8.5pt;font-weight:800;color:#B0894C;letter-spacing:1.5px;margin-bottom:1.5mm;}
 
   /* ===== 페이지 푸터 ===== */
-  .pfoot{position:absolute;bottom:8mm;left:15mm;right:15mm;display:flex;justify-content:space-between;align-items:center;
-    font-size:7pt;color:#A7B2C0;font-weight:600;border-top:0.5pt solid #E5E9F0;padding-top:2.5mm;letter-spacing:0.2px;}
+  .pfoot{position:absolute;bottom:7mm;left:15mm;right:15mm;display:flex;justify-content:space-between;align-items:center;
+    font-size:7pt;color:#A7B2C0;font-weight:600;border-top:0.5pt solid #E5E9F0;padding-top:2mm;letter-spacing:0.2px;background:#fff;}
   .pfoot .pg{font-weight:800;color:#0E2C4D;}
 
   /* ===== 섹션 소제목 ===== */
@@ -147,11 +147,11 @@ input:focus,select:focus{outline:none;border-color:var(--c-primary);box-shadow:0
 
   /* ===== 표 ===== */
   table.pt{border-collapse:collapse;width:100%;font-size:9pt;}
-  table.pt th{background:#0E2C4D;color:#fff;padding:2.4mm 2.8mm;font-weight:700;font-size:8.5pt;text-align:right;
-    letter-spacing:0.2px;border-right:0.5pt solid rgba(255,255,255,.12);}
+  table.pt th{background:#0E2C4D;color:#fff;padding:2.2mm 2.6mm;font-weight:700;font-size:8.5pt;text-align:right;
+    letter-spacing:0.2px;border-right:0.5pt solid rgba(255,255,255,.12);line-height:1.25;}
   table.pt th:first-child{border-top-left-radius:2mm;} table.pt th:last-child{border-top-right-radius:2mm;border-right:none;}
   table.pt th.l{text-align:left;} table.pt th.c{text-align:center;}
-  table.pt td{border-bottom:0.5pt solid #EAEEF4;padding:1.9mm 2.8mm;text-align:right;font-weight:600;color:#2A3645;}
+  table.pt td{border-bottom:0.5pt solid #EAEEF4;padding:1.4mm 2.6mm;text-align:right;font-weight:600;color:#2A3645;line-height:1.25;}
   table.pt td.l{text-align:left;} table.pt td.c{text-align:center;}
   table.pt tbody tr.zebra:nth-child(even){background:#F8FAFC;}
   table.pt td.grp{background:#EEF3F9;color:#0E2C4D;font-weight:800;text-align:center;font-size:8.5pt;border-bottom:0.5pt solid #DCE5F0;}
@@ -1212,7 +1212,7 @@ function ovData(){
 }
 function detailChunks(list, per=4){
   const out = [];
-  const MAX_COV_ROWS = 16;   // 한 시트당 담보 행 상한 (초과 시 같은 계약 묶음을 담보 기준으로 분할)
+  const MAX_COV_ROWS = 18;   // 한 시트당 담보 행 상한 (압축 행 높이 기준 안전값)
   for(let i=0;i<list.length;i+=per){
     const grp = list.slice(i, i+per);
     const full = [];   // 이 묶음의 전체 담보 행
@@ -1220,9 +1220,12 @@ function detailChunks(list, per=4){
       const live = visCats(items).filter(cat => grp.some(c=>catAmt(c,cat)>0));
       live.forEach((cat,k)=> full.push({g, cat: catLabel(cat), catKey: cat, first: k===0, groupLen: live.length}));
     });
-    // 담보 행을 MAX_COV_ROWS 단위로 분할
-    for(let j=0;j<Math.max(1,full.length);j+=MAX_COV_ROWS){
-      const slice = full.slice(j, j+MAX_COV_ROWS);
+    // 담보 행을 균등 분할 (한 페이지에 1행만 남는 일이 없도록)
+    const total = Math.max(1, full.length);
+    const nPages = Math.ceil(total / MAX_COV_ROWS);
+    const perPage = Math.ceil(total / nPages);
+    for(let j=0;j<total;j+=perPage){
+      const slice = full.slice(j, j+perPage);
       // 분할 경계에서 그룹 rowspan 재계산
       const cats = [];
       slice.forEach((row, idx)=>{
@@ -1663,12 +1666,18 @@ function buildPrintHTML(){
   const cntOf = st => S.contracts.filter(c=>c.status===st).length;
   const diag = buildDiagnosis().slice(0,3);
   const dCol = {'중복':'#0E2C4D','부족':'#C0392B','갱신':'#B8860B','확인':'#1565C0','분석':'#0E2C4D'};
-  // 핵심 메시지
-  const headline = sDiff<0
-    ? `월 ${fmtWon(-sDiff)}을 절감하면서, 핵심 보장 ${upCnt}개 항목을 강화합니다`
-    : sDiff===0
-    ? `보험료 부담은 그대로 유지하면서, 보장 ${upCnt}개 항목을 강화합니다`
-    : `월 ${fmtWon(sDiff)}의 추가 부담으로, 핵심 보장 ${upCnt}개 항목을 강화합니다`;
+  // 핵심 메시지 (케이스별)
+  let headline;
+  if(upCnt===0 && sDiff===0){
+    headline = `현재 ${cntOf('유지')+cntOf('리모델링')+cntOf('이체중지')+cntOf('증권확인')}건의 보험을 객관적으로 진단했습니다`;
+  } else if(sDiff<0){
+    headline = upCnt>0 ? `월 ${fmtWon(-sDiff)}을 절감하면서, 핵심 보장 ${upCnt}개 항목을 강화합니다`
+                       : `불필요한 중복을 정리해 월 ${fmtWon(-sDiff)}을 절감합니다`;
+  } else if(sDiff===0){
+    headline = `보험료 부담은 그대로 유지하면서, 보장 ${upCnt}개 항목을 강화합니다`;
+  } else {
+    headline = `월 ${fmtWon(sDiff)}의 추가 부담으로, 핵심 보장 ${upCnt}개 항목을 강화합니다`;
+  }
   // 보험료 막대 (현재 vs 개선 후)
   const barMax = Math.max(sCur, sAft, 1);
   const barW = v => (v/barMax*100).toFixed(1);
