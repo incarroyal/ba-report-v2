@@ -373,7 +373,7 @@ table.pv td.mcell.ed input{width:66px;border:1.5px solid var(--c-primary);border
     <span><i style="background:var(--c-purple)"></i>신규 제안</span>
   </div>
   <h2 style="font-size:14px;margin:14px 0 8px;">유지 계약 담보상세
-    <span style="font-size:11.5px;font-weight:600;color:var(--c-text-muted);margin-left:8px;">계약별 담보 가입금액과 월 보험료·총 납입·납입기간·납입회차·만기를 함께 표시합니다.</span></h2>
+    <span style="font-size:11.5px;font-weight:600;color:var(--c-text-muted);margin-left:8px;">계약별 담보 가입금액과 월 보험료·향후 납입할 보험료·납입기간·납입회차·만기를 함께 표시합니다. (갱신형은 100세까지 기준)</span></h2>
   <div class="tblwrap" id="mtxWrap"></div>
   <div class="hidbar" id="cellRestoreBar" style="display:none;"></div>
   <h2 style="font-size:14px;margin:20px 0 8px;">보장 종합 비교 (현재 → 개선 후)
@@ -567,6 +567,17 @@ function totalPayCount(c){
 }
 // 총 납입 보험료 = 월 보험료 × 총 납입횟수 (원)
 const totalPrem = c => (+c.monthlyPremium||0) * totalPayCount(c);
+// 향후 납입할 보험료 = 월 보험료 × 앞으로 낼 개월수.
+//  · 갱신형: 지금부터 100세까지 → (100 - 고객나이) × 12개월 (현재 보험료 기준 추정)
+//  · 그 외: 남은 납입회차 = 총회차 - 기납입회차 (예: 41/240 → 199회)
+function futurePrem(c){
+  const monthly = +c.monthlyPremium||0; if(!monthly) return 0;
+  const renew = /갱신/.test(String(c.productName||'')+String(c.payTerm||''));
+  if(renew && S.custAge){ return monthly * Math.max(0, (100 - S.custAge) * 12); }
+  const m = String(c.payProgress||'').match(/(\d+)\s*\/\s*(\d+)/);
+  if(m){ return monthly * Math.max(0, (+m[2]) - (+m[1])); }
+  return monthly * totalPayCount(c);
+}
 // 만기: period "계약일 ~ 만기일"의 뒷부분
 const maturityOf = c => { const a = String(c.period||'').split('~').map(s=>s.trim()); return a[1] || '-'; };
 const isHiddenCat = cat => (S.hiddenCats||[]).includes(cat);
@@ -694,6 +705,9 @@ async function buildContractTable(bytes){
       if(rowCount >= 2){ detected.push(p); fullText += ' ' + txt; DBG.pages.push({ p, rows: rowCount, txt: txt.slice(0, 2200) }); }
     }
     DBG.detectedPages = detected;
+    // 고객 나이 추출 (갱신형 100세까지 향후 보험료 계산용)
+    const am = fullText.match(/(남|여)\s*([0-9]{1,3})\s*세/);
+    if(am){ S.custAge = +am[2]; }
     if(!fullText){ DBG.note='요약표 페이지를 찾지 못함'; DBG.result=out; window.__TBLDBG=DBG; return out; }
     // 2) 요약표 텍스트를 행 단위로 직접 파싱 (한 행: No 보험사 계약일 만기일 납입주기 납입횟수 보험료원 기납입원 잔여원 상품명)
     //    텍스트 레이어가 행 순서대로 추출되므로 AI 호출 없이 정확/빠름.
@@ -745,13 +759,14 @@ function mapCovCat(name){
   if(has('대질병수술','특정질병수술','대질병')) return '특정질병수술비';
   if(has('상해수술')) return '상해수술비';
   if(has('수술')) return '질병수술비';
-  if(has('상해입원')) return '상해입원의료비';
-  if(has('질병입원의료비')||has('입원의료비')) return '질병입원의료비';
-  if(has('상해통원')) return '상해통원의료비';
-  if(has('통원')) return '질병통원의료비';
-  if(has('상해입원일당','상해일당')) return '상해입원일당';
-  if(has('입원일당')) return '질병입원일당';
+  // 일당류를 의료비(실손)보다 먼저 — '상해입원일당'이 '상해입원의료비'로 잘못 가는 것 방지
+  if(has('입원일당')&&has('상해','재해','교통')) return '상해입원일당';
+  if(has('입원일당')||has('입원급여금')) return '질병입원일당';
   if(has('간병')) return '간병인사용지원';
+  if(has('상해입원의료비')||(has('상해','재해')&&has('입원의료비'))) return '상해입원의료비';
+  if(has('입원의료비')) return '질병입원의료비';
+  if(has('상해')&&has('통원')) return '상해통원의료비';
+  if(has('통원')) return '질병통원의료비';
   if(has('교통사고처리','형사합의')) return '교통사고처리지원금';
   if(has('변호사')) return '변호사선임비용';
   if(has('벌금')&&has('대물')) return '벌금(대물)';
@@ -952,6 +967,25 @@ function addMissingFromTable(){
   return added;
 }
 
+// 분석 마무리: ① '특정질병수술비'를 실제 N대수술비(70대 이상)로 라벨링 ② 기본 숨김 담보 적용
+function finalizeReportView(){
+  // ① N대수술비 라벨 (예: 82대수술비) — 담보명에서 70 이상 'N대' 추출, 가장 많이 쓰인 N 사용
+  const ns = {};
+  S.contracts.forEach(c=>c.covs.forEach(v=>{
+    if(v.category==='특정질병수술비'){ const mm=String(v.name).match(/(\d{2,3})\s*대/); if(mm && +mm[1]>=70){ ns[mm[1]]=(ns[mm[1]]||0)+1; } }
+  }));
+  const nk=Object.keys(ns);
+  if(nk.length){
+    const top=nk.sort((a,b)=>ns[b]-ns[a])[0];
+    S.catLabels = S.catLabels||{};
+    const cur=S.catLabels['특정질병수술비'];
+    if(!cur || cur==='특정질병수술비' || /^\d+대수술비$/.test(cur)) S.catLabels['특정질병수술비'] = top+'대수술비';
+  }
+  // ② 기본 숨김: 암입원·통원·기타 / 골절진단비 / 기타 (사용자 요청) — hiddenBar에서 복원 가능
+  S.hiddenCats = S.hiddenCats||[];
+  ['암입원·통원·기타','골절진단비','기타'].forEach(cat=>{ if(!S.hiddenCats.includes(cat)) S.hiddenCats.push(cat); });
+}
+
 async function buildChunk(pages){
   if(!RC.srcDoc) RC.srcDoc = await PDFLib.PDFDocument.load(RC.bytes, {ignoreEncryption:true});
   const d = await PDFLib.PDFDocument.create();
@@ -1001,6 +1035,7 @@ async function runReportGroups(groups, limit){
     // 보유계약 리스트(표)에 없는 보험료의 report 계약은 제거 → 별첨에만 있는 오인식 계약 정리
     S.contracts = S.contracts.filter(c=> c.src!=='report' || RC.tableMap[+c.monthlyPremium||0]);
   }
+  finalizeReportView();   // N대수술비 라벨 + 기본 숨김 담보 적용
 
   const reps = S.contracts.filter(c=>c.src==='report');
   const nCov = reps.reduce((s,c)=>s+c.covs.length,0);
@@ -1474,9 +1509,9 @@ function renderMatrix(){
   cs.forEach(c=> html += `<td>${(c.monthlyPremium||0).toLocaleString()}</td>`);
   html += `<td>${sumPrem(cur).toLocaleString()}</td><td>${sumPrem(aft).toLocaleString()}</td></tr>`;
 
-  html += `<tr class="info"><td colspan="2" style="text-align:center;">총 납입 보험료</td>`;
-  cs.forEach(c=>{ const t = totalPrem(c); html += `<td>${t?t.toLocaleString():'-'}</td>`; });
-  html += `<td>${cur.reduce((s,c)=>s+totalPrem(c),0).toLocaleString()}</td><td>${aft.reduce((s,c)=>s+totalPrem(c),0).toLocaleString()}</td></tr>`;
+  html += `<tr class="info"><td colspan="2" style="text-align:center;">향후 납입할 보험료</td>`;
+  cs.forEach(c=>{ const t = futurePrem(c); html += `<td>${t?t.toLocaleString():'-'}</td>`; });
+  html += `<td>${cur.reduce((s,c)=>s+futurePrem(c),0).toLocaleString()}</td><td>${aft.reduce((s,c)=>s+futurePrem(c),0).toLocaleString()}</td></tr>`;
 
   html += `<tr class="info"><td colspan="2" style="text-align:center;">납입기간</td>`;
   cs.forEach(c=> html += `<td>${esc(c.payTerm||'-')}</td>`);
