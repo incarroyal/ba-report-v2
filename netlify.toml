@@ -4,3 +4,9 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+
+[[redirects]]
+from = "/"
+to = "/index_21.html"
+status = 200
+force = true
