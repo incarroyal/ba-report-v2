@@ -720,6 +720,84 @@ async function buildContractTable(bytes){
   return out;
 }
 
+// ===== 별첨(계약 상세) 담보를 텍스트에서 직접 추출 — AI 오인식 대체 =====
+// 담보명 → 표준 카테고리 키워드 매핑 (서버 MAPPING_RULES와 동일 취지)
+function mapCovCat(name){
+  const n=String(name||'').replace(/\s/g,''); const has=(...ks)=>ks.some(k=>n.includes(k));
+  if(has('상해사망','재해사망')) return '상해사망';
+  if(has('사망')) return '질병사망';
+  if(has('상해','재해')&&has('후유장해')) return '상해후유장해';
+  if(has('후유장해','장해')) return '질병후유장해';
+  if(has('소액암','유사암','제자리암','경계성','갑상선암','기타피부암')) return '유사암진단비';
+  if(has('전이암')) return '전이암진단비';
+  if(has('암진단')&&!has('소액','유사')) return '일반암진단비';
+  if(has('다빈치','표적항암','세기조절','양성자','고액항암','로봇암','중입자')) return '고액암치료비';
+  if(has('암수술')) return '암수술비';
+  if(has('항암','암직접','암입원','암통원')) return '암입원·통원·기타';
+  if(has('뇌출혈')) return '뇌출혈진단비';
+  if(has('뇌졸중')) return '뇌졸중진단비';
+  if(has('뇌혈관')&&has('수술')) return '뇌혈관질환수술비';
+  if(has('뇌혈관')) return '뇌혈관질환진단비';
+  if(has('급성심근경색')) return '급성심근경색진단비';
+  if(has('허혈성심장')) return '허혈성심장질환진단비';
+  if(has('심장')&&has('수술')) return '심장질환수술비';
+  if(has('종수술','종질병수술','1~5종','3종','5종','7종')) return '종수술비(1~5종)';
+  if(has('대질병수술','특정질병수술','대질병')) return '특정질병수술비';
+  if(has('상해수술')) return '상해수술비';
+  if(has('수술')) return '질병수술비';
+  if(has('상해입원')) return '상해입원의료비';
+  if(has('질병입원의료비')||has('입원의료비')) return '질병입원의료비';
+  if(has('상해통원')) return '상해통원의료비';
+  if(has('통원')) return '질병통원의료비';
+  if(has('상해입원일당','상해일당')) return '상해입원일당';
+  if(has('입원일당')) return '질병입원일당';
+  if(has('간병')) return '간병인사용지원';
+  if(has('교통사고처리','형사합의')) return '교통사고처리지원금';
+  if(has('변호사')) return '변호사선임비용';
+  if(has('벌금')&&has('대물')) return '벌금(대물)';
+  if(has('벌금')) return '벌금(대인)';
+  if(has('부상위로','부상치료','자동차사고부상')) return '자동차사고부상위로금';
+  if(has('일상생활배상','생활배상','가족생활배상')) return '일상생활배상책임';
+  if(has('골절')) return '골절진단비';
+  if(has('깁스')) return '깁스치료비';
+  if(has('화재')) return '화재벌금';
+  if(has('응급실')) return '응급실내원비';
+  if(has('장기요양')) return '장기요양자금';
+  if(has('치매')) return '치매진단비';
+  return '기타';
+}
+// 별첨 페이지에서 '보험료(매칭키) → 담보[{name,category,amt(만원)}]' 추출
+async function buildAnnexCovs(bytes){
+  const out = {};
+  try{
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+    const doc = await pdfjsLib.getDocument({data: bytes,
+      cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/', cMapPacked: true}).promise;
+    // 담보명(숫자로 시작 가능: 82대/3종/5대) + 금액(공백/끝이 뒤따르는 숫자만 → '82대'의 82는 이름으로 처리)
+    const RX = /([0-9]*[가-힣A-Za-z(][가-힣A-Za-z0-9()+\-·\/ ]*?)\s+([0-9][0-9,]*)(?=\s|$)/g;
+    for(let p=1; p<=doc.numPages; p++){
+      const tc = await (await doc.getPage(p)).getTextContent();
+      const txt = tc.items.map(i=>i.str).join(' ').replace(/\s+/g,' ');
+      if(!/\(정상계약\s*리스트\)/.test(txt)) continue;   // 별첨(계약 상세) 페이지만
+      const pm = txt.match(/보험료\s*([0-9,]+)\s*원/); const prem = pm? parseInt(pm[1].replace(/,/g,'')) : 0;
+      if(!prem) continue;
+      const m = txt.match(/보장기간\s*[0-9.\s]+~\s*[0-9.\s]+(.*?)(?:서울|[가-힣]{2,}지점|LP\s*☎|\d+\/\d+\s+20\d\d\.)/);
+      const region = (m? m[1] : '').replace(/\s+/g,' ').trim();
+      if(!region) continue;
+      const arr = out[prem] || (out[prem] = []);
+      const seen = new Set(arr.map(v=>v.name+'|'+v.amt));
+      let g; RX.lastIndex = 0;
+      while(g = RX.exec(region)){
+        const name = g[1].trim(), amt = parseInt(g[2].replace(/,/g,''));
+        if(!(amt>0) || !name) continue;
+        const key = name+'|'+amt; if(seen.has(key)) continue; seen.add(key);
+        arr.push({ name, category: mapCovCat(name), amt });
+      }
+    }
+  }catch(e){ /* 실패 시 무시 — AI 담보로 폴백 */ }
+  return out;
+}
+
 // 진단: PDF에서 실제로 추출된 표 텍스트와 파싱 결과를 화면에 띄운다 (복사해서 공유용)
 async function showTableDebug(){
   if((!window.__TBLDBG || !window.__TBLDBG.pages.length) && typeof RC!=='undefined' && RC && RC.bytes){
@@ -811,7 +889,7 @@ function sanitizeCov(v){
 }
 
 /* ----- 보장분석 리포트 처리 (페이지 그룹 기반 · 타임아웃 자동 분할 · 구간 복구) ----- */
-let RC = { bytes:null, srcDoc:null, groups:[], failed:[], expected:0, filtered:false, payMap:null, tableMap:null };
+let RC = { bytes:null, srcDoc:null, groups:[], failed:[], expected:0, filtered:false, payMap:null, tableMap:null, covMap:null };
 
 const ckey = c => (c.insurer||'')+'|'+(c.productName||'')+'|'+(c.monthlyPremium||'');
 
@@ -843,7 +921,8 @@ function absorbReport(pairs){
         insurer, productName,
         monthlyPremium: prem, payProgress: prog, payTerm: term,
         period, csPhone:'', special: guessSpecial(productName),
-        covs: (c.covs||[]).map(sanitizeCov).filter(v=>v.amt>0) });
+        // 담보: 별첨 텍스트 파싱값(정확) 우선, 없으면 AI 담보로 폴백
+        covs: ((((RC.covMap||{})[prem]||[]).length ? RC.covMap[prem] : (c.covs||[]))).map(sanitizeCov).filter(v=>v.amt>0) });
     });
   });
   const rep = S.contracts.filter(c=>c.src==='report').sort((a,b)=>(a._ord||0)-(b._ord||0));
@@ -862,7 +941,8 @@ function addMissingFromTable(){
     S.contracts.push({ id: uid(), src:'report', status:'유지', _ord: 9000 + added,
       insurer: t.insurer||'', productName: t.name||'', monthlyPremium: prem,
       payProgress: t.payProgress||'', payTerm: t.payTerm||'', period: t.period||'',
-      csPhone:'', special: guessSpecial(t.name), covs: [] });
+      csPhone:'', special: guessSpecial(t.name),
+      covs: ((RC.covMap||{})[prem]||[]).map(sanitizeCov).filter(v=>v.amt>0) });
     have.add(prem); added++;
   });
   if(added){
@@ -955,6 +1035,9 @@ async function analyzeReport(bytes, useFilter){
   if(!RC.tableMap || !Object.keys(RC.tableMap).length){
     try{ RC.tableMap = await buildContractTable(bytes.slice()); }catch(e){ RC.tableMap = {}; }
   }
+  if(!RC.covMap || !Object.keys(RC.covMap).length){
+    try{ RC.covMap = await buildAnnexCovs(bytes.slice()); }catch(e){ RC.covMap = {}; }
+  }
   if(!RC.payMap || !Object.keys(RC.payMap).length){
     try{ RC.payMap = await buildPayMap(bytes.slice()); }catch(e){ RC.payMap = {}; }
   }
@@ -984,7 +1067,7 @@ async function handleReport(file){
   if(file.size > 30*1024*1024){ alert('30MB 이하 PDF만 지원합니다.'); return; }
   try{
     const bytes = await fileToBytes(file);
-    RC = { bytes, srcDoc:null, groups:[], failed:[], expected:0, filtered:false, payMap:null, tableMap:null };
+    RC = { bytes, srcDoc:null, groups:[], failed:[], expected:0, filtered:false, payMap:null, tableMap:null, covMap:null };
     await analyzeReport(bytes, true);
   }catch(e){
     prog('#progReport', 1, '오류: ' + e.message);
