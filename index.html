@@ -523,6 +523,13 @@ const curContracts   = () => S.contracts.filter(c=>CUR_ST.includes(c.status));
 const afterContracts = () => S.contracts.filter(c=>AFT_ST.includes(c.status));
 const dropContracts  = () => S.contracts.filter(c=>DROP_ST.includes(c.status));
 const sumPrem = arr => arr.reduce((s,c)=> s + (+c.monthlyPremium||0), 0);
+// AI가 납입 정보를 못 읽으면 '<UNKNOWN>'·'미상' 같은 자리표시자를 반환 → 화면/출력에 그대로 노출되지 않도록 정리
+function cleanPay(v){
+  v = String(v==null?'':v).trim();
+  if(!v) return '';
+  if(/unknown|미상|확인\s*불가|모름|^n\s*\/?\s*a$|^없음$|^없$|^[-–—]+$|^\?+$/i.test(v)) return '';
+  return v;
+}
 // 납입회차 "41/240" → 총 240회. 없으면 payTerm "20년납"에서 20*12=240회 추정
 function totalPayCount(c){
   const m = String(c.payProgress||'').match(/\/\s*(\d+)/);
@@ -592,6 +599,39 @@ async function detectAnnexPages(bytes){
   }catch(e){ return []; }
 }
 
+// AI 누락 보완: PDF 텍스트 레이어를 직접 스캔해 '월보험료 → 납입회차/납입기간'을 추출한다.
+// 보장분석 리포트의 정상계약 리스트/상세 페이지에는 회차(예: 9/240)와 기간(전기납·20년납·100세납 등)이
+// 금액 근처에 함께 표기되므로, AI가 <UNKNOWN>을 반환한 계약도 원문에서 값을 복구할 수 있다.
+async function buildPayMap(bytes){
+  const map = {};
+  try{
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+    const doc = await pdfjsLib.getDocument({data: bytes,
+      cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/', cMapPacked: true}).promise;
+    const PREM = /([1-9][0-9]{0,2}(?:,[0-9]{3})+|[1-9][0-9]{3,})\s*원/g;   // 1,000원 이상 금액(원 표기)
+    const PROG = /([0-9]{1,3})\s*\/\s*([0-9]{2,4})/;                       // 납입회차 9/240
+    const TERM = /(전기납|월납|일시납|연납|[0-9]{1,3}\s*년\s*납|[0-9]{1,3}\s*세\s*납|[0-9]{1,3}\s*년\s*만기|[0-9]{1,3}\s*세\s*만기)/;
+    for(let p=1; p<=doc.numPages; p++){
+      const tc = await (await doc.getPage(p)).getTextContent();
+      const txt = tc.items.map(i=>i.str).join(' ').replace(/\s+/g,' ');
+      let m; PREM.lastIndex = 0;
+      while(m = PREM.exec(txt)){
+        const prem = parseInt(m[1].replace(/,/g,''));
+        if(prem < 1000 || prem > 9000000) continue;
+        // 같은 표 행(금액 앞뒤)에서 회차·기간을 찾는다
+        const win = txt.slice(Math.max(0, m.index-70), Math.min(txt.length, m.index + m[0].length + 90));
+        const prog = win.match(PROG);
+        const term = win.match(TERM);
+        if(!prog && !term) continue;
+        const cur = map[prem] || (map[prem] = {});
+        if(prog && !cur.payProgress) cur.payProgress = prog[1] + '/' + prog[2];
+        if(term && !cur.payTerm) cur.payTerm = term[1].replace(/\s+/g,'');
+      }
+    }
+  }catch(e){ /* 폴백 실패 시 무시 — AI 결과를 그대로 사용 */ }
+  return map;
+}
+
 const sleep = ms => new Promise(s=>setTimeout(s,ms));
 const isRateMsg = m => /429|RESOURCE_EXHAUSTED|quota|rate/i.test(m||'');
 
@@ -651,7 +691,7 @@ function sanitizeCov(v){
 }
 
 /* ----- 보장분석 리포트 처리 (페이지 그룹 기반 · 타임아웃 자동 분할 · 구간 복구) ----- */
-let RC = { bytes:null, srcDoc:null, groups:[], failed:[], expected:0, filtered:false };
+let RC = { bytes:null, srcDoc:null, groups:[], failed:[], expected:0, filtered:false, payMap:null };
 
 const ckey = c => (c.insurer||'')+'|'+(c.productName||'')+'|'+(c.monthlyPremium||'');
 
@@ -662,9 +702,17 @@ function absorbReport(pairs){
     (data.contracts||[]).forEach((c, oi)=>{
       const key = ckey(c);
       if(seen.has(key)) return; seen.add(key);
+      const prem = +c.monthlyPremium||0;
+      // AI 자리표시자(<UNKNOWN> 등) 제거 후, 비어 있으면 PDF 원문에서 추출한 값으로 보완
+      let prog = cleanPay(c.payProgress), term = cleanPay(c.payTerm);
+      const pm = (RC.payMap||{})[prem];
+      if(pm){
+        if(!prog && pm.payProgress) prog = pm.payProgress;
+        if(!term && pm.payTerm)     term = pm.payTerm;
+      }
       S.contracts.push({ id: uid(), src:'report', status:'유지', _ord: ci*100 + oi,
         insurer: c.insurer||'', productName: c.productName||'',
-        monthlyPremium: +c.monthlyPremium||0, payProgress: c.payProgress||'', payTerm: c.payTerm||'',
+        monthlyPremium: prem, payProgress: prog, payTerm: term,
         period: c.period||'', csPhone:'', special: guessSpecial(c.productName),
         covs: (c.covs||[]).map(sanitizeCov).filter(v=>v.amt>0) });
     });
@@ -745,6 +793,10 @@ const chunkArr = (arr, n) => Array.from({length: Math.ceil(arr.length/n)}, (_,i)
 
 async function analyzeReport(bytes, useFilter){
   $('#btnFullScan').style.display = 'none';
+  // AI 호출 전에 PDF 원문에서 납입회차/기간 보완 맵을 만들어 둔다 (AI가 못 읽은 값 복구용)
+  if(!RC.payMap || !Object.keys(RC.payMap).length){
+    try{ RC.payMap = await buildPayMap(bytes.slice()); }catch(e){ RC.payMap = {}; }
+  }
   let pageIdx = null;
   if(useFilter){
     prog('#progReport', 0.04, '계약 상세 페이지 스캔 중...');
@@ -771,7 +823,7 @@ async function handleReport(file){
   if(file.size > 30*1024*1024){ alert('30MB 이하 PDF만 지원합니다.'); return; }
   try{
     const bytes = await fileToBytes(file);
-    RC = { bytes, srcDoc:null, groups:[], failed:[], expected:0, filtered:false };
+    RC = { bytes, srcDoc:null, groups:[], failed:[], expected:0, filtered:false, payMap:null };
     await analyzeReport(bytes, true);
   }catch(e){
     prog('#progReport', 1, '오류: ' + e.message);
@@ -862,7 +914,7 @@ function renderContracts(){
         <div class="nm">${esc(c.insurer)} · ${esc(c.productName)} ${c.special?'<span class="badge sp">분류외</span>':''}</div>
         <div class="mt">
           <span>월 ${fmtWon(c.monthlyPremium)}</span>
-          ${c.payProgress?`<span>납입 ${esc(c.payProgress)}</span>`:''}
+          ${(c.payProgress||c.payTerm)?`<span>납입 ${esc([c.payProgress,c.payTerm].filter(Boolean).join(' · '))}</span>`:''}
           <span>담보 ${c.covs.length}개</span>
         </div>
         ${DROP_ST.includes(c.status)?`<div class="csline">☎ 보험사 고객센터: ${esc(c.csPhone||'번호 입력 필요 (카드 클릭)')}</div>`:''}
