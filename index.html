@@ -333,6 +333,7 @@ table.pv tr.info.b td{border-bottom:2px solid var(--c-line-teal);}
   <div class="cgrid" id="contractList"></div>
   <div style="margin-top:14px;display:flex;gap:8px;">
     <button class="btn ghost sm" onclick="addManual()">+ 계약 직접 추가</button>
+    <button class="btn ghost sm" onclick="showTableDebug()" title="PDF에서 추출한 표 텍스트와 파싱 결과 확인(개발용)">🔍 표 인식 진단</button>
   </div>
 </div>
 
@@ -657,61 +658,85 @@ function splitInsurer(full){
   return { insurer:'', name: full };
 }
 
-// '보유계약 리스트(요약 표)'를 직접 파싱 → 보험사·상품명·납입회차·납입주기·계약일·만기일을 정확히 확보.
-// AI가 보험사/상품명/회차를 잘못 읽거나 계약을 누락해도, 이 표가 있으면 보험료(금액)로 매칭해 바로잡는다.
+// '보유계약 리스트(요약 표)'를 AI(list 모드)로 정확히 읽어 보험사·상품명·납입회차 등 메타를 확보한다.
+// (정규식으로 직접 긁던 방식은 PDF 텍스트 좌표가 뒤섞여 오인식이 잦아, 표를 잘 읽는 AI에 맡긴다.)
 // 키: 보험료(월), 값: { insurer, name, payProgress, payTerm, period }
 async function buildContractTable(bytes){
   const out = {};
+  const DBG = { pages: [], result: null, mode: 'ai-list' };   // 진단용 기록
   try{
+    // 1) 요약표가 있는 페이지만 텍스트 레이어로 탐지
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
-    const doc = await pdfjsLib.getDocument({data: bytes,
+    const doc = await pdfjsLib.getDocument({data: bytes.slice(),
       cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/', cMapPacked: true}).promise;
-    const DATE  = /\d{4}\s*\.\s*\d{1,2}\s*\.\s*\d{1,2}/g;
-    const AMT   = /([0-9][0-9,]*)\s*원/g;   // 0원·22,760원 모두 매칭 (행 경계 계산용)
-    const NHX   = /([0-9]{1,3})\s*\/\s*([0-9]{1,3})/g;
-    const CYCLE = /(일시납|월납|연납|분기납|반기납|3개월납|6개월납)/;
+    const pages = [];
     for(let p=1; p<=doc.numPages; p++){
       const tc = await (await doc.getPage(p)).getTextContent();
       const txt = tc.items.map(i=>i.str).join(' ').replace(/\s+/g,' ');
-      if(!/보유계약\s*리스트|정상계약\s*리스트|납입주기|납입횟수|기납입보험료|잔여보험료/.test(txt)) continue;
-      // 납입횟수(예: 41/240)를 '행 앵커'로 사용 — 뒤쪽 가까이에 '원' 금액이 있어야 유효한 행으로 본다
-      const anchors = []; let g; NHX.lastIndex = 0;
-      while(g = NHX.exec(txt)){
-        const after = txt.slice(g.index + g[0].length, g.index + g[0].length + 25);
-        if(/원/.test(after)) anchors.push({ i:g.index, e:g.index + g[0].length, prog:(+g[1])+'/'+(+g[2]) });
-      }
-      let prevEnd = 0;
-      const hdr = txt.search(/잔여보험료/);
-      if(hdr >= 0) prevEnd = hdr + 5;
-      for(const a of anchors){
-        if(a.i < prevEnd) continue;
-        const region = txt.slice(prevEnd, a.i);            // [No][보험사+상품명][계약일][만기일][납입주기]
-        const dates = region.match(DATE) || [];
-        const cyc = (region.match(CYCLE) || ['월납'])[0];
-        let nameRegion = region;
-        if(dates.length){ const di = region.indexOf(dates[0]); if(di > 0) nameRegion = region.slice(0, di); }
-        const name = nameRegion.replace(/^\s*[0-9]{1,3}\s+/, '').replace(/\s+/g,' ').trim();  // 앞 No 제거
-        // 보험료 = 앵커 뒤 첫 금액 / 다음 행 시작점 = 잔여보험료(앵커 뒤 3번째 금액) 뒤
-        AMT.lastIndex = a.e; const am1 = AMT.exec(txt);
-        const premium = am1 ? parseInt(am1[1].replace(/,/g,'')) : 0;
-        let endIdx = a.e; AMT.lastIndex = a.e;
-        for(let n=0; n<3; n++){ const mm = AMT.exec(txt); if(mm) endIdx = mm.index + mm[0].length; else break; }
-        prevEnd = endIdx;
-        if(!name || premium <= 0) continue;
-        const sp = splitInsurer(name);
-        const cDate = dates[0] ? dates[0].replace(/\s+/g,'') : '';
-        const mDate = dates[1] ? dates[1].replace(/\s+/g,'') : '';
-        const denom = +a.prog.split('/')[1] || 0;
-        let payTerm = cyc;
-        if(denom > 0 && denom % 12 === 0) payTerm = cyc + '/' + (denom/12) + '년';
-        if(!out[premium]) out[premium] = {
-          insurer: sp.insurer, name: sp.name, payProgress: a.prog, payTerm,
-          period: (cDate || mDate) ? `${cDate} ~ ${mDate}` : ''
-        };
+      if(/보유계약\s*리스트|정상계약\s*리스트|보유계약\s*현황|(기납입|잔여)\s*보험료/.test(txt)){
+        pages.push(p-1); DBG.pages.push({ p, txt: txt.slice(0, 1800) });
       }
     }
-  }catch(e){ /* 표가 없거나 파싱 실패 시 무시 — AI/원문 폴백 사용 */ }
+    DBG.detectedPages = pages.map(p=>p+1);
+    if(!pages.length){ DBG.note='요약표 페이지를 찾지 못함'; DBG.result=out; window.__TBLDBG=DBG; return out; }
+    // 2) 요약표 페이지만 모아 AI(list)로 정확 추출
+    const src = await PDFLib.PDFDocument.load(bytes.slice(), {ignoreEncryption:true});
+    const d = await PDFLib.PDFDocument.create();
+    (await d.copyPages(src, pages.slice(0, 6))).forEach(pg=>d.addPage(pg));
+    const b64 = await d.saveAsBase64();
+    const data = await callAI('list', b64);
+    DBG.aiRaw = data;
+    (data.contracts || []).forEach(c=>{
+      const prem = +c.monthlyPremium||0; if(prem <= 0) return;
+      const cyc = cleanPay(c.payCycle) || '월납';
+      const denom = +String(c.payProgress||'').split('/')[1] || 0;
+      let payTerm = cyc;
+      if(denom > 0 && denom % 12 === 0) payTerm = cyc + '/' + (denom/12) + '년';
+      const cDate = (c.contractDate||'').trim(), mDate = (c.maturityDate||'').trim();
+      if(!out[prem]) out[prem] = {
+        insurer: (c.insurer||'').trim(),
+        name: (c.productName||'').trim(),
+        payProgress: cleanPay(c.payProgress) || '',
+        payTerm,
+        period: (cDate || mDate) ? `${cDate} ~ ${mDate}` : ''
+      };
+    });
+  }catch(e){ DBG.error = String(e&&e.message||e); }
+  DBG.result = out;
+  try{ window.__TBLDBG = DBG; }catch(e){}
   return out;
+}
+
+// 진단: PDF에서 실제로 추출된 표 텍스트와 파싱 결과를 화면에 띄운다 (복사해서 공유용)
+async function showTableDebug(){
+  if((!window.__TBLDBG || !window.__TBLDBG.pages.length) && typeof RC!=='undefined' && RC && RC.bytes){
+    try{ await buildContractTable(RC.bytes.slice()); }catch(e){}
+  }
+  const d = window.__TBLDBG;
+  let s;
+  if(!d){ s = '아직 분석 전입니다. STEP 1에서 PDF를 업로드한 뒤 다시 눌러주세요.'; }
+  else{
+    s = `■ 표 후보 페이지: ${d.pages.map(x=>x.p).join(', ')||'없음'}\n`
+      + `■ 파싱된 계약 수: ${Object.keys(d.result||{}).length}건\n`
+      + (d.error?`■ 오류: ${d.error}\n`:'')
+      + `\n■ 파싱 결과(보험료→내용):\n${JSON.stringify(d.result, null, 1)}\n`
+      + `\n===== 추출 원본 텍스트 =====\n`
+      + d.pages.map(x=>`[p.${x.p}]\n${x.txt}`).join('\n\n──────────\n\n');
+  }
+  let ov = document.getElementById('tblDbgOv');
+  if(!ov){
+    ov = document.createElement('div'); ov.id='tblDbgOv';
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;';
+    ov.innerHTML='<div style="background:#fff;border-radius:12px;max-width:820px;width:100%;max-height:86vh;display:flex;flex-direction:column;padding:16px;">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><b>표 인식 진단</b>'
+      +'<span><button id="tblDbgCopy" style="margin-right:8px;">전체 복사</button><button id="tblDbgClose">닫기</button></span></div>'
+      +'<textarea id="tblDbgTxt" readonly style="flex:1;min-height:60vh;width:100%;font:12px/1.4 monospace;white-space:pre;overflow:auto;"></textarea></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click', e=>{ if(e.target===ov) ov.remove(); });
+    ov.querySelector('#tblDbgClose').onclick=()=>ov.remove();
+    ov.querySelector('#tblDbgCopy').onclick=()=>{ const t=ov.querySelector('#tblDbgTxt'); t.select(); try{navigator.clipboard.writeText(t.value);}catch(e){} document.execCommand&&document.execCommand('copy'); };
+  }
+  ov.querySelector('#tblDbgTxt').value = s;
 }
 
 const sleep = ms => new Promise(s=>setTimeout(s,ms));
