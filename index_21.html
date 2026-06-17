@@ -157,6 +157,9 @@ input:focus,select:focus{outline:none;border-color:var(--c-primary);box-shadow:0
   table.pt td.grp{background:#EEF3F9;color:#0E2C4D;font-weight:800;text-align:center;font-size:8.5pt;border-bottom:0.5pt solid #DCE5F0;}
   table.pt td.cv{text-align:left;background:#FCFDFE;color:#3A4655;font-weight:600;}
   table.pt td.hl{background:#F4F8FC;font-weight:800;color:#1B4470;}
+  table.pt.detail td{padding:2.1mm 2.8mm;font-size:9pt;line-height:1.3;}
+  table.pt.detail td.cv,table.pt.detail td.grp{font-size:9pt;}
+  table.pt.detail th{padding:2.6mm 2.8mm;}
   table.pt tr.sum td{background:#0E2C4D;color:#fff;font-weight:800;border-bottom:none;}
   table.pt tr.sum td:first-child{border-bottom-left-radius:2mm;} table.pt tr.sum td:last-child{border-bottom-right-radius:2mm;}
   .stbadge{display:inline-block;font-size:7.5pt;font-weight:800;padding:0.6mm 2.4mm;border-radius:6mm;}
@@ -265,6 +268,12 @@ table.pv tr.sum td{background:var(--c-teal-bg-3);font-weight:800;}
 table.pv tr.info td{background:#f8fafc;font-weight:700;color:var(--c-text-2);}
 table.pv tr.info td:first-child{color:var(--c-teal-deepest);}
 table.pv tr.info.b td{border-bottom:2px solid var(--c-line-teal);}
+table.pv td.mcell{cursor:pointer;}
+table.pv td.mcell:hover{background:var(--c-teal-bg-1);outline:1.5px solid var(--c-line-teal);outline-offset:-1.5px;}
+table.pv td.mcell.over{color:var(--c-primary);font-weight:800;background:#effcfa;}
+table.pv td.mcell .add{color:#cbd5e1;font-weight:700;}
+table.pv td.mcell.ed{padding:2px;}
+table.pv td.mcell.ed input{width:66px;border:1.5px solid var(--c-primary);border-radius:5px;padding:3px 5px;font:inherit;font-size:12px;text-align:right;}
 .legend{display:flex;gap:16px;font-size:12.5px;font-weight:700;margin:0 0 10px;}
 .legend i{display:inline-block;width:11px;height:11px;margin-right:5px;border-radius:3px;vertical-align:-1px;}
 /* overlay */
@@ -366,6 +375,7 @@ table.pv tr.info.b td{border-bottom:2px solid var(--c-line-teal);}
   <h2 style="font-size:14px;margin:14px 0 8px;">유지 계약 담보상세
     <span style="font-size:11.5px;font-weight:600;color:var(--c-text-muted);margin-left:8px;">계약별 담보 가입금액과 월 보험료·총 납입·납입기간·납입회차·만기를 함께 표시합니다.</span></h2>
   <div class="tblwrap" id="mtxWrap"></div>
+  <div class="hidbar" id="cellRestoreBar" style="display:none;"></div>
   <h2 style="font-size:14px;margin:20px 0 8px;">보장 종합 비교 (현재 → 개선 후)
     <span style="font-size:11.5px;font-weight:600;color:var(--c-text-muted);margin-left:8px;">행에 마우스를 올리면 ✎(이름·금액 수정) · ✕(리포트에서 빼기) 버튼이 나타납니다. 수정·삭제는 PPT·PDF에도 동일 적용됩니다.</span></h2>
   <div class="tblwrap" id="cmpWrap"></div>
@@ -469,7 +479,7 @@ const GROUPS = [
 const ALL_CATS = GROUPS.flatMap(g=>g[1]);
 
 /* ================= 상태 ================= */
-let S = { contracts: [], hiddenCats: [], catLabels: {}, groupLabels: {}, cmpAmt: {} };   // {id, src, status:'유지'|'리모델링'|'이체중지'|'증권확인'|'제안', insurer, productName, monthlyPremium, payProgress, period, covs:[{name,category,amt}]}
+let S = { contracts: [], hiddenCats: [], catLabels: {}, groupLabels: {}, cmpAmt: {}, cellAmt: {} };   // {id, src, status:'유지'|'리모델링'|'이체중지'|'증권확인'|'제안', insurer, productName, monthlyPremium, payProgress, period, covs:[{name,category,amt}]}
 let editingId = null;
 let deletedCovs = [];   // 모달 세션 동안 삭제한 담보 임시 보관 (복원용, 저장 안 됨)
 let covBaseline = [];   // 담보 정상 순서 기준 (객체 참조) — 복원 위치 계산용
@@ -515,7 +525,12 @@ function fmtMan(v){
     return eok + '억' + (rem ? ' ' + rem.toLocaleString() + '만' : ''); }
   return v.toLocaleString() + '만';
 }
-const catAmt = (c, cat) => c.covs.reduce((s,v)=> s + (v.category===cat ? (+v.amt||0) : 0), 0);
+const catAmtRaw = (c, cat) => c.covs.reduce((s,v)=> s + (v.category===cat ? (+v.amt||0) : 0), 0);
+// 담보상세에서 칸을 직접 수정하면 S.cellAmt[계약id][담보]에 값이 저장되어 우선 적용된다 (미리보기·PPT·PDF 공통)
+const catAmt = (c, cat) => {
+  const ov = S.cellAmt && S.cellAmt[c.id] && S.cellAmt[c.id][cat];
+  return ov != null ? +ov : catAmtRaw(c, cat);
+};
 const CUR_ST = ['유지','리모델링','이체중지','증권확인'], AFT_ST = ['유지','증권확인','제안'];
 const DROP_ST = ['리모델링','이체중지'];   // 정리 대상 — '개선 후'에서 제외
 const STATUS_LABEL = {'이체중지':'자동이체 중지'};
@@ -903,7 +918,8 @@ async function runReportGroups(groups, limit){
   addMissingFromTable();   // 표에는 있는데 AI가 빠뜨린 계약 보충
   // 정상 요약표가 있을 때, 표에도 없고 보험사도 식별 못한 잔여 계약(AI 오인식)은 제거 → <UNKNOWN> 잡음 정리
   if(RC.tableMap && Object.keys(RC.tableMap).length){
-    S.contracts = S.contracts.filter(c=> c.src!=='report' || c.insurer);
+    // 보유계약 리스트(표)에 없는 보험료의 report 계약은 제거 → 별첨에만 있는 오인식 계약 정리
+    S.contracts = S.contracts.filter(c=> c.src!=='report' || RC.tableMap[+c.monthlyPremium||0]);
   }
 
   const reps = S.contracts.filter(c=>c.src==='report');
@@ -1391,17 +1407,60 @@ function renderMatrix(){
   cs.forEach(c=> html += `<td style="font-size:11px;">${esc(maturityOf(c))}</td>`);
   html += `<td colspan="${colSpanTail}"></td></tr>`;
 
-  // 담보 행
+  // 담보 행 — 행 ✎/✕(이름·합계 수정/삭제) + 각 칸 클릭 시 인라인 금액 수정
   activeRows().forEach(([g, items])=>{
     items.forEach((cat,i)=>{
-      html += '<tr>' + (i===0?`<td class="grp" rowspan="${items.length}">${esc(groupLabel(g))}</td>`:'') + `<td class="cov">${esc(catLabel(cat))}</td>`;
-      cs.forEach(c=>{ const v = catAmt(c,cat); html += `<td>${v?fmtMan(v):''}</td>`; });
+      html += '<tr>' + (i===0?`<td class="grp" rowspan="${items.length}">${esc(groupLabel(g))}</td>`:'');
+      html += `<td class="cov">${esc(catLabel(cat))}
+        <span class="rowacts">
+          <button class="ract edit" onclick="editCat('${esc(cat)}')" title="담보 이름·합계 수정">✎</button>
+          <button class="ract del" onclick="hideCat('${esc(cat)}')" title="이 담보 행 삭제 (복원 가능)">✕</button>
+        </span></td>`;
+      cs.forEach(c=>{
+        const v = catAmt(c,cat);
+        const over = !!(S.cellAmt && S.cellAmt[c.id] && S.cellAmt[c.id][cat]!=null);
+        if(mEdit && mEdit.cid===c.id && mEdit.cat===cat){
+          html += `<td class="mcell ed"><input type="number" value="${v||''}" onblur="saveCell('${c.id}','${esc(cat)}',this.value)" onkeydown="if(event.key==='Enter'){this.blur();}else if(event.key==='Escape'){mEdit=null;renderMatrix();}"></td>`;
+        } else {
+          html += `<td class="mcell${over?' over':''}" onclick="editCell('${c.id}','${esc(cat)}')" title="클릭하면 이 칸 금액을 직접 수정합니다">${v?fmtMan(v):'<span class="add">+</span>'}</td>`;
+        }
+      });
       html += `<td class="tot">${fmtMan(cur.reduce((s,c)=>s+catAmt(c,cat),0))||'-'}</td>`;
       html += `<td class="tot">${fmtMan(aft.reduce((s,c)=>s+catAmt(c,cat),0))||'-'}</td></tr>`;
     });
   });
   html += '</tbody></table>';
   $('#mtxWrap').innerHTML = html;
+  if(mEdit){ const inp = $('#mtxWrap').querySelector('td.mcell.ed input'); if(inp){ inp.focus(); inp.select(); } }
+  renderCellRestoreBar();
+}
+
+/* ----- 담보상세 칸(셀) 직접 수정·복원 (미리보기 + PPT + PDF 공통 반영) ----- */
+let mEdit = null;   // {cid, cat} — 현재 인라인 수정 중인 칸
+function editCell(cid, cat){ mEdit = {cid, cat}; renderMatrix(); }
+function saveCell(cid, cat, val){
+  mEdit = null;
+  S.cellAmt = S.cellAmt || {};
+  const c = S.contracts.find(x=>x.id===cid);
+  const raw = c ? catAmtRaw(c, cat) : 0;
+  let n = parseInt(String(val).replace(/[^0-9]/g,''));
+  if(isNaN(n)) n = 0;
+  if(n === raw){ if(S.cellAmt[cid]) delete S.cellAmt[cid][cat]; }   // 원래 계산값과 같으면 오버라이드 해제
+  else { (S.cellAmt[cid] = S.cellAmt[cid]||{})[cat] = n; }
+  refreshPreviewOnly(); persist();
+}
+function revertCell(cid, cat){ if(S.cellAmt && S.cellAmt[cid]) delete S.cellAmt[cid][cat]; refreshPreviewOnly(); persist(); }
+function revertAllCells(){ S.cellAmt = {}; refreshPreviewOnly(); persist(); }
+function renderCellRestoreBar(){
+  const bar = $('#cellRestoreBar'); if(!bar) return;
+  const items = [];
+  Object.keys(S.cellAmt||{}).forEach(cid=>Object.keys(S.cellAmt[cid]||{}).forEach(cat=>items.push({cid,cat})));
+  if(!items.length){ bar.style.display='none'; bar.innerHTML=''; return; }
+  bar.style.display='flex';
+  bar.innerHTML = `<span>✎ 직접 수정한 칸 ${items.length}개 (클릭하면 원래 계산값으로 복원):</span>` +
+    items.map(({cid,cat})=>{ const c=S.contracts.find(x=>x.id===cid); const nm=c?short(c.productName):'계약';
+      return `<span class="hchip" onclick="revertCell('${cid}','${esc(cat)}')">${esc(nm)} · ${esc(catLabel(cat))} <i>↩</i></span>`; }).join('') +
+    `<button class="btn gray sm" onclick="revertAllCells()">모두 원래대로</button>`;
 }
 const short = s => s.length>16 ? s.slice(0,15)+'…' : s;
 
@@ -1443,7 +1502,7 @@ function ovData(){
 }
 function detailChunks(list, per=4){
   const out = [];
-  const MAX_COV_ROWS = 18;   // 한 시트당 담보 행 상한 (압축 행 높이 기준 안전값)
+  const MAX_COV_ROWS = 14;   // 한 시트당 담보 행 상한 (글씨 확대·행 높이 반영한 안전값)
   for(let i=0;i<list.length;i+=per){
     const grp = list.slice(i, i+per);
     const full = [];   // 이 묶음의 전체 담보 행
@@ -1873,6 +1932,7 @@ function buildPrintHTML(){
   </div>`;
   }
 
+  if(false){   // [출력 제외] 2.한눈에 보는 요약 · 3.현황 종합 페이지 — 사용자 요청으로 PDF/PPT에서 생략
   // ===== 2. 한눈에 보는 요약 (가치 제안 + 시각화) =====
   const sCur = sumPrem(curContracts()), sAft = sumPrem(afterContracts()), sDiff = sAft - sCur;
   const cmpAll = compareData();
@@ -1986,39 +2046,34 @@ function buildPrintHTML(){
         <td class="l" style="font-size:7.5pt;color:#8B96A5;">${esc(note)}</td></tr>`).join('')}
     </table>${pFoot(cust)}</div>`;
   });
+  }   // [출력 제외] 끝
 
-  // ===== 4·6. 계약별 상세 (현재 일반 + 제안) =====
+  // ===== 4·6. 계약별 상세 (현재 일반 + 분류외 병합 + 제안) =====
+  // 분류외(special) 계약은 표준 분류 매트릭스 대신, 담보 내용을 세로 목록(병합 셀)으로 함께 표기한다.
+  const spList = c => {
+    const arr = [...c.covs].filter(v=>+v.amt>0).sort((a,b)=>b.amt-a.amt);
+    if(!arr.length) return '<span style="color:#9AA6B6;">담보 정보 없음</span>';
+    return arr.map(v=>`<div style="display:flex;justify-content:space-between;gap:3mm;padding:0.8mm 0;border-bottom:0.3pt solid #EEF1F6;">`
+      + `<span>${esc(v.name||catLabel(v.category)||'담보')}</span><b style="white-space:nowrap;color:#0E2C4D;">${fmtMan(v.amt)}</b></div>`).join('');
+  };
   const dSec = (list, eb, title) => detailChunks(list, 4).map(({grp, cats}, ci, arr)=>{
-    const cw = (76/grp.length).toFixed(1);
+    const cw = (74/grp.length).toFixed(1);
     return `<div class="psheet">${chrome(eb, title + (arr.length>1?` (${ci+1}/${arr.length})`:''))}
-    <table class="pt"><colgroup><col style="width:6%"><col style="width:18%">${grp.map(()=>`<col style="width:${cw}%">`).join('')}</colgroup>
-    <tr>${[...Array(2)].map((_,k)=>k===0?'':'').join('')}<th class="l" colspan="2">보험사 / 상태</th>${grp.map(c=>`<th class="c" style="background:${ST_HEX[c.status]};font-size:8.5pt;">${esc(c.insurer)}<br><span style="font-weight:600;opacity:.85;font-size:7.5pt;">${c.status}</span></th>`).join('')}</tr>
-    <tr><td colspan="2" class="grp">상품명</td>${grp.map(c=>`<td class="c" style="font-size:7.5pt;color:#5A6678;line-height:1.4;">${esc(c.productName)}</td>`).join('')}</tr>
+    <table class="pt detail" style="font-size:9.5pt;"><colgroup><col style="width:7%"><col style="width:19%">${grp.map(()=>`<col style="width:${cw}%">`).join('')}</colgroup>
+    <tr><th class="l" colspan="2">보험사 / 상태</th>${grp.map(c=>`<th class="c" style="background:${ST_HEX[c.status]};font-size:9.5pt;vertical-align:middle;">${esc(c.insurer)}<br><span style="font-weight:600;opacity:.9;font-size:8pt;">${c.status}${c.special?' · 분류외':''}</span></th>`).join('')}</tr>
+    <tr><td colspan="2" class="grp">상품명</td>${grp.map(c=>`<td class="c" style="font-size:8.5pt;color:#5A6678;line-height:1.4;">${esc(c.productName)}</td>`).join('')}</tr>
     <tr><td colspan="2" class="grp">월 보험료</td>${grp.map(c=>`<td class="c hl">${fmtWon(c.monthlyPremium)}</td>`).join('')}</tr>
-    <tr><td colspan="2" class="grp">보장기간</td>${grp.map(c=>{const[a,b]=splitPeriod(c.period);return `<td class="c" style="font-size:7.5pt;">${esc(a&&b?a+' ~ '+b:(a||b||'-'))}</td>`;}).join('')}</tr>
-    <tr><td colspan="2" class="grp">납입</td>${grp.map(c=>`<td class="c" style="font-size:8pt;">${esc([c.payProgress,c.payTerm].filter(Boolean).join(' · ')||'-')}</td>`).join('')}</tr>
-    ${cats.map(({g,cat,catKey,span})=>`<tr class="zebra">${span?`<td class="grp" rowspan="${span}">${esc(g)}</td>`:''}
+    <tr><td colspan="2" class="grp">보장기간</td>${grp.map(c=>{const[a,b]=splitPeriod(c.period);return `<td class="c" style="font-size:8.5pt;">${esc(a&&b?a+' ~ '+b:(a||b||'-'))}</td>`;}).join('')}</tr>
+    <tr><td colspan="2" class="grp">납입</td>${grp.map(c=>`<td class="c" style="font-size:9pt;">${esc([c.payProgress,c.payTerm].filter(Boolean).join(' · ')||'-')}</td>`).join('')}</tr>
+    ${cats.map(({g,cat,catKey,span}, ri)=>`<tr class="zebra">${span?`<td class="grp" rowspan="${span}">${esc(g)}</td>`:''}
       <td class="cv">${esc(cat)}</td>
-      ${grp.map(c=>{const v=catAmt(c,catKey);return `<td${v?'':' style="color:#C5CDD8;"'}>${v?fmtMan(v):'·'}</td>`;}).join('')}</tr>`).join('')}
+      ${grp.map(c=> c.special
+        ? (ri===0 ? `<td rowspan="${cats.length}" style="vertical-align:top;text-align:left;padding:2.2mm 2.8mm;font-size:8.6pt;line-height:1.5;background:#FBFCFE;"><div style="font-size:8pt;font-weight:800;color:#B0894C;letter-spacing:.4px;margin-bottom:1.8mm;">분류 외 · 주요 보장 내용</div>${spList(c)}</td>` : '')
+        : (()=>{const v=catAmt(c,catKey);return `<td${v?'':' style="color:#C5CDD8;"'}>${v?fmtMan(v):'·'}</td>`;})()
+      ).join('')}</tr>`).join('')}
     </table>${pFoot(cust)}</div>`;
   }).join('');
-  h += dSec(curContracts().filter(c=>!c.special), 'CURRENT COVERAGE', '계약별 보장 상세');
-
-  // ===== 5. 분류 외 =====
-  const sp = specialCur();
-  if(sp.length){
-    h += `<div class="psheet">${chrome('SPECIAL POLICIES', '분류 외 보험 현황')}
-    <div style="font-size:8.5pt;color:#8B96A5;font-weight:600;margin:-4mm 0 4mm;">운전자 · 치아 · 치매 · 연금 등 표준 분류 체계로 비교하기 어려운 특수목적 보험입니다.</div>
-    <table class="pt"><colgroup>${['23%','7%','9%','9%','7%','9%','36%'].map(w=>`<col style="width:${w}">`).join('')}</colgroup>
-    <tr><th class="l">보험사 · 상품명</th><th class="c">상태</th><th>월보험료(원)</th><th class="c">계약일</th><th class="c">납입</th><th class="c">보장만기</th><th class="l">주요 보장 내용</th></tr>
-    ${sp.map(c=>{const[a,b]=splitPeriod(c.period);return `<tr class="zebra">
-      <td class="l"><span style="font-weight:700;color:#1A2433;">${esc(c.insurer)}</span><br><span style="font-size:7.5pt;color:#8B96A5;">${esc(c.productName)}</span></td>
-      <td class="c">${stBadge(c.status)}</td>
-      <td style="font-weight:700;">${(c.monthlyPremium||0).toLocaleString()}</td>
-      <td class="c" style="font-size:8pt;">${esc(a)}</td><td class="c">${esc(c.payProgress||'-')}</td><td class="c" style="font-size:8pt;">${esc(b)}</td>
-      <td class="l" style="font-size:7.5pt;color:#5A6678;line-height:1.5;">${esc(topCovsText(c,8))}</td></tr>`;}).join('')}
-    </table>${pFoot(cust)}</div>`;
-  }
+  h += dSec(curContracts(), 'CURRENT COVERAGE', '계약별 보장 상세');
 
   const props = S.contracts.filter(c=>c.status==='제안');
   if(props.length) h += dSec(props, 'NEW PROPOSAL', '신규 보장 제안');
