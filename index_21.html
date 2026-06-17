@@ -810,7 +810,7 @@ function absorbReport(pairs){
       const prem = +c.monthlyPremium||0;
       // AI 자리표시자(<UNKNOWN> 등) 제거
       let prog = cleanPay(c.payProgress), term = fixPayTerm(c.payTerm);
-      let insurer = c.insurer||'', productName = c.productName||'', period = c.period||'';
+      let insurer = cleanPay(c.insurer), productName = cleanPay(c.productName), period = c.period||'';
       // ① 보유계약 리스트(표)가 가장 정확 → 보험사·상품명·회차·만기를 표 값으로 교정 (보험료로 매칭)
       const tb = (RC.tableMap||{})[prem];
       if(tb){
@@ -901,6 +901,10 @@ async function runReportGroups(groups, limit){
   RC.failed = failed;
 
   addMissingFromTable();   // 표에는 있는데 AI가 빠뜨린 계약 보충
+  // 정상 요약표가 있을 때, 표에도 없고 보험사도 식별 못한 잔여 계약(AI 오인식)은 제거 → <UNKNOWN> 잡음 정리
+  if(RC.tableMap && Object.keys(RC.tableMap).length){
+    S.contracts = S.contracts.filter(c=> c.src!=='report' || c.insurer);
+  }
 
   const reps = S.contracts.filter(c=>c.src==='report');
   const nCov = reps.reduce((s,c)=>s+c.covs.length,0);
