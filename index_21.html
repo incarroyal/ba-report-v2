@@ -376,6 +376,10 @@ table.pv td.mcell.ed input{width:66px;border:1.5px solid var(--c-primary);border
     <span style="font-size:11.5px;font-weight:600;color:var(--c-text-muted);margin-left:8px;">계약별 담보 가입금액과 월 보험료·향후 납입할 보험료·납입기간·납입회차·만기를 함께 표시합니다. (갱신형은 100세까지 기준)</span></h2>
   <div class="tblwrap" id="mtxWrap"></div>
   <div class="hidbar" id="cellRestoreBar" style="display:none;"></div>
+  <div style="margin:8px 0 0;display:flex;gap:8px;flex-wrap:wrap;">
+    <button class="btn ghost sm" onclick="addGroupUI()">+ 대분류 추가</button>
+    <button class="btn ghost sm" onclick="addCatUI()">+ 중분류(담보) 추가</button>
+  </div>
   <h2 style="font-size:14px;margin:20px 0 8px;">보장 종합 비교 (현재 → 개선 후)
     <span style="font-size:11.5px;font-weight:600;color:var(--c-text-muted);margin-left:8px;">행에 마우스를 올리면 ✎(이름·금액 수정) · ✕(리포트에서 빼기) 버튼이 나타납니다. 수정·삭제는 PPT·PDF에도 동일 적용됩니다.</span></h2>
   <div class="tblwrap" id="cmpWrap"></div>
@@ -464,22 +468,31 @@ table.pv td.mcell.ed input{width:66px;border:1.5px solid var(--c-primary);border
 <script>
 /* ================= 표준 분류 체계 (서버 ai-parse.mjs CATEGORIES와 동기화) ================= */
 const GROUPS = [
-  ['사망',       ['질병사망','상해사망']],
+  ['사망',       ['일반사망','질병사망','상해사망']],
   ['후유장해',   ['질병후유장해','상해후유장해']],
   ['실손의료비', ['질병입원의료비','질병통원의료비','상해입원의료비','상해통원의료비']],
-  ['암',         ['일반암진단비','유사암진단비','전이암진단비','암수술비','고액암치료비','암입원·통원·기타']],
-  ['뇌혈관질환', ['뇌혈관질환진단비','뇌졸중진단비','뇌출혈진단비','뇌혈관질환수술비']],
-  ['심장질환',   ['허혈성심장질환진단비','급성심근경색진단비','심장질환수술비']],
+  ['암',         ['일반암진단비','유사암진단비','전이암진단비','암수술비','암치료비']],
+  ['뇌혈관질환', ['뇌혈관질환진단비','뇌졸중진단비','뇌출혈진단비','뇌혈관치료비']],
+  ['심장질환',   ['허혈성심장질환진단비','급성심근경색진단비','심장질환치료비']],
   ['수술비',     ['질병수술비','상해수술비','종수술비(1~5종)','특정질병수술비']],
-  ['입원·간병',  ['질병입원일당','상해입원일당','간병인사용지원']],
+  ['입원·간병',  ['질병입원일당','상해입원일당','간병인질병입원일당','간병인상해입원일당','간병인사용지원']],
   ['요양/치매',  ['장기요양자금','치매진단비']],
   ['운전자',     ['교통사고처리지원금','변호사선임비용','벌금(대인)','벌금(대물)','자동차사고부상위로금']],
-  ['기타',       ['일상생활배상책임','골절진단비','깁스치료비','화재벌금','응급실내원비','기타']]
+  ['기타',       ['일상생활배상책임','깁스치료비','화재벌금','응급실내원비']]
 ];
-const ALL_CATS = GROUPS.flatMap(g=>g[1]);
+// 기본 GROUPS + 사용자가 추가한 대분류(extraGroups)/중분류(extraCats) 병합
+function effectiveGroups(){
+  const ec = S.extraCats||{};
+  const base = GROUPS.map(([g,items])=>[g, items.concat((ec[g]||[]).filter(c=>!items.includes(c)))]);
+  const names = new Set(GROUPS.map(g=>g[0]));
+  (S.extraGroups||[]).forEach(g=>{ if(!names.has(g)){ base.push([g, (ec[g]||[]).slice()]); names.add(g); } });
+  return base;
+}
+const allCats = () => effectiveGroups().flatMap(g=>g[1]);
+const isCustomCat = cat => Object.values(S.extraCats||{}).some(arr=>arr.includes(cat));
 
 /* ================= 상태 ================= */
-let S = { contracts: [], hiddenCats: [], catLabels: {}, groupLabels: {}, cmpAmt: {}, cellAmt: {} };   // {id, src, status:'유지'|'리모델링'|'이체중지'|'증권확인'|'제안', insurer, productName, monthlyPremium, payProgress, period, covs:[{name,category,amt}]}
+let S = { contracts: [], hiddenCats: [], catLabels: {}, groupLabels: {}, cmpAmt: {}, cellAmt: {}, extraGroups: [], extraCats: {} };   // {id, src, status:'유지'|'리모델링'|'이체중지'|'증권확인'|'제안', insurer, productName, monthlyPremium, payProgress, period, covs:[{name,category,amt}]}
 let editingId = null;
 let deletedCovs = [];   // 모달 세션 동안 삭제한 담보 임시 보관 (복원용, 저장 안 됨)
 let covBaseline = [];   // 담보 정상 순서 기준 (객체 참조) — 복원 위치 계산용
@@ -496,6 +509,9 @@ function migrateState(st){
   if(!st.catLabels || typeof st.catLabels!=='object') st.catLabels = {};
   if(!st.groupLabels || typeof st.groupLabels!=='object') st.groupLabels = {};
   if(!st.cmpAmt || typeof st.cmpAmt!=='object') st.cmpAmt = {};
+  if(!st.cellAmt || typeof st.cellAmt!=='object') st.cellAmt = {};
+  if(!Array.isArray(st.extraGroups)) st.extraGroups = [];
+  if(!st.extraCats || typeof st.extraCats!=='object') st.extraCats = {};
   return st;
 }
 
@@ -738,42 +754,49 @@ async function buildContractTable(bytes){
 // 담보명 → 표준 카테고리 키워드 매핑 (서버 MAPPING_RULES와 동일 취지)
 function mapCovCat(name){
   const n=String(name||'').replace(/\s/g,''); const has=(...ks)=>ks.some(k=>n.includes(k));
+  // 사망: 일반/질병/상해
   if(has('상해사망','재해사망')) return '상해사망';
-  if(has('사망')) return '질병사망';
+  if(has('질병사망')) return '질병사망';
+  if(has('일반사망')||has('사망')) return '일반사망';
   if(has('상해','재해')&&has('후유장해')) return '상해후유장해';
   if(has('후유장해','장해')) return '질병후유장해';
+  // 암: 진단·수술 외 나머지(항암·고액·치료)는 모두 암치료비
   if(has('소액암','유사암','제자리암','경계성','갑상선암','기타피부암')) return '유사암진단비';
   if(has('전이암')) return '전이암진단비';
   if(has('암진단')&&!has('소액','유사')) return '일반암진단비';
-  if(has('다빈치','표적항암','세기조절','양성자','고액항암','로봇암','중입자')) return '고액암치료비';
   if(has('암수술')) return '암수술비';
-  if(has('항암','암직접','암입원','암통원')) return '암입원·통원·기타';
+  if(has('암')) return '암치료비';
+  // 뇌혈관: 수술·치료 → 뇌혈관치료비
   if(has('뇌출혈')) return '뇌출혈진단비';
   if(has('뇌졸중')) return '뇌졸중진단비';
-  if(has('뇌혈관')&&has('수술')) return '뇌혈관질환수술비';
+  if(has('뇌혈관')&&(has('수술')||has('치료'))) return '뇌혈관치료비';
   if(has('뇌혈관')) return '뇌혈관질환진단비';
+  // 심장: 수술·치료 → 심장질환치료비
   if(has('급성심근경색')) return '급성심근경색진단비';
   if(has('허혈성심장')) return '허혈성심장질환진단비';
-  if(has('심장')&&has('수술')) return '심장질환수술비';
+  if(has('심장')&&(has('수술')||has('치료'))) return '심장질환치료비';
+  // 수술비 (특정질병수술비는 N대수술비로 라벨링됨)
   if(has('종수술','종질병수술','1~5종','3종','5종','7종')) return '종수술비(1~5종)';
   if(has('대질병수술','특정질병수술','대질병')) return '특정질병수술비';
   if(has('상해수술')) return '상해수술비';
   if(has('수술')) return '질병수술비';
-  // 일당류를 의료비(실손)보다 먼저 — '상해입원일당'이 '상해입원의료비'로 잘못 가는 것 방지
+  // 입원·간병: 간병인 입원일당 별도, 일당류를 의료비(실손)보다 먼저
+  if(has('간병')&&has('입원일당')&&has('상해','재해')) return '간병인상해입원일당';
+  if(has('간병')&&has('입원일당')) return '간병인질병입원일당';
+  if(has('간병')) return '간병인사용지원';
   if(has('입원일당')&&has('상해','재해','교통')) return '상해입원일당';
   if(has('입원일당')||has('입원급여금')) return '질병입원일당';
-  if(has('간병')) return '간병인사용지원';
   if(has('상해입원의료비')||(has('상해','재해')&&has('입원의료비'))) return '상해입원의료비';
   if(has('입원의료비')) return '질병입원의료비';
   if(has('상해')&&has('통원')) return '상해통원의료비';
   if(has('통원')) return '질병통원의료비';
+  // 운전자/기타
   if(has('교통사고처리','형사합의')) return '교통사고처리지원금';
   if(has('변호사')) return '변호사선임비용';
   if(has('벌금')&&has('대물')) return '벌금(대물)';
   if(has('벌금')) return '벌금(대인)';
   if(has('부상위로','부상치료','자동차사고부상')) return '자동차사고부상위로금';
   if(has('일상생활배상','생활배상','가족생활배상')) return '일상생활배상책임';
-  if(has('골절')) return '골절진단비';
   if(has('깁스')) return '깁스치료비';
   if(has('화재')) return '화재벌금';
   if(has('응급실')) return '응급실내원비';
@@ -899,7 +922,7 @@ async function pool(tasks, limit, onDone){
 
 function sanitizeCov(v){
   return { name: String(v.name||'').trim(),
-           category: ALL_CATS.includes(v.category) ? v.category : '기타',
+           category: allCats().includes(v.category) ? v.category : '기타',
            amt: Math.max(0, parseInt(v.amt)||0) };
 }
 
@@ -981,9 +1004,6 @@ function finalizeReportView(){
     const cur=S.catLabels['특정질병수술비'];
     if(!cur || cur==='특정질병수술비' || /^\d+대수술비$/.test(cur)) S.catLabels['특정질병수술비'] = top+'대수술비';
   }
-  // ② 기본 숨김: 암입원·통원·기타 / 골절진단비 / 기타 (사용자 요청) — hiddenBar에서 복원 가능
-  S.hiddenCats = S.hiddenCats||[];
-  ['암입원·통원·기타','골절진단비','기타'].forEach(cat=>{ if(!S.hiddenCats.includes(cat)) S.hiddenCats.push(cat); });
 }
 
 async function buildChunk(pages){
@@ -1264,7 +1284,7 @@ function renderCovRows(c){
     tr.dataset.idx = i;
     tr.innerHTML = `
       <td><span class="drag-handle" title="드래그하여 순서 변경">⠿</span><input type="text" value="${esc(v.name)}" onchange="updCov(${i},'name',this.value)" style="width:calc(100% - 22px);"></td>
-      <td><select onchange="updCov(${i},'category',this.value)">${ALL_CATS.map(k=>`<option ${k===v.category?'selected':''}>${k}</option>`).join('')}</select></td>
+      <td><select onchange="updCov(${i},'category',this.value)">${allCats().map(k=>`<option ${k===v.category?'selected':''}>${k}</option>`).join('')}</select></td>
       <td><input type="number" value="${v.amt}" onchange="updCov(${i},'amt',this.value)"></td>
       <td style="text-align:center;"><button class="delbtn" onclick="delCov(${i})">✕</button></td>`;
     // 드래그: 핸들에서만 시작
@@ -1355,13 +1375,37 @@ function closeEditor(){
 
 /* ================= 미리보기 ================= */
 function activeRows(){
-  // 어떤 계약에서든 금액이 있는 표준담보 행만 (숨김 담보 제외)
+  // 금액이 있는 담보 행 + 사용자가 직접 추가한 담보(금액 없어도 표시) — 숨김 담보 제외
   const rows = [];
-  GROUPS.forEach(([g, items])=>{
-    const live = visCats(items).filter(cat => S.contracts.some(c => catAmt(c,cat) > 0));
-    if(live.length) rows.push([g, live]);
+  effectiveGroups().forEach(([g, items])=>{
+    const live = visCats(items).filter(cat => isCustomCat(cat) || S.contracts.some(c => catAmt(c,cat) > 0));
+    const isCustomGroup = (S.extraGroups||[]).includes(g);
+    if(live.length || isCustomGroup) rows.push([g, live]);
   });
   return rows;
+}
+
+/* ----- 대분류(그룹) · 중분류(담보) 직접 추가 ----- */
+function addGroupUI(){
+  const nm = (prompt('추가할 대분류(그룹) 이름을 입력하세요.\n예: 운전자상해, 재물/배상 등')||'').trim();
+  if(!nm) return;
+  if(effectiveGroups().some(g=>g[0]===nm)){ alert('이미 있는 대분류입니다.'); return; }
+  S.extraGroups = S.extraGroups||[]; S.extraGroups.push(nm);
+  const c = (prompt(`'${nm}' 대분류에 넣을 첫 중분류(담보) 이름을 입력하세요.\n(비워두면 대분류만 추가)`)||'').trim();
+  if(c){ S.extraCats = S.extraCats||{}; (S.extraCats[nm]=S.extraCats[nm]||[]).push(c); }
+  refreshPreviewOnly(); persist();
+}
+function addCatUI(){
+  const groups = effectiveGroups().map(g=>g[0]);
+  const gp = (prompt('어느 대분류에 중분류(담보)를 추가할까요?\n\n'+groups.map((g,i)=>`${i+1}. ${g}`).join('\n')+'\n\n번호 또는 대분류 이름 입력:')||'').trim();
+  if(!gp) return;
+  const g = /^\d+$/.test(gp) ? groups[+gp-1] : (groups.find(x=>x===gp) || groups.find(x=>x.includes(gp)));
+  if(!g){ alert('대분류를 찾지 못했습니다.'); return; }
+  const c = (prompt(`'${g}'에 추가할 중분류(담보) 이름:`)||'').trim();
+  if(!c) return;
+  if(allCats().includes(c)){ alert('이미 있는 담보 이름입니다.'); return; }
+  S.extraCats = S.extraCats||{}; (S.extraCats[g]=S.extraCats[g]||[]).push(c);
+  refreshPreviewOnly(); persist();
 }
 
 function renderStats(){
@@ -1417,7 +1461,7 @@ function hideCat(cat){
 }
 function hideGroup(g){
   if(!S.hiddenCats) S.hiddenCats = [];
-  const grp = GROUPS.find(x=>x[0]===g);
+  const grp = effectiveGroups().find(x=>x[0]===g);
   if(grp) grp[1].forEach(cat=>{ if(!S.hiddenCats.includes(cat)) S.hiddenCats.push(cat); });
   refreshPreviewOnly(); persist();
 }
@@ -1624,7 +1668,7 @@ function detailChunks(list, per=4){
   for(let i=0;i<list.length;i+=per){
     const grp = list.slice(i, i+per);
     const full = [];   // 이 묶음의 전체 담보 행
-    GROUPS.forEach(([g, items])=>{
+    effectiveGroups().forEach(([g, items])=>{
       const live = visCats(items).filter(cat => grp.some(c=>catAmt(c,cat)>0));
       live.forEach((cat,k)=> full.push({g, cat: catLabel(cat), catKey: cat, first: k===0, groupLen: live.length}));
     });
@@ -1654,14 +1698,14 @@ function compareData(){
   const cur = curContracts(), aft = afterContracts();
   const ov = S.cmpAmt || {};
   const rows = [];
-  GROUPS.forEach(([g, items])=>{
+  effectiveGroups().forEach(([g, items])=>{
     const live = visCats(items).map(cat=>{
       let a = cur.reduce((s,c)=>s+catAmt(c,cat),0);
       let b = aft.reduce((s,c)=>s+catAmt(c,cat),0);
       const o = ov[cat];
       if(o){ if(o.a!=null) a = o.a; if(o.b!=null) b = o.b; }
       return {catKey:cat, cat:catLabel(cat), a, b, d: b-a};
-    }).filter(r=>r.a||r.b);
+    }).filter(r=>r.a||r.b||isCustomCat(r.catKey));
     live.forEach((r,k)=> rows.push({g: k===0?groupLabel(g):'', gKey: k===0?g:'', ...r}));
   });
   return rows;
@@ -1790,7 +1834,7 @@ function addSummarySlide(p, cust){
 function buildDiagnosis(){
   const cur = curContracts(), aft = afterContracts();
   const out = [];
-  const dupCats = ALL_CATS.filter(cat => cur.filter(c=>catAmt(c,cat)>0).length >= 2);
+  const dupCats = allCats().filter(cat => cur.filter(c=>catAmt(c,cat)>0).length >= 2);
   if(dupCats.length) out.push({tag:'중복', color:C.NAVY,
     title:'중복 가입 보장 확인', desc:`${dupCats.slice(0,3).map(catLabel).join(', ')} 등 ${dupCats.length}개 항목이 둘 이상 계약에 중복됩니다. 정리 시 보험료 절감이 가능합니다.`});
   const KEY = ['일반암진단비','뇌혈관질환진단비','허혈성심장질환진단비','질병후유장해','질병사망'];
