@@ -477,7 +477,7 @@ const GROUPS = [
   ['심장질환',   ['허혈성심장질환진단비','급성심근경색진단비','심장질환치료비']],
   ['수술비',     ['질병수술비','상해수술비','종수술비(1~5종)','특정질병수술비']],
   ['입원·간병',  ['질병입원일당','상해입원일당','질병간병인일당','상해간병인일당']],
-  ['요양·치매',  ['장기요양자금','치매진단비','레켐비치료비','재가급여','복지용구','데이케어센터']],
+  ['요양·치매',  ['레켐비치료비','재가급여','복지용구','데이케어센터']],
   ['운전자',     ['교통사고처리지원금','변호사선임비용','벌금(대인)','벌금(대물)','자동차사고부상위로금']],
   ['기타',       ['일상생활배상책임','화재보험']]
 ];
@@ -622,7 +622,9 @@ function maturityAge(c){
 }
 const isHiddenCat = cat => (S.hiddenCats||[]).includes(cat);
 const visCats = items => items.filter(cat=>!isHiddenCat(cat));
-const catLabel = cat => (S.catLabels && S.catLabels[cat]) || cat;
+// 기본 표시 라벨 (사용자 지정 라벨이 없을 때) — 특정질병수술비는 항상 'N대수술비'로 보이게
+const CAT_DISPLAY = { '특정질병수술비':'N대수술비', '종수술비(1~5종)':'종수술비(1~5종/5종기준)' };
+const catLabel = cat => (S.catLabels && S.catLabels[cat]) || CAT_DISPLAY[cat] || cat;
 const groupLabel = g => (S.groupLabels && S.groupLabels[g]) || g;
 
 // 보험사 고객센터 대표번호 (자동 입력용 — 변경 가능성이 있으므로 편집 가능, 추후 데이터 교체 예정)
@@ -1133,6 +1135,16 @@ async function analyzeReport(bytes, useFilter){
   if(!RC.payMap || !Object.keys(RC.payMap).length){
     try{ RC.payMap = await buildPayMap(bytes.slice()); }catch(e){ RC.payMap = {}; }
   }
+  S.contracts = S.contracts.filter(c=>c.src!=='report');   // 재업로드 대응 (제안/수동은 유지)
+  // 보유계약 리스트(표)를 정상 인식했으면 AI 별첨 분석을 건너뛴다.
+  //  → 계약은 표(tableMap), 담보는 별첨 텍스트(covMap)에서 직접 추출하므로 AI 호출이 불필요하고 타임아웃도 없다.
+  if(RC.tableMap && Object.keys(RC.tableMap).length){
+    RC.expected = Object.keys(RC.tableMap).length; RC.filtered = false; RC.failed = []; RC.groups = [];
+    prog('#progReport', 0.5, '계약·담보를 PDF에서 직접 추출 중... (AI 호출 없이 빠르게)');
+    await runReportGroups([], 1);   // 빈 구간 → AI 미호출, 표 기반으로 계약 구성
+    return;
+  }
+  // 표가 없는 비정형 PDF만 기존 AI 별첨 분석으로 폴백
   let pageIdx = null;
   if(useFilter){
     prog('#progReport', 0.04, '계약 상세 페이지 스캔 중...');
@@ -1148,9 +1160,8 @@ async function analyzeReport(bytes, useFilter){
   prog('#progReport', 0.08, RC.filtered
     ? `계약 페이지 ${pageIdx.length}장만 추려서 분석합니다 (불필요한 페이지 제외 → 속도 향상)`
     : `전체 ${pageIdx.length}페이지 분석을 시작합니다`);
-  RC.groups = chunkArr(pageIdx, 3);   // 3페이지/구간 — 함수 10초 제한 내 안전 마진
+  RC.groups = chunkArr(pageIdx, 3);
   RC.failed = [];
-  S.contracts = S.contracts.filter(c=>c.src!=='report');   // 재업로드 대응 (제안/수동은 유지)
   prog('#progReport', 0.12, `${RC.groups.length}개 구간 · AI 분석 시작`);
   await runReportGroups(RC.groups, 2);
 }
