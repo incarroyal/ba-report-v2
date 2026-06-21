@@ -472,14 +472,14 @@ const GROUPS = [
   ['사망',       ['일반사망','질병사망','상해사망']],
   ['후유장해',   ['질병후유장해','상해후유장해']],
   ['실손의료비', ['질병입원의료비','질병통원의료비','상해입원의료비','상해통원의료비']],
-  ['암',         ['일반암진단비','유사암진단비','전이암진단비','암수술비','암치료비']],
+  ['암',         ['일반암진단비','유사암진단비','암치료비']],
   ['뇌혈관질환', ['뇌혈관질환진단비','뇌졸중진단비','뇌출혈진단비','뇌혈관치료비']],
   ['심장질환',   ['허혈성심장질환진단비','급성심근경색진단비','심장질환치료비']],
   ['수술비',     ['질병수술비','상해수술비','종수술비(1~5종)','특정질병수술비']],
-  ['입원·간병',  ['질병입원일당','상해입원일당','질병간병인일당','상해간병인일당','간병인사용지원']],
-  ['요양/치매',  ['장기요양자금','치매진단비']],
+  ['입원·간병',  ['질병입원일당','상해입원일당','질병간병인일당','상해간병인일당']],
+  ['요양·치매',  ['장기요양자금','치매진단비','레켐비치료비','재가급여','복지용구','데이케어센터']],
   ['운전자',     ['교통사고처리지원금','변호사선임비용','벌금(대인)','벌금(대물)','자동차사고부상위로금']],
-  ['기타',       ['일상생활배상책임','깁스치료비','화재벌금','응급실내원비']]
+  ['기타',       ['일상생활배상책임','화재보험']]
 ];
 // 기본 GROUPS + 사용자가 추가한 대분류(extraGroups)/중분류(extraCats) 병합
 function effectiveGroups(){
@@ -608,6 +608,18 @@ function payProgressDisp(c){
 }
 // 만기: period "계약일 ~ 만기일"의 뒷부분
 const maturityOf = c => { const a = String(c.period||'').split('~').map(s=>s.trim()); return a[1] || '-'; };
+// 만기 표기(나이 기준): 갱신형 → '최대 100세만기', 그 외 → 만기연도-출생연도로 'N세만기'
+function maturityAge(c){
+  if(isRenew(c)) return '최대 100세만기';
+  const mat = maturityOf(c);
+  const my = (String(mat).match(/(\d{4})/)||[])[1];
+  if(my && S.custAge){
+    const age = (+my) - ((new Date().getFullYear()) - S.custAge);
+    if(age>110) return '종신';
+    if(age>0) return age + '세만기';
+  }
+  return mat;
+}
 const isHiddenCat = cat => (S.hiddenCats||[]).includes(cat);
 const visCats = items => items.filter(cat=>!isHiddenCat(cat));
 const catLabel = cat => (S.catLabels && S.catLabels[cat]) || cat;
@@ -621,7 +633,8 @@ const CS_MAP = {
   '삼성생명':'1588-3114','한화생명':'1588-6363','교보생명':'1588-1001','신한라이프':'1588-5580',
   'NH농협생명':'1544-4000','동양생명':'1577-1004','흥국생명':'1588-2288','미래에셋생명':'1588-0220',
   'KDB생명':'1588-4040','ABL생명':'1588-6500','메트라이프':'1588-9600','라이나':'1588-0058',
-  'AIA':'1588-9898','DB생명':'1588-3131'
+  'AIA':'1588-9898','DB생명':'1588-3131','카카오페이':'1544-0022','캐롯':'1566-0300',
+  'NH농협손보':'1644-9000','하나손보':'1566-3000','신한EZ':'1670-0079','삼성생명':'1588-3114'
 };
 const autoCs = ins => { for(const k in CS_MAP) if((ins||'').includes(k)) return CS_MAP[k]; return ''; };
 
@@ -774,10 +787,8 @@ function mapCovCat(name){
   if(has('후유장해','장해')) return '질병후유장해';
   // 암: 진단·수술 외 나머지(항암·고액·치료)는 모두 암치료비
   if(has('소액암','유사암','제자리암','경계성','갑상선암','기타피부암')) return '유사암진단비';
-  if(has('전이암')) return '전이암진단비';
   if(has('암진단')&&!has('소액','유사')) return '일반암진단비';
-  if(has('암수술')) return '암수술비';
-  if(has('암')) return '암치료비';
+  if(has('암')) return '암치료비';   // 전이암·암수술·항암·고액 모두 암치료비로 통합
   // 뇌혈관: 수술·치료 → 뇌혈관치료비
   if(has('뇌출혈')) return '뇌출혈진단비';
   if(has('뇌졸중')) return '뇌졸중진단비';
@@ -794,8 +805,7 @@ function mapCovCat(name){
   if(has('수술')) return '질병수술비';
   // 입원·간병: 간병인 입원일당 별도, 일당류를 의료비(실손)보다 먼저
   if(has('간병')&&has('상해','재해')) return '상해간병인일당';
-  if(has('간병')&&(has('일당')||has('입원'))) return '질병간병인일당';
-  if(has('간병')) return '간병인사용지원';
+  if(has('간병')) return '질병간병인일당';
   if(has('입원일당')&&has('상해','재해','교통')) return '상해입원일당';
   if(has('입원일당')||has('입원급여금')) return '질병입원일당';
   if(has('상해입원의료비')||(has('상해','재해')&&has('입원의료비'))) return '상해입원의료비';
@@ -809,9 +819,12 @@ function mapCovCat(name){
   if(has('벌금')) return '벌금(대인)';
   if(has('부상위로','부상치료','자동차사고부상')) return '자동차사고부상위로금';
   if(has('일상생활배상','생활배상','가족생활배상')) return '일상생활배상책임';
-  if(has('깁스')) return '깁스치료비';
-  if(has('화재')) return '화재벌금';
-  if(has('응급실')) return '응급실내원비';
+  if(has('화재')) return '화재보험';
+  // 요양·치매
+  if(has('레켐비','레카네맙')) return '레켐비치료비';
+  if(has('재가급여')) return '재가급여';
+  if(has('복지용구')) return '복지용구';
+  if(has('데이케어','주야간보호','주간보호')) return '데이케어센터';
   if(has('장기요양')) return '장기요양자금';
   if(has('치매')) return '치매진단비';
   return '기타';
@@ -979,7 +992,7 @@ function absorbReport(pairs){
       S.contracts.push({ id: uid(), src:'report', status:'유지', _ord: ci*100 + oi,
         insurer, productName,
         monthlyPremium: prem, payProgress: prog, payTerm: term,
-        period, csPhone:'', special: guessSpecial(productName),
+        period, csPhone: autoCs(insurer), special: guessSpecial(productName),
         // 담보: 별첨 텍스트 파싱값(정확) 우선, 없으면 AI 담보로 폴백
         covs: ((((RC.covMap||{})[prem]||[]).length ? RC.covMap[prem] : (c.covs||[]))).map(sanitizeCov).filter(v=>v.amt>0) });
     });
@@ -1000,7 +1013,7 @@ function addMissingFromTable(){
     S.contracts.push({ id: uid(), src:'report', status:'유지', _ord: 9000 + added,
       insurer: t.insurer||'', productName: t.name||'', monthlyPremium: prem,
       payProgress: t.payProgress||'', payTerm: t.payTerm||'', period: t.period||'',
-      csPhone:'', special: guessSpecial(t.name),
+      csPhone: autoCs(t.insurer), special: guessSpecial(t.name),
       covs: ((RC.covMap||{})[prem]||[]).map(sanitizeCov).filter(v=>v.amt>0) });
     have.add(prem); added++;
   });
@@ -1177,7 +1190,7 @@ function mergeProposalParts(parts, fname){
     productName: firstWith('productName') || fname.replace(/\.pdf$/i,''),
     monthlyPremium: aiPrem || fnPrem,
     payProgress:'', payTerm: py?`${py}년납`:'', period: firstWith('term')||'',
-    csPhone:'', special: guessSpecial(firstWith('productName')||''),
+    csPhone: autoCs(firstWith('insurer')||''), special: guessSpecial(firstWith('productName')||''),
     covs
   };
 }
@@ -1290,7 +1303,8 @@ function openEditor(id){
   $('#edIns').value = c.insurer; $('#edName').value = c.productName;
   $('#edPrem').value = c.monthlyPremium;
   const [ps, pe] = splitPeriod(c.period);
-  $('#edStart').value = ps; $('#edEnd').value = pe;
+  // 보장만기는 나이 기준으로 표시(읽기전용), 실제 만기일은 c.period에 보존
+  $('#edStart').value = ps; $('#edEnd').value = maturityAge(c); $('#edEnd').readOnly = true; $('#edEnd').dataset.raw = pe;
   $('#edPay').value = c.payProgress||''; $('#edPayTerm').value = c.payTerm||'';
   $('#edCs').value = c.csPhone||''; $('#edSpecial').checked = !!c.special;
   renderCovRows(c); renderDeletedCovBar(); renderContracts();
@@ -1386,7 +1400,7 @@ function closeEditor(){
   if(c){
     c.insurer = $('#edIns').value.trim(); c.productName = $('#edName').value.trim();
     c.monthlyPremium = parseInt($('#edPrem').value)||0;
-    const ps = $('#edStart').value.trim(), pe = $('#edEnd').value.trim();
+    const ps = $('#edStart').value.trim(), pe = ($('#edEnd').dataset.raw||'').trim();   // 만기일은 보존된 원본 날짜 사용
     c.period = ps || pe ? `${ps}~${pe}` : '';
     c.payProgress = $('#edPay').value.trim(); c.payTerm = $('#edPayTerm').value.trim();
     c.csPhone = $('#edCs').value.trim(); c.special = $('#edSpecial').checked;
@@ -1603,7 +1617,7 @@ function renderMatrix(){
   html += `<td colspan="${colSpanTail}"></td></tr>`;
 
   html += `<tr class="info b"><td colspan="2" style="text-align:center;">만기</td>`;
-  cs.forEach(c=> html += `<td style="font-size:11px;">${esc(maturityOf(c))}</td>`);
+  cs.forEach(c=> html += `<td style="font-size:11px;">${esc(maturityAge(c))}</td>`);
   html += `<td colspan="${colSpanTail}"></td></tr>`;
 
   // 담보 행 — 행 ✎/✕(이름·합계 수정/삭제) + 각 칸 클릭 시 인라인 금액 수정
@@ -2268,7 +2282,7 @@ function buildPrintHTML(){
     <tr><th class="l" colspan="2">보험사 / 상태</th>${grp.map(c=>`<th class="c" style="background:${ST_HEX[c.status]};font-size:11.5pt;vertical-align:middle;">${esc(c.insurer)}<br><span style="font-weight:600;opacity:.9;font-size:9pt;">${c.status}${c.special?' · 분류외':''}</span></th>`).join('')}</tr>
     <tr><td colspan="2" class="grp">상품명</td>${grp.map(c=>`<td class="c" style="font-size:9.5pt;color:#5A6678;line-height:1.45;">${esc(c.productName)}</td>`).join('')}</tr>
     <tr><td colspan="2" class="grp">월 보험료</td>${grp.map(c=>`<td class="c hl">${fmtWon(c.monthlyPremium)}${isRenew(c)?' +@':''}</td>`).join('')}</tr>
-    <tr><td colspan="2" class="grp">보장기간</td>${grp.map(c=>{const[a,b]=splitPeriod(c.period);return `<td class="c" style="font-size:9.5pt;">${esc(a&&b?a+' ~ '+b:(a||b||'-'))}</td>`;}).join('')}</tr>
+    <tr><td colspan="2" class="grp">보장만기</td>${grp.map(c=>`<td class="c" style="font-size:9.5pt;">${esc(maturityAge(c))}</td>`).join('')}</tr>
     <tr><td colspan="2" class="grp">납입</td>${grp.map(c=>`<td class="c" style="font-size:10pt;">${esc([payProgressDisp(c),(c.payTerm||'')+(isRenew(c)?' 갱신형':'')].filter(x=>x&&x.trim()).join(' · ')||'-')}</td>`).join('')}</tr>
     ${cats.map(({g,cat,catKey,span}, ri)=>`<tr class="zebra">${span?`<td class="grp" rowspan="${span}">${esc(g)}</td>`:''}
       <td class="cv">${esc(catLabel(catKey))}</td>
