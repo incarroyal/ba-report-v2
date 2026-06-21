@@ -157,10 +157,10 @@ input:focus,select:focus{outline:none;border-color:var(--c-primary);box-shadow:0
   table.pt td.grp{background:#EEF3F9;color:#0E2C4D;font-weight:800;text-align:center;font-size:8.5pt;border-bottom:0.5pt solid #DCE5F0;}
   table.pt td.cv{text-align:left;background:#FCFDFE;color:#3A4655;font-weight:600;}
   table.pt td.hl{background:#F4F8FC;font-weight:800;color:#1B4470;}
-  table.pt.detail td{padding:0.55mm 3mm;font-size:9pt;line-height:1.08;}
-  table.pt.detail td.cv,table.pt.detail td.grp{font-size:9pt;white-space:nowrap;}
+  table.pt.detail td{padding:0.28mm 3mm;font-size:8pt;line-height:1.02;}
+  table.pt.detail td.cv,table.pt.detail td.grp{font-size:8pt;white-space:nowrap;}
   table.pt.detail td.grp{font-weight:800;}
-  table.pt.detail th{padding:1.0mm 3mm;font-size:10pt;}
+  table.pt.detail th{padding:0.8mm 3mm;font-size:9.5pt;}
   table.pt tr.sum td{background:#0E2C4D;color:#fff;font-weight:800;border-bottom:none;}
   table.pt tr.sum td:first-child{border-bottom-left-radius:2mm;} table.pt tr.sum td:last-child{border-bottom-right-radius:2mm;}
   /* 상담용 정비: 금액 가운데정렬(라벨과 시각적 연결) + 표를 페이지 세로 중앙에 배치(하단 여백 균형) */
@@ -2657,13 +2657,13 @@ function buildPrintHTML(){
     const cw = (74/grp.length).toFixed(1);
     return `<div class="psheet content">${chrome(eb, title + (arr.length>1?` (${ci+1}/${arr.length})`:''))}
     <div class="pbody pbody-top"><table class="pt detail" style="font-size:11pt;"><colgroup><col style="width:7%"><col style="width:19%">${grp.map(()=>`<col style="width:${cw}%">`).join('')}</colgroup>
-    <tr><th class="l" colspan="2" style="font-size:12pt;">보험사</th>${grp.map(c=>`<th class="c" style="background:${ST_HEX[c.status]};font-size:12.5pt;vertical-align:middle;">${esc(c.insurer)}<br><span style="font-weight:600;opacity:.9;font-size:9.5pt;">${c.status}${c.special?' · 분류외':''}</span></th>`).join('')}</tr>
-    <tr><td colspan="2" class="grp">상품명</td>${grp.map(c=>`<td class="c" style="font-size:9.5pt;color:#5A6678;line-height:1.25;">${esc(cleanProd(c.productName))}</td>`).join('')}</tr>
-    <tr><td colspan="2" class="grp">월 보험료</td>${grp.map(c=>`<td class="c hl">${fmtWon(c.monthlyPremium)}${isRenew(c)?' +@':''}</td>`).join('')}</tr>
-    <tr><td colspan="2" class="grp">향후 납입할 보험료</td>${grp.map(c=>{const f=futurePrem(c);return `<td class="c" style="font-size:9pt;color:#5A6678;">${f?fmtWon(f)+(isRenew(c)?' +@':''):'-'}</td>`;}).join('')}</tr>
-    <tr><td colspan="2" class="grp">계약일</td>${grp.map(c=>`<td class="c" style="font-size:9.5pt;">${esc(splitPeriod(c.period)[0]||'-')}</td>`).join('')}</tr>
-    <tr><td colspan="2" class="grp">보장만기</td>${grp.map(c=>`<td class="c" style="font-size:9.5pt;">${esc(maturityAge(c))}</td>`).join('')}</tr>
-    <tr><td colspan="2" class="grp">납입기간 및 회차</td>${grp.map(c=>`<td class="c" style="font-size:10pt;">${esc([payProgressDisp(c),(c.payTerm||'')+(isRenew(c)?' 갱신형':'')].filter(x=>x&&x.trim()).join(' · ')||'-')}</td>`).join('')}</tr>
+    <tr><th class="l" colspan="2" style="font-size:10.5pt;">보험사</th>${grp.map(c=>`<th class="c" style="background:${ST_HEX[c.status]};font-size:10.5pt;vertical-align:middle;">${esc(c.insurer)}<span style="font-weight:600;opacity:.9;font-size:8pt;"> · ${c.status}${c.special?' · 분류외':''}</span></th>`).join('')}</tr>
+    <tr><td colspan="2" class="grp">상품명</td>${grp.map(c=>`<td class="c" style="font-size:8.5pt;color:#5A6678;line-height:1.15;">${esc(cleanProd(c.productName))}</td>`).join('')}</tr>
+    <tr><td colspan="2" class="grp">월 보험료</td>${grp.map(c=>`<td class="c hl" style="font-size:8.5pt;">${fmtWon(c.monthlyPremium)}${isRenew(c)?' +@':''}</td>`).join('')}</tr>
+    <tr><td colspan="2" class="grp">향후 납입할 보험료</td>${grp.map(c=>{const f=futurePrem(c);return `<td class="c" style="font-size:8pt;color:#5A6678;">${f?fmtWon(f)+(isRenew(c)?' +@':''):'-'}</td>`;}).join('')}</tr>
+    <tr><td colspan="2" class="grp">계약일</td>${grp.map(c=>`<td class="c" style="font-size:8.5pt;">${esc(splitPeriod(c.period)[0]||'-')}</td>`).join('')}</tr>
+    <tr><td colspan="2" class="grp">보장만기</td>${grp.map(c=>`<td class="c" style="font-size:8.5pt;">${esc(maturityAge(c))}</td>`).join('')}</tr>
+    <tr><td colspan="2" class="grp">납입기간 및 회차</td>${grp.map(c=>`<td class="c" style="font-size:8.5pt;">${esc([payProgressDisp(c),(c.payTerm||'')+(isRenew(c)?' 갱신형':'')].filter(x=>x&&x.trim()).join(' · ')||'-')}</td>`).join('')}</tr>
     ${cats.map(({g,cat,catKey,span}, ri)=>`<tr class="zebra">${span?`<td class="grp" rowspan="${span}">${esc(g)}</td>`:''}
       <td class="cv">${esc(catLabel(catKey))}</td>
       ${grp.map(c=> c.special
