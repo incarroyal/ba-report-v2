@@ -472,7 +472,6 @@ table.pv td.mcell.ed input{width:66px;border:1.5px solid var(--c-primary);border
 /* ================= 표준 분류 체계 (서버 ai-parse.mjs CATEGORIES와 동기화) ================= */
 const GROUPS = [
   ['사망',       ['일반사망','질병사망','상해사망']],
-  ['후유장해',   ['질병후유장해','상해후유장해']],
   ['실손의료비', ['질병입원의료비','질병통원의료비','상해입원의료비','상해통원의료비']],
   ['암',         ['일반암진단비','유사암진단비','암치료비']],
   ['뇌혈관질환', ['뇌혈관질환진단비','뇌졸중진단비','뇌출혈진단비','뇌혈관치료비']],
@@ -555,6 +554,37 @@ const catAmt = (c, cat) => {
 };
 // 이 칸(계약×담보)이 갱신형인가 — 갱신형 상품 전체 또는 갱신형 특약 담보
 const catRenew = (c, cat) => isRenew(c) || (c.covs||[]).some(v=>v.category===cat && v.renew && +v.amt>0);
+// 합산 금액을 갱신/비갱신으로 분리 — {renew, normal}
+function catSplit(list, cat){
+  let renew=0, normal=0;
+  list.forEach(c=>{
+    const ov = S.cellAmt && S.cellAmt[c.id] && S.cellAmt[c.id][cat];
+    if(ov!=null){ if(catRenew(c,cat)) renew += +ov; else normal += +ov; return; }
+    const whole = isRenew(c);
+    (c.covs||[]).forEach(v=>{ if(v.category===cat && +v.amt>0){ if(whole||v.renew) renew += +v.amt; else normal += +v.amt; } });
+  });
+  return {renew, normal};
+}
+// "2억(갱신) / 1억" 형태로 분리 표기 (mark=갱신 표식 HTML, sep=구분자)
+function catSplitFmt(list, cat, mark, sep){
+  const {renew, normal} = catSplit(list, cat);
+  if(!renew && !normal) return '';
+  const parts=[];
+  if(renew>0) parts.push(fmtMan(renew)+(mark||''));
+  if(normal>0) parts.push(fmtMan(normal));
+  return parts.join(sep||'<br>');
+}
+const GMK_SCR = '<span style="color:var(--c-orange);font-size:10px;">(갱신)</span>';
+const GMK_PDF = '<span style="color:#C0392B;font-size:7.5pt;">(갱신)</span>';
+// PPT용 평문 분리 표기 ("2억(갱신) 1억")
+function catSplitTxt(list, cat){
+  const {renew, normal} = catSplit(list, cat);
+  if(!renew && !normal) return '';
+  const parts=[];
+  if(renew>0) parts.push(fmtMan(renew)+'(갱신)');
+  if(normal>0) parts.push(fmtMan(normal));
+  return parts.join(' ');
+}
 const CUR_ST = ['유지','리모델링','이체중지','증권확인'], AFT_ST = ['유지','증권확인','제안'];
 const DROP_ST = ['리모델링','이체중지'];   // 정리 대상 — '개선 후'에서 제외
 const STATUS_LABEL = {'이체중지':'자동이체 중지'};
@@ -796,8 +826,6 @@ function mapCovCat(name){
   if(has('상해사망','재해사망')) return '상해사망';
   if(has('질병사망')) return '질병사망';
   if(has('일반사망')||has('사망')) return '일반사망';
-  if(has('상해','재해')&&has('후유장해')) return '상해후유장해';
-  if(has('후유장해','장해')) return '질병후유장해';
   // 암: '유사암제외'는 일반암(유사암 아님). 진단·수술 외 나머지는 암치료비
   if(has('유사암제외','유사암제외형')) return '일반암진단비';
   if(has('소액암','유사암','제자리암','경계성','갑상선암','기타피부암')) return '유사암진단비';
@@ -1567,15 +1595,17 @@ function renderCmpTable(){
       </span></td>`;
     const aOver = !!(S.cmpAmt && S.cmpAmt[r.catKey] && S.cmpAmt[r.catKey].a!=null);
     const bOver = !!(S.cmpAmt && S.cmpAmt[r.catKey] && S.cmpAmt[r.catKey].b!=null);
-    const gmk = '<span style="color:var(--c-orange);font-size:10px;"> (갱신)</span>';
-    const aRenew = curContracts().some(c=>catRenew(c,r.catKey) && catAmt(c,r.catKey)>0);
-    const bRenew = afterContracts().some(c=>catRenew(c,r.catKey) && catAmt(c,r.catKey)>0);
     ['a','b'].forEach(f=>{
-      const val = r[f], over = f==='a'?aOver:bOver, ren = (f==='a'?aRenew:bRenew) && val>0;
+      const val = r[f], over = f==='a'?aOver:bOver;
+      // 오버라이드는 단일값이라 분리 불가 → 전체를 catRenew 기준 표기 / 아니면 갱신·비갱신 분리
+      const list = f==='a'?curContracts():afterContracts();
+      let disp;
+      if(over) disp = val ? fmtMan(val)+(list.some(c=>catRenew(c,r.catKey)&&catAmt(c,r.catKey)>0)?GMK_SCR:'') : '-';
+      else disp = catSplitFmt(list, r.catKey, GMK_SCR, '<br>') || '-';
       if(mCmpEdit && mCmpEdit.catKey===r.catKey && mCmpEdit.field===f){
         html += `<td class="mcell ed"><input type="number" value="${val||''}" onblur="saveCmpCell('${esc(r.catKey)}','${f}',this.value)" onkeydown="if(event.key==='Enter'){this.blur();}else if(event.key==='Escape'){mCmpEdit=null;renderCmpTable();}"></td>`;
       } else {
-        html += `<td class="mcell${over?' over':''}" onclick="editCmpCell('${esc(r.catKey)}','${f}')" title="클릭하면 금액을 직접 수정합니다">${val?fmtMan(val)+(ren?gmk:''):'-'}</td>`;
+        html += `<td class="mcell${over?' over':''}" onclick="editCmpCell('${esc(r.catKey)}','${f}')" title="클릭하면 금액을 직접 수정합니다">${disp}</td>`;
       }
     });
     html += `<td class="${d>0?'up':d<0?'dn':''}">${d===0?'':(d>0?'▲ '+fmtMan(d):'▼ '+fmtMan(-d))}</td></tr>`;
@@ -1777,14 +1807,11 @@ function renderMatrix(){
         if(mEdit && mEdit.cid===c.id && mEdit.cat===cat){
           html += `<td class="mcell ed"><input type="number" value="${v||''}" onblur="saveCell('${c.id}','${esc(cat)}',this.value)" onkeydown="if(event.key==='Enter'){this.blur();}else if(event.key==='Escape'){mEdit=null;renderMatrix();}"></td>`;
         } else {
-          html += `<td class="mcell${over?' over':''}" onclick="editCell('${c.id}','${esc(cat)}')" title="클릭하면 이 칸 금액을 직접 수정합니다">${v?fmtMan(v)+(catRenew(c,cat)?'<span style="color:var(--c-orange);font-size:10px;"> (갱신)</span>':''):'<span class="add">+</span>'}</td>`;
+          html += `<td class="mcell${over?' over':''}" onclick="editCell('${c.id}','${esc(cat)}')" title="클릭하면 이 칸 금액을 직접 수정합니다">${v?catSplitFmt([c],cat,GMK_SCR,'<br>'):'<span class="add">+</span>'}</td>`;
         }
       });
-      const gmk = '<span style="color:var(--c-orange);font-size:10px;"> (갱신)</span>';
-      const curT = cur.reduce((s,c)=>s+catAmt(c,cat),0), aftT = aft.reduce((s,c)=>s+catAmt(c,cat),0);
-      const curR = cur.some(c=>catRenew(c,cat) && catAmt(c,cat)>0), aftR = aft.some(c=>catRenew(c,cat) && catAmt(c,cat)>0);
-      html += `<td class="tot">${curT?fmtMan(curT)+(curR?gmk:''):'-'}</td>`;
-      html += `<td class="tot">${aftT?fmtMan(aftT)+(aftR?gmk:''):'-'}</td></tr>`;
+      html += `<td class="tot">${catSplitFmt(cur,cat,GMK_SCR,'<br>')||'-'}</td>`;
+      html += `<td class="tot">${catSplitFmt(aft,cat,GMK_SCR,'<br>')||'-'}</td></tr>`;
     });
   });
   html += '</tbody></table>';
@@ -2064,7 +2091,7 @@ function buildDiagnosis(){
   const dupCats = allCats().filter(cat => cur.filter(c=>catAmt(c,cat)>0).length >= 2);
   if(dupCats.length) out.push({tag:'중복', color:C.NAVY,
     title:'중복 가입 보장 확인', desc:`${dupCats.slice(0,3).map(catLabel).join(', ')} 등 ${dupCats.length}개 항목이 둘 이상 계약에 중복됩니다. 정리 시 보험료 절감이 가능합니다.`});
-  const KEY = ['일반암진단비','뇌혈관질환진단비','허혈성심장질환진단비','질병후유장해','질병사망'];
+  const KEY = ['일반암진단비','뇌혈관질환진단비','허혈성심장질환진단비','질병수술비','질병사망'];
   const gaps = KEY.filter(cat => aft.reduce((s,c)=>s+catAmt(c,cat),0) === 0);
   if(gaps.length) out.push({tag:'부족', color:C.RED,
     title:'보장 공백 영역', desc:`${gaps.map(catLabel).join(', ')} 보장이 부족하거나 없습니다. 우선 보완을 검토하시길 권장합니다.`});
@@ -2141,7 +2168,7 @@ function addDetailSlides(p, list, eyebrow, baseTitle){
       const row = [];
       if(span) row.push(catCell(g, span));
       row.push(td(cat, {align:'left', fill:{color:C.CARD}, color:C.GRAY, fontSize:10}));
-      grp.forEach(c=>{ const v = catAmt(c, catKey); row.push(td(v?fmtMan(v)+(catRenew(c,catKey)?' (갱신)':''):'', {color: v?C.INK:C.LINE})); });
+      grp.forEach(c=>{ const v = catAmt(c, catKey); row.push(td(v?catSplitTxt([c],catKey):'', {color: v?C.INK:C.LINE})); });
       rows.push(row);
     });
 
@@ -2206,8 +2233,8 @@ function addCompareSlide(p, cust){
       t.push([
         td(r.g, {align:'center', fill:{color:C.NAVYBOX}, color:C.WHITE, fontSize:8.5}),
         td(r.cat, {align:'left', fill:{color:C.CARD}, color:C.GRAY}),
-        td(fmtMan(r.a)||'-', {color:C.GRAY}),
-        td(fmtMan(r.b)||'-', {fill:{color:C.ROWBLUE}}),
+        td((catSplitTxt(curContracts(),r.catKey)||fmtMan(r.a))||'-', {color:C.GRAY}),
+        td((catSplitTxt(afterContracts(),r.catKey)||fmtMan(r.b))||'-', {fill:{color:C.ROWBLUE}}),
         td(r.d===0?'' : (r.d>0?'▲ '+fmtMan(r.d) : '▼ '+fmtMan(-r.d)),
           {align:'center', color: r.d>0?C.GREEN : r.d<0?C.RED : C.INK, fontSize:8.5})
       ]);
@@ -2461,7 +2488,7 @@ function buildPrintHTML(){
       <td class="cv">${esc(catLabel(catKey))}</td>
       ${grp.map(c=> c.special
         ? (ri===0 ? `<td rowspan="${cats.length}" style="vertical-align:top;text-align:left;padding:2.6mm 3mm;font-size:9.8pt;line-height:1.6;background:#FBFCFE;"><div style="font-size:9.5pt;font-weight:800;color:#B0894C;letter-spacing:.4px;margin-bottom:2mm;">분류 외 · 주요 보장 내용</div>${spList(c)}</td>` : '')
-        : (()=>{const v=catAmt(c,catKey);return `<td${v?'':' style="color:#C5CDD8;"'}>${v?fmtMan(v)+(catRenew(c,catKey)?'<span style="color:#C0392B;font-size:8pt;"> (갱신)</span>':''):'·'}</td>`;})()
+        : (()=>{const v=catAmt(c,catKey);return `<td${v?'':' style="color:#C5CDD8;"'}>${v?catSplitFmt([c],catKey,GMK_PDF,'<br>'):'·'}</td>`;})()
       ).join('')}</tr>`).join('')}
     </table>${pFoot(cust)}</div>`;
   }).join('');
@@ -2475,10 +2502,14 @@ function buildPrintHTML(){
   // ===== 7. 전후 비교 (2단, 페이지당 최대 행 수 제한) =====
   const cmp = compareData();
   const curP = sumPrem(curContracts()), aftP = sumPrem(afterContracts()), dropP = sumPrem(dropContracts());
-  const gMk = '<span style="color:#C0392B;font-size:6.5pt;"> (갱신)</span>';
-  const cmpRow = r => { const aR=curContracts().some(c=>catRenew(c,r.catKey)&&catAmt(c,r.catKey)>0)&&r.a>0, bR=afterContracts().some(c=>catRenew(c,r.catKey)&&catAmt(c,r.catKey)>0)&&r.b>0;
+  const gMk = '<span style="color:#C0392B;font-size:6.5pt;">(갱신)</span>';
+  const cmpAOv = c => S.cmpAmt && S.cmpAmt[c] && S.cmpAmt[c].a!=null;
+  const cmpBOv = c => S.cmpAmt && S.cmpAmt[c] && S.cmpAmt[c].b!=null;
+  const cmpRow = r => {
+    const aDisp = cmpAOv(r.catKey) ? (r.a?pAmt(r.a)+(curContracts().some(c=>catRenew(c,r.catKey)&&catAmt(c,r.catKey)>0)?gMk:''):'-') : (catSplitFmt(curContracts(),r.catKey,gMk,'<br>')||'-');
+    const bDisp = cmpBOv(r.catKey) ? (r.b?pAmt(r.b)+(afterContracts().some(c=>catRenew(c,r.catKey)&&catAmt(c,r.catKey)>0)?gMk:''):'-') : (catSplitFmt(afterContracts(),r.catKey,gMk,'<br>')||'-');
     return `<tr class="zebra"><td class="grp" style="font-size:8pt;${r.g?'':'background:#fff;border-bottom-color:#EAEEF4;'}">${esc(r.g)}</td><td class="cv">${esc(r.cat)}</td>
-    <td style="color:#94A3B5;white-space:nowrap;">${pAmt(r.a)}${aR?gMk:''}</td><td style="font-weight:800;color:#0E2C4D;white-space:nowrap;">${pAmt(r.b)}${bR?gMk:''}</td>
+    <td style="color:#94A3B5;white-space:nowrap;">${aDisp}</td><td style="font-weight:800;color:#0E2C4D;white-space:nowrap;">${bDisp}</td>
     <td class="c" style="white-space:nowrap;">${r.d===0
       ? '<span style="color:#C5CDD8;font-size:8pt;">유지</span>'
       : r.d>0
