@@ -422,6 +422,7 @@ table.pv td.mcell.ed input{width:66px;border:1.5px solid var(--c-primary);border
           <div><label>보험사</label><input type="text" id="edIns" style="width:150px;"></div>
           <div><label>상품명</label><input type="text" id="edName" style="width:280px;"></div>
           <div><label>월 보험료(원)</label><input type="number" id="edPrem" style="width:115px;"></div>
+          <div><label>향후 납입할 보험료</label><input type="text" id="edFuture" style="width:130px;background:#f1f5f9;" readonly title="월 보험료·납입회차·갱신여부로 자동 계산됩니다"></div>
           <div><label>계약일</label><input type="text" id="edStart" style="width:110px;" placeholder="2023.01.10"></div>
           <div><label>보장만기</label><input type="text" id="edEnd" style="width:110px;" placeholder="2043.01.10"></div>
           <div><label>납입(횟수)</label><input type="text" id="edPay" style="width:90px;" placeholder="41/240"></div>
@@ -493,7 +494,7 @@ const allCats = () => effectiveGroups().flatMap(g=>g[1]);
 const isCustomCat = cat => Object.values(S.extraCats||{}).some(arr=>arr.includes(cat));
 
 /* ================= 상태 ================= */
-let S = { contracts: [], hiddenCats: [], catLabels: {}, groupLabels: {}, cmpAmt: {}, cellAmt: {}, extraGroups: [], extraCats: {} };   // {id, src, status:'유지'|'리모델링'|'이체중지'|'증권확인'|'제안', insurer, productName, monthlyPremium, payProgress, period, covs:[{name,category,amt}]}
+let S = { contracts: [], hiddenCats: [], catLabels: {}, groupLabels: {}, cmpAmt: {}, cellAmt: {}, extraGroups: [], extraCats: {}, futureOv: {}, matOv: {}, hiddenInfoRows: [] };   // {id, src, status:'유지'|'리모델링'|'이체중지'|'증권확인'|'제안', insurer, productName, monthlyPremium, payProgress, period, covs:[{name,category,amt}]}
 let editingId = null;
 let deletedCovs = [];   // 모달 세션 동안 삭제한 담보 임시 보관 (복원용, 저장 안 됨)
 let covBaseline = [];   // 담보 정상 순서 기준 (객체 참조) — 복원 위치 계산용
@@ -513,6 +514,9 @@ function migrateState(st){
   if(!st.cellAmt || typeof st.cellAmt!=='object') st.cellAmt = {};
   if(!Array.isArray(st.extraGroups)) st.extraGroups = [];
   if(!st.extraCats || typeof st.extraCats!=='object') st.extraCats = {};
+  if(!st.futureOv || typeof st.futureOv!=='object') st.futureOv = {};
+  if(!st.matOv || typeof st.matOv!=='object') st.matOv = {};
+  if(!Array.isArray(st.hiddenInfoRows)) st.hiddenInfoRows = [];
   return st;
 }
 
@@ -591,6 +595,7 @@ const totalPrem = c => (+c.monthlyPremium||0) * totalPayCount(c);
 //  · 그 외: 남은 납입회차 = 총회차 - 기납입회차 (예: 41/240 → 199회)
 const isRenew = c => /갱신/.test(String(c.productName||'')+String(c.payTerm||''));
 function futurePrem(c){
+  if(S.futureOv && S.futureOv[c.id]!=null) return +S.futureOv[c.id];   // 사용자 직접 수정값 우선
   const monthly = +c.monthlyPremium||0; if(!monthly) return 0;
   if(isRenew(c) && S.custAge){ return monthly * Math.max(0, (100 - S.custAge) * 12); }
   const m = String(c.payProgress||'').match(/(\d+)\s*\/\s*(\d+)/);
@@ -612,6 +617,7 @@ function payProgressDisp(c){
 const maturityOf = c => { const a = String(c.period||'').split('~').map(s=>s.trim()); return a[1] || '-'; };
 // 만기 표기(나이 기준): 갱신형 → '최대 100세만기', 그 외 → 만기연도-출생연도로 'N세만기'
 function maturityAge(c){
+  if(S.matOv && S.matOv[c.id]) return S.matOv[c.id];   // 사용자 직접 수정값 우선
   if(isRenew(c)) return '최대 100세만기';
   const mat = maturityOf(c);
   const my = (String(mat).match(/(\d{4})/)||[])[1];
@@ -1356,6 +1362,7 @@ function openEditor(id){
   document.body.style.overflow = 'hidden';
   $('#edIns').value = c.insurer; $('#edName').value = c.productName;
   $('#edPrem').value = c.monthlyPremium;
+  $('#edFuture').value = (futurePrem(c)||0).toLocaleString() + '원' + (isRenew(c)?' +@':'');
   const [ps, pe] = splitPeriod(c.period);
   // 보장만기는 나이 기준으로 표시(읽기전용), 실제 만기일은 c.period에 보존
   $('#edStart').value = ps; $('#edEnd').value = maturityAge(c); $('#edEnd').readOnly = true; $('#edEnd').dataset.raw = pe;
@@ -1641,6 +1648,43 @@ function saveCmpEdit(){
   closeCmpEdit(); refreshPreviewOnly(); persist();
 }
 
+/* ----- 계약 요약 정보 행(월보험료·향후납입·납입기간·납입회차·만기) 인라인 수정·삭제·복원 ----- */
+const INFO_ROWS = [
+  { key:'prem',    label:'월 납입 보험료',   tot:true,  disp:c=>(c.monthlyPremium||0).toLocaleString()+(isRenew(c)?' +@':'') },
+  { key:'future',  label:'향후 납입할 보험료', tot:true,  disp:c=>{const t=futurePrem(c);return t?t.toLocaleString()+(isRenew(c)?' +@':''):'-';} },
+  { key:'payterm', label:'납입기간',         tot:false, disp:c=>esc(c.payTerm||'-')+(isRenew(c)?' <b style="color:var(--c-primary);">갱신형</b>':'') },
+  { key:'payprog', label:'납입회차',         tot:false, disp:c=>esc(payProgressDisp(c)) },
+  { key:'mat',     label:'만기',             tot:false, disp:c=>`<span style="font-size:11px;">${esc(maturityAge(c))}</span>` },
+];
+const INFO_LABEL = Object.fromEntries(INFO_ROWS.map(r=>[r.key, r.label]));
+function infoRaw(c, key){
+  if(key==='prem') return c.monthlyPremium||'';
+  if(key==='future') return futurePrem(c)||'';
+  if(key==='payterm') return c.payTerm||'';
+  if(key==='payprog') return c.payProgress||'';
+  if(key==='mat') return maturityAge(c);
+  return '';
+}
+function cs2sum(list, key){
+  if(key==='prem') return sumPrem(list).toLocaleString();
+  if(key==='future') return list.reduce((s,c)=>s+futurePrem(c),0).toLocaleString();
+  return '';
+}
+let mEditInfo = null;
+function editInfoCell(cid, key){ mEditInfo={cid,key}; renderMatrix(); }
+function saveInfoCell(cid, key, val){
+  mEditInfo=null; const c=S.contracts.find(x=>x.id===cid); if(!c){ renderMatrix(); return; }
+  val=String(val).trim();
+  if(key==='prem') c.monthlyPremium = parseInt(val.replace(/[^0-9]/g,''))||0;
+  else if(key==='payterm') c.payTerm = val.replace(/갱신형/g,'').trim();
+  else if(key==='payprog') c.payProgress = val.replace(/\s*\(100세\)\s*/,'').trim();
+  else if(key==='future'){ S.futureOv=S.futureOv||{}; const n=parseInt(val.replace(/[^0-9]/g,'')); if(!val||isNaN(n)) delete S.futureOv[cid]; else S.futureOv[cid]=n; }
+  else if(key==='mat'){ S.matOv=S.matOv||{}; if(!val) delete S.matOv[cid]; else S.matOv[cid]=val; }
+  refreshPreviewOnly(); persist();
+}
+function hideInfoRow(key){ S.hiddenInfoRows=S.hiddenInfoRows||[]; if(!S.hiddenInfoRows.includes(key)) S.hiddenInfoRows.push(key); refreshPreviewOnly(); persist(); }
+function unhideInfoRow(key){ S.hiddenInfoRows=(S.hiddenInfoRows||[]).filter(k=>k!==key); refreshPreviewOnly(); persist(); }
+
 function renderMatrix(){
   const cs = S.contracts;
   if(!cs.length){ $('#mtxWrap').innerHTML=''; return; }
@@ -1653,26 +1697,24 @@ function renderMatrix(){
   const cur = curContracts(), aft = afterContracts();
   const colSpanTail = 2;   // 현재·개선 후 합계 칸
 
-  // 계약 요약 정보 행 (보험사·상품명 바로 아래) — 월 보험료 / 총 납입 / 납입기간 / 납입회차 / 만기
-  html += `<tr class="sum"><td colspan="2" style="text-align:center;">월 납입 보험료</td>`;
-  cs.forEach(c=> html += `<td>${(c.monthlyPremium||0).toLocaleString()}${isRenew(c)?' +@':''}</td>`);
-  html += `<td>${sumPrem(cur).toLocaleString()}</td><td>${sumPrem(aft).toLocaleString()}</td></tr>`;
-
-  html += `<tr class="info"><td colspan="2" style="text-align:center;">향후 납입할 보험료</td>`;
-  cs.forEach(c=>{ const t = futurePrem(c); html += `<td>${t?t.toLocaleString()+(isRenew(c)?' +@':''):'-'}</td>`; });
-  html += `<td>${cur.reduce((s,c)=>s+futurePrem(c),0).toLocaleString()}</td><td>${aft.reduce((s,c)=>s+futurePrem(c),0).toLocaleString()}</td></tr>`;
-
-  html += `<tr class="info"><td colspan="2" style="text-align:center;">납입기간</td>`;
-  cs.forEach(c=> html += `<td>${esc(c.payTerm||'-')}${isRenew(c)?' <b style="color:var(--c-primary);">갱신형</b>':''}</td>`);
-  html += `<td colspan="${colSpanTail}"></td></tr>`;
-
-  html += `<tr class="info"><td colspan="2" style="text-align:center;">납입회차</td>`;
-  cs.forEach(c=> html += `<td>${esc(payProgressDisp(c))}</td>`);
-  html += `<td colspan="${colSpanTail}"></td></tr>`;
-
-  html += `<tr class="info b"><td colspan="2" style="text-align:center;">만기</td>`;
-  cs.forEach(c=> html += `<td style="font-size:11px;">${esc(maturityAge(c))}</td>`);
-  html += `<td colspan="${colSpanTail}"></td></tr>`;
+  // 계약 요약 정보 행 — 각 칸 클릭 시 인라인 수정, 행 ✕로 삭제(복원 가능)
+  const hir = S.hiddenInfoRows||[];
+  INFO_ROWS.forEach((r,ri)=>{
+    if(hir.includes(r.key)) return;
+    const cls = r.key==='prem' ? 'sum' : (r.key==='mat' ? 'info b' : 'info');
+    html += `<tr class="${cls}"><td colspan="2" style="text-align:center;">${r.label}
+      <span class="rowacts"><button class="ract del" onclick="hideInfoRow('${r.key}')" title="이 행 삭제 (복원 가능)">✕</button></span></td>`;
+    cs.forEach(c=>{
+      if(mEditInfo && mEditInfo.cid===c.id && mEditInfo.key===r.key){
+        html += `<td class="mcell ed"><input type="text" value="${esc(infoRaw(c,r.key))}" onblur="saveInfoCell('${c.id}','${r.key}',this.value)" onkeydown="if(event.key==='Enter'){this.blur();}else if(event.key==='Escape'){mEditInfo=null;renderMatrix();}"></td>`;
+      } else {
+        html += `<td class="mcell" onclick="editInfoCell('${c.id}','${r.key}')" title="클릭하면 수정">${r.disp(c)}</td>`;
+      }
+    });
+    if(r.tot){ const a=cs2sum(cur,r.key), b=cs2sum(aft,r.key); html += `<td>${a}</td><td>${b}</td>`; }
+    else html += `<td colspan="${colSpanTail}"></td>`;
+    html += `</tr>`;
+  });
 
   // 담보 행 — 행 ✎/✕(이름·합계 수정/삭제) + 각 칸 클릭 시 인라인 금액 수정
   activeRows().forEach(([g, items])=>{
@@ -1726,12 +1768,21 @@ function renderCellRestoreBar(){
   const bar = $('#cellRestoreBar'); if(!bar) return;
   const items = [];
   Object.keys(S.cellAmt||{}).forEach(cid=>Object.keys(S.cellAmt[cid]||{}).forEach(cat=>items.push({cid,cat})));
-  if(!items.length){ bar.style.display='none'; bar.innerHTML=''; return; }
+  const hiddenInfo = S.hiddenInfoRows||[];
+  if(!items.length && !hiddenInfo.length){ bar.style.display='none'; bar.innerHTML=''; return; }
   bar.style.display='flex';
-  bar.innerHTML = `<span>✎ 직접 수정한 칸 ${items.length}개 (클릭하면 원래 계산값으로 복원):</span>` +
-    items.map(({cid,cat})=>{ const c=S.contracts.find(x=>x.id===cid); const nm=c?short(c.productName):'계약';
-      return `<span class="hchip" onclick="revertCell('${cid}','${esc(cat)}')">${esc(nm)} · ${esc(catLabel(cat))} <i>↩</i></span>`; }).join('') +
-    `<button class="btn gray sm" onclick="revertAllCells()">모두 원래대로</button>`;
+  let html = '';
+  if(items.length){
+    html += `<span>✎ 직접 수정한 칸 ${items.length}개 (클릭하면 원래 계산값으로 복원):</span>` +
+      items.map(({cid,cat})=>{ const c=S.contracts.find(x=>x.id===cid); const nm=c?short(c.productName):'계약';
+        return `<span class="hchip" onclick="revertCell('${cid}','${esc(cat)}')">${esc(nm)} · ${esc(catLabel(cat))} <i>↩</i></span>`; }).join('') +
+      `<button class="btn gray sm" onclick="revertAllCells()">모두 원래대로</button>`;
+  }
+  if(hiddenInfo.length){
+    html += `<span style="margin-left:${items.length?'10px':'0'};">🗑 삭제한 행 ${hiddenInfo.length}개 (클릭하면 복원):</span>` +
+      hiddenInfo.map(k=>`<span class="hchip" onclick="unhideInfoRow('${k}')">${esc(INFO_LABEL[k]||k)} <i>↩</i></span>`).join('');
+  }
+  bar.innerHTML = html;
 }
 const short = s => s.length>16 ? s.slice(0,15)+'…' : s;
 
@@ -2333,7 +2384,7 @@ function buildPrintHTML(){
     const cw = (74/grp.length).toFixed(1);
     return `<div class="psheet">${chrome(eb, title + (arr.length>1?` (${ci+1}/${arr.length})`:''))}
     <table class="pt detail" style="font-size:11pt;"><colgroup><col style="width:7%"><col style="width:19%">${grp.map(()=>`<col style="width:${cw}%">`).join('')}</colgroup>
-    <tr><th class="l" colspan="2">보험사 / 상태</th>${grp.map(c=>`<th class="c" style="background:${ST_HEX[c.status]};font-size:11.5pt;vertical-align:middle;">${esc(c.insurer)}<br><span style="font-weight:600;opacity:.9;font-size:9pt;">${c.status}${c.special?' · 분류외':''}</span></th>`).join('')}</tr>
+    <tr><th class="l" colspan="2" style="font-size:12pt;">보험사</th>${grp.map(c=>`<th class="c" style="background:${ST_HEX[c.status]};font-size:12.5pt;vertical-align:middle;">${esc(c.insurer)}<br><span style="font-weight:600;opacity:.9;font-size:9.5pt;">${c.status}${c.special?' · 분류외':''}</span></th>`).join('')}</tr>
     <tr><td colspan="2" class="grp">상품명</td>${grp.map(c=>`<td class="c" style="font-size:9.5pt;color:#5A6678;line-height:1.45;">${esc(c.productName)}</td>`).join('')}</tr>
     <tr><td colspan="2" class="grp">월 보험료</td>${grp.map(c=>`<td class="c hl">${fmtWon(c.monthlyPremium)}${isRenew(c)?' +@':''}</td>`).join('')}</tr>
     <tr><td colspan="2" class="grp">향후 납입할 보험료</td>${grp.map(c=>{const f=futurePrem(c);return `<td class="c" style="font-size:9pt;color:#5A6678;">${f?fmtWon(f)+(isRenew(c)?' +@':''):'-'}</td>`;}).join('')}</tr>
