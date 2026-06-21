@@ -262,7 +262,8 @@ table.pv th.drop{background:var(--c-orange);border-color:#d96f12;}
 table.pv th.prop{background:var(--c-purple);border-color:#5b2483;}
 table.pv td{border:1px solid var(--c-line);padding:3px 7px;text-align:right;background:#fff;line-height:1.25;}
 table.pv td.grp{background:var(--c-teal-bg-2);font-weight:700;text-align:center;color:var(--c-teal-deepest);}
-table.pv td.cov{text-align:left;font-weight:600;background:#fcfefd;white-space:normal;line-height:1.2;}
+table.pv td.cov{text-align:left;font-weight:600;background:#fcfefd;white-space:normal;line-height:1.2;position:relative;font-size:12px;padding-right:4px;}
+table.pv td.cov .rowacts{position:absolute;right:2px;top:50%;transform:translateY(-50%);margin:0;background:rgba(252,254,253,.96);padding:0 2px;border-radius:4px;}
 table.pv td.tot{font-weight:700;background:var(--c-teal-bg-1);}
 table.pv td.up{color:var(--c-success);font-weight:700;} table.pv td.dn{color:var(--c-danger);font-weight:700;}
 table.pv tr.sum td{background:var(--c-teal-bg-3);font-weight:800;}
@@ -1693,7 +1694,7 @@ function unhideInfoRow(key){ S.hiddenInfoRows=(S.hiddenInfoRows||[]).filter(k=>k
 function renderMatrix(){
   const cs = S.contracts;
   if(!cs.length){ $('#mtxWrap').innerHTML=''; return; }
-  let html = '<table class="pv"><thead><tr><th style="width:58px;">구분</th><th style="text-align:left;width:130px;">담보</th>';
+  let html = '<table class="pv"><thead><tr><th style="width:58px;">구분</th><th style="text-align:left;width:144px;">담보</th>';
   cs.forEach(c=>{
     const cls = DROP_ST.includes(c.status)?'drop':c.status==='제안'?'prop':'';
     html += `<th class="${cls}"><span class="ins">${esc(c.insurer)}</span><span class="st">${esc(short(c.productName))} · ${c.status}</span></th>`;
