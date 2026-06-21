@@ -303,7 +303,10 @@ table.pv td.mcell.ed .spwrap label>span{width:22px;flex:none;text-align:left;}
 table.pv td.mcell.ed .spwrap label.spr>span{color:var(--c-orange);font-weight:800;}
 table.pv td.mcell.ed .spwrap input{width:100%;border:1.3px solid var(--c-line-teal);border-radius:4px;padding:2px 4px;font:inherit;font-size:11px;text-align:right;}
 table.pv td.mcell.ed .spwrap label.spr input{border-color:var(--c-orange);}
-table.pv td.mcell.ed .spwrap .spok{font-size:10px;padding:2px 0;margin-top:1px;border:none;border-radius:4px;background:var(--c-primary);color:#fff;cursor:pointer;font-weight:700;}
+table.pv td.mcell.ed .spwrap .spbtns{display:flex;gap:3px;margin-top:1px;}
+table.pv td.mcell.ed .spwrap .spbtns button{flex:1;font-size:10px;padding:2px 0;border:none;border-radius:4px;cursor:pointer;font-weight:700;}
+table.pv td.mcell.ed .spwrap .spok{background:var(--c-primary);color:#fff;}
+table.pv td.mcell.ed .spwrap .spcancel{background:#e5e9f0;color:#5a6678;}
 .legend{display:flex;gap:16px;font-size:12.5px;font-weight:700;margin:0 0 10px;}
 .legend i{display:inline-block;width:11px;height:11px;margin-right:5px;border-radius:3px;vertical-align:-1px;}
 /* overlay */
@@ -516,13 +519,37 @@ function effectiveGroups(){
   const base = GROUPS.map(([g,items])=>[g, items.concat((ec[g]||[]).filter(c=>!items.includes(c)))]);
   const names = new Set(GROUPS.map(g=>g[0]));
   (S.extraGroups||[]).forEach(g=>{ if(!names.has(g)){ base.push([g, (ec[g]||[]).slice()]); names.add(g); } });
+  // 사용자 지정 중분류 순서 적용
+  const co = S.catOrder||{};
+  base.forEach(pair=>{ const ord=co[pair[0]]; if(ord&&ord.length){ pair[1]=pair[1].slice().sort((a,b)=>{const ia=ord.indexOf(a),ib=ord.indexOf(b);return (ia<0?999:ia)-(ib<0?999:ib);}); } });
+  // 사용자 지정 대분류 순서 적용
+  const go = S.groupOrder||[];
+  if(go.length) base.sort((a,b)=>{const ia=go.indexOf(a[0]),ib=go.indexOf(b[0]);return (ia<0?999:ia)-(ib<0?999:ib);});
   return base;
 }
+// 대분류·중분류 순서 이동 (담보상세·종합비교 공통 반영)
+function moveGroup(g, dir){
+  const order = effectiveGroups().map(x=>x[0]);
+  const i = order.indexOf(g), j = i+dir;
+  if(i<0 || j<0 || j>=order.length) return;
+  const t=order[i]; order[i]=order[j]; order[j]=t;
+  S.groupOrder = order; refreshPreviewOnly(); persist();
+}
+function moveCat(g, cat, dir){
+  const grp = effectiveGroups().find(x=>x[0]===g); if(!grp) return;
+  const cats = grp[1].slice();
+  const i = cats.indexOf(cat), j = i+dir;
+  if(i<0 || j<0 || j>=cats.length) return;
+  const t=cats[i]; cats[i]=cats[j]; cats[j]=t;
+  S.catOrder = S.catOrder||{}; S.catOrder[g] = cats;
+  refreshPreviewOnly(); persist();
+}
 const allCats = () => effectiveGroups().flatMap(g=>g[1]);
+const curGroupOf = cat => { const g = effectiveGroups().find(p=>p[1].includes(cat)); return g?g[0]:''; };
 const isCustomCat = cat => Object.values(S.extraCats||{}).some(arr=>arr.includes(cat));
 
 /* ================= 상태 ================= */
-let S = { contracts: [], hiddenCats: [], catLabels: {}, groupLabels: {}, cmpAmt: {}, cellAmt: {}, extraGroups: [], extraCats: {}, futureOv: {}, matOv: {}, hiddenInfoRows: [], infoTot: {} };   // {id, src, status:'유지'|'리모델링'|'이체중지'|'증권확인'|'제안', insurer, productName, monthlyPremium, payProgress, period, covs:[{name,category,amt}]}
+let S = { contracts: [], hiddenCats: [], catLabels: {}, groupLabels: {}, cmpAmt: {}, cellAmt: {}, extraGroups: [], extraCats: {}, futureOv: {}, matOv: {}, hiddenInfoRows: [], infoTot: {}, groupOrder: [], catOrder: {} };   // {id, src, status:'유지'|'리모델링'|'이체중지'|'증권확인'|'제안', insurer, productName, monthlyPremium, payProgress, period, covs:[{name,category,amt}]}
 let editingId = null;
 let deletedCovs = [];   // 모달 세션 동안 삭제한 담보 임시 보관 (복원용, 저장 안 됨)
 let covBaseline = [];   // 담보 정상 순서 기준 (객체 참조) — 복원 위치 계산용
@@ -546,6 +573,8 @@ function migrateState(st){
   if(!st.matOv || typeof st.matOv!=='object') st.matOv = {};
   if(!Array.isArray(st.hiddenInfoRows)) st.hiddenInfoRows = [];
   if(!st.infoTot || typeof st.infoTot!=='object') st.infoTot = {};
+  if(!Array.isArray(st.groupOrder)) st.groupOrder = [];
+  if(!st.catOrder || typeof st.catOrder!=='object') st.catOrder = {};
   return st;
 }
 
@@ -1676,14 +1705,18 @@ function renderCmpTable(){
     if(r.gKey){
       html += `<td class="grp" rowspan="${spans[i]}">${esc(r.g)}
         <span class="rowacts g">
-          <button class="ract edit g" onclick="editGroup('${esc(r.gKey)}')" title="구분 이름 수정">✎ 수정</button>
-          <button class="ract del g" onclick="delGroup('${esc(r.gKey)}')" title="'${esc(r.g)}' 대분류 전체 삭제 (추가분은 완전삭제, 기본은 복원 가능)">✕ 삭제</button>
+          <button class="ract mv g" onclick="moveGroup('${esc(r.gKey)}',-1)" title="대분류 위로">▲</button>
+          <button class="ract mv g" onclick="moveGroup('${esc(r.gKey)}',1)" title="대분류 아래로">▼</button>
+          <button class="ract edit g" onclick="editGroup('${esc(r.gKey)}')" title="구분 이름 수정">✎</button>
+          <button class="ract del g" onclick="delGroup('${esc(r.gKey)}')" title="'${esc(r.g)}' 대분류 전체 삭제 (추가분은 완전삭제, 기본은 복원 가능)">✕</button>
         </span></td>`;
     }
     html += `<td class="cov">${esc(r.cat)}
       <span class="rowacts">
-        <button class="ract edit" onclick="editCat('${esc(r.catKey)}')" title="담보 이름·금액 수정">✎ 수정</button>
-        <button class="ract del" onclick="hideCat('${esc(r.catKey)}')" title="이 담보를 리포트에서 빼기 (복원 가능)">✕ 삭제</button>
+        <button class="ract mv" onclick="moveCat('${esc(r.gKey||curGroupOf(r.catKey))}','${esc(r.catKey)}',-1)" title="담보 위로">▲</button>
+        <button class="ract mv" onclick="moveCat('${esc(r.gKey||curGroupOf(r.catKey))}','${esc(r.catKey)}',1)" title="담보 아래로">▼</button>
+        <button class="ract edit" onclick="editCat('${esc(r.catKey)}')" title="담보 이름·금액 수정">✎</button>
+        <button class="ract del" onclick="hideCat('${esc(r.catKey)}')" title="이 담보를 리포트에서 빼기 (복원 가능)">✕</button>
       </span></td>`;
     ['a','b'].forEach(f=>{
       const over = !!(S.cmpAmt && S.cmpAmt[r.catKey] && S.cmpAmt[r.catKey][f]!=null);
@@ -1897,11 +1930,15 @@ function renderMatrix(){
     items.forEach((cat,i)=>{
       html += '<tr>' + (i===0?`<td class="grp" rowspan="${items.length}">${esc(groupLabel(g))}
         <span class="rowacts g">
+          <button class="ract mv g" onclick="moveGroup('${esc(g)}',-1)" title="대분류 위로">▲</button>
+          <button class="ract mv g" onclick="moveGroup('${esc(g)}',1)" title="대분류 아래로">▼</button>
           <button class="ract edit g" onclick="editGroup('${esc(g)}')" title="대분류 이름 수정">✎</button>
           <button class="ract del g" onclick="delGroup('${esc(g)}')" title="대분류 전체 삭제">✕</button>
         </span></td>`:'');
       html += `<td class="cov">${esc(catLabel(cat))}
         <span class="rowacts">
+          <button class="ract mv" onclick="moveCat('${esc(g)}','${esc(cat)}',-1)" title="담보 위로">▲</button>
+          <button class="ract mv" onclick="moveCat('${esc(g)}','${esc(cat)}',1)" title="담보 아래로">▼</button>
           <button class="ract edit" onclick="editCat('${esc(cat)}')" title="담보 이름·합계 수정">✎</button>
           <button class="ract del" onclick="hideCat('${esc(cat)}')" title="이 담보 행 삭제 (복원 가능)">✕</button>
         </span></td>`;
@@ -1960,11 +1997,12 @@ function renameField(id, field){
 let mEdit = null;   // {cid, cat} — 개별 칸 인라인 수정 중
 // 갱신/비갱신 2칸 인라인 편집기 HTML
 function splitEditorHTML(r, n, saveCall){
-  const ent = `if(event.key==='Enter'){event.preventDefault();${saveCall}}else if(event.key==='Escape'){mEdit=null;mCmpEdit=null;renderMatrix();renderCmpTable();}`;
+  const cancel = `mEdit=null;mCmpEdit=null;renderMatrix();renderCmpTable();`;
+  const ent = `if(event.key==='Enter'){event.preventDefault();${saveCall}}else if(event.key==='Escape'){${cancel}}`;
   return `<div class="spwrap">
     <label class="spr"><span>갱신</span><input type="number" class="er" value="${r||''}" placeholder="0" onkeydown="${ent}"></label>
     <label class="spn"><span>일반</span><input type="number" class="en" value="${n||''}" placeholder="0" onkeydown="${ent}"></label>
-    <button class="spok" onmousedown="event.preventDefault();${saveCall}">저장</button>
+    <div class="spbtns"><button class="spok" onmousedown="event.preventDefault();${saveCall}">저장</button><button class="spcancel" onmousedown="event.preventDefault();${cancel}">취소</button></div>
   </div>`;
 }
 function editCell(cid, cat){ mEdit = {cid, cat}; mCmpEdit=null; renderMatrix(); }
