@@ -1705,7 +1705,7 @@ function ovData(){
 }
 function detailChunks(list, per=4){
   const out = [];
-  const MAX_COV_ROWS = 9;   // 한 시트당 담보 행 상한 (글씨 확대·행 높이 반영, 한 페이지 꽉 차도록)
+  const MAX_COV_ROWS = 8;   // 한 시트당 담보 행 상한 (글씨 확대·행 높이 반영, 넘침 없이 꽉 차도록)
   for(let i=0;i<list.length;i+=per){
     const grp = list.slice(i, i+per);
     const full = [];   // 이 묶음의 전체 담보 행
