@@ -157,10 +157,10 @@ input:focus,select:focus{outline:none;border-color:var(--c-primary);box-shadow:0
   table.pt td.grp{background:#EEF3F9;color:#0E2C4D;font-weight:800;text-align:center;font-size:8.5pt;border-bottom:0.5pt solid #DCE5F0;}
   table.pt td.cv{text-align:left;background:#FCFDFE;color:#3A4655;font-weight:600;}
   table.pt td.hl{background:#F4F8FC;font-weight:800;color:#1B4470;}
-  table.pt.detail td{padding:1.7mm 3mm;font-size:10pt;line-height:1.25;}
-  table.pt.detail td.cv,table.pt.detail td.grp{font-size:10pt;}
+  table.pt.detail td{padding:1.25mm 3mm;font-size:9.8pt;line-height:1.2;}
+  table.pt.detail td.cv,table.pt.detail td.grp{font-size:9.8pt;white-space:nowrap;}
   table.pt.detail td.grp{font-weight:800;}
-  table.pt.detail th{padding:2mm 3mm;font-size:10.5pt;}
+  table.pt.detail th{padding:1.6mm 3mm;font-size:10.5pt;}
   table.pt tr.sum td{background:#0E2C4D;color:#fff;font-weight:800;border-bottom:none;}
   table.pt tr.sum td:first-child{border-bottom-left-radius:2mm;} table.pt tr.sum td:last-child{border-bottom-right-radius:2mm;}
   .stbadge{display:inline-block;font-size:7.5pt;font-weight:800;padding:0.6mm 2.4mm;border-radius:6mm;}
@@ -1567,12 +1567,15 @@ function renderCmpTable(){
       </span></td>`;
     const aOver = !!(S.cmpAmt && S.cmpAmt[r.catKey] && S.cmpAmt[r.catKey].a!=null);
     const bOver = !!(S.cmpAmt && S.cmpAmt[r.catKey] && S.cmpAmt[r.catKey].b!=null);
+    const gmk = '<span style="color:var(--c-orange);font-size:10px;"> (갱신)</span>';
+    const aRenew = curContracts().some(c=>catRenew(c,r.catKey) && catAmt(c,r.catKey)>0);
+    const bRenew = afterContracts().some(c=>catRenew(c,r.catKey) && catAmt(c,r.catKey)>0);
     ['a','b'].forEach(f=>{
-      const val = r[f], over = f==='a'?aOver:bOver;
+      const val = r[f], over = f==='a'?aOver:bOver, ren = (f==='a'?aRenew:bRenew) && val>0;
       if(mCmpEdit && mCmpEdit.catKey===r.catKey && mCmpEdit.field===f){
         html += `<td class="mcell ed"><input type="number" value="${val||''}" onblur="saveCmpCell('${esc(r.catKey)}','${f}',this.value)" onkeydown="if(event.key==='Enter'){this.blur();}else if(event.key==='Escape'){mCmpEdit=null;renderCmpTable();}"></td>`;
       } else {
-        html += `<td class="mcell${over?' over':''}" onclick="editCmpCell('${esc(r.catKey)}','${f}')" title="클릭하면 금액을 직접 수정합니다">${fmtMan(val)||'-'}</td>`;
+        html += `<td class="mcell${over?' over':''}" onclick="editCmpCell('${esc(r.catKey)}','${f}')" title="클릭하면 금액을 직접 수정합니다">${val?fmtMan(val)+(ren?gmk:''):'-'}</td>`;
       }
     });
     html += `<td class="${d>0?'up':d<0?'dn':''}">${d===0?'':(d>0?'▲ '+fmtMan(d):'▼ '+fmtMan(-d))}</td></tr>`;
@@ -1704,8 +1707,9 @@ function infoRaw(c, key){
   return '';
 }
 function cs2sum(list, key){
-  if(key==='prem') return sumPrem(list).toLocaleString();
-  if(key==='future') return list.reduce((s,c)=>s+futurePrem(c),0).toLocaleString();
+  const renew = list.some(c=>isRenew(c)) ? ' +@' : '';
+  if(key==='prem') return sumPrem(list).toLocaleString() + renew;
+  if(key==='future') return list.reduce((s,c)=>s+futurePrem(c),0).toLocaleString() + renew;
   return '';
 }
 let mEditInfo = null;
@@ -1776,8 +1780,11 @@ function renderMatrix(){
           html += `<td class="mcell${over?' over':''}" onclick="editCell('${c.id}','${esc(cat)}')" title="클릭하면 이 칸 금액을 직접 수정합니다">${v?fmtMan(v)+(catRenew(c,cat)?'<span style="color:var(--c-orange);font-size:10px;"> (갱신)</span>':''):'<span class="add">+</span>'}</td>`;
         }
       });
-      html += `<td class="tot">${fmtMan(cur.reduce((s,c)=>s+catAmt(c,cat),0))||'-'}</td>`;
-      html += `<td class="tot">${fmtMan(aft.reduce((s,c)=>s+catAmt(c,cat),0))||'-'}</td></tr>`;
+      const gmk = '<span style="color:var(--c-orange);font-size:10px;"> (갱신)</span>';
+      const curT = cur.reduce((s,c)=>s+catAmt(c,cat),0), aftT = aft.reduce((s,c)=>s+catAmt(c,cat),0);
+      const curR = cur.some(c=>catRenew(c,cat) && catAmt(c,cat)>0), aftR = aft.some(c=>catRenew(c,cat) && catAmt(c,cat)>0);
+      html += `<td class="tot">${curT?fmtMan(curT)+(curR?gmk:''):'-'}</td>`;
+      html += `<td class="tot">${aftT?fmtMan(aftT)+(aftR?gmk:''):'-'}</td></tr>`;
     });
   });
   html += '</tbody></table>';
@@ -1829,6 +1836,20 @@ function renderCellRestoreBar(){
   bar.innerHTML = html;
 }
 const short = s => s.length>16 ? s.slice(0,15)+'…' : s;
+// 상품명에서 행 높이를 키우는 군더더기 제거 (해약환급금미지급형·날짜·최초·N종N형·코드 등) — 표시용
+function cleanProd(name){
+  let s = String(name||'');
+  s = s.replace(/\(?\s*무?해[약지]환급금?\s*미지급형?\s*\)?/g,' ')   // 해약/해지환급금 미지급(형)
+       .replace(/무\s*해지\s*환급형?/g,' ')
+       .replace(/최초\s*가입/g,' ').replace(/최초/g,' ')
+       .replace(/\d+\s*종\s*\d*\s*형?/g,' ')        // 1종1형, 1종, 1종 1형
+       .replace(/(?:^|\s)\d+형(?=\s|$)/g,' ')         // 단독 N형
+       .replace(/\(\s*\d{3,4}\s*\)/g,' ')             // (2104) 코드
+       .replace(/\d{4}[.\-]\d{1,2}(?:[.\-]\d{1,2})?/g,' ')  // 날짜
+       .replace(/\s*[·,]\s*/g,' ')
+       .replace(/\s{2,}/g,' ').trim();
+  return s || String(name||'');
+}
 
 function refreshPreviewOnly(){
   const has = S.contracts.length > 0;
@@ -2105,7 +2126,7 @@ function addDetailSlides(p, list, eyebrow, baseTitle){
     rows.push([ cornerInfo('보험사'),
       ...grp.map(c=> td(`${c.insurer}\n${c.status}${c.special?' · 분류외':''}`, {align:'center', color:C.WHITE, fill:{color:ST_FILL[c.status]}, fontSize:11, bold:true})) ]);
     rows.push([ cornerInfo('상품명'),
-      ...grp.map(c=> td(c.productName, {align:'center', fontSize:8.5, color:C.GRAY, fill:{color:C.ROWBLUE}})) ]);
+      ...grp.map(c=> td(cleanProd(c.productName), {align:'center', fontSize:8.5, color:C.GRAY, fill:{color:C.ROWBLUE}})) ]);
     rows.push([ cornerInfo('월 보험료'),
       ...grp.map(c=> td(fmtWon(c.monthlyPremium)+(isRenew(c)?' +@':''), {align:'center', fontSize:10.5, color:C.BLUE, fill:{color:C.ROWBLUE}})) ]);
     rows.push([ cornerInfo('향후 납입할 보험료'),
@@ -2431,7 +2452,7 @@ function buildPrintHTML(){
     return `<div class="psheet">${chrome(eb, title + (arr.length>1?` (${ci+1}/${arr.length})`:''))}
     <table class="pt detail" style="font-size:11pt;"><colgroup><col style="width:7%"><col style="width:19%">${grp.map(()=>`<col style="width:${cw}%">`).join('')}</colgroup>
     <tr><th class="l" colspan="2" style="font-size:12pt;">보험사</th>${grp.map(c=>`<th class="c" style="background:${ST_HEX[c.status]};font-size:12.5pt;vertical-align:middle;">${esc(c.insurer)}<br><span style="font-weight:600;opacity:.9;font-size:9.5pt;">${c.status}${c.special?' · 분류외':''}</span></th>`).join('')}</tr>
-    <tr><td colspan="2" class="grp">상품명</td>${grp.map(c=>`<td class="c" style="font-size:9.5pt;color:#5A6678;line-height:1.45;">${esc(c.productName)}</td>`).join('')}</tr>
+    <tr><td colspan="2" class="grp">상품명</td>${grp.map(c=>`<td class="c" style="font-size:9.5pt;color:#5A6678;line-height:1.25;">${esc(cleanProd(c.productName))}</td>`).join('')}</tr>
     <tr><td colspan="2" class="grp">월 보험료</td>${grp.map(c=>`<td class="c hl">${fmtWon(c.monthlyPremium)}${isRenew(c)?' +@':''}</td>`).join('')}</tr>
     <tr><td colspan="2" class="grp">향후 납입할 보험료</td>${grp.map(c=>{const f=futurePrem(c);return `<td class="c" style="font-size:9pt;color:#5A6678;">${f?fmtWon(f)+(isRenew(c)?' +@':''):'-'}</td>`;}).join('')}</tr>
     <tr><td colspan="2" class="grp">보장만기</td>${grp.map(c=>`<td class="c" style="font-size:9.5pt;">${esc(maturityAge(c))}</td>`).join('')}</tr>
@@ -2454,13 +2475,15 @@ function buildPrintHTML(){
   // ===== 7. 전후 비교 (2단, 페이지당 최대 행 수 제한) =====
   const cmp = compareData();
   const curP = sumPrem(curContracts()), aftP = sumPrem(afterContracts()), dropP = sumPrem(dropContracts());
-  const cmpRow = r => `<tr class="zebra"><td class="grp" style="font-size:8pt;${r.g?'':'background:#fff;border-bottom-color:#EAEEF4;'}">${esc(r.g)}</td><td class="cv">${esc(r.cat)}</td>
-    <td style="color:#94A3B5;">${pAmt(r.a)}</td><td style="font-weight:800;color:#0E2C4D;">${pAmt(r.b)}</td>
+  const gMk = '<span style="color:#C0392B;font-size:6.5pt;"> (갱신)</span>';
+  const cmpRow = r => { const aR=curContracts().some(c=>catRenew(c,r.catKey)&&catAmt(c,r.catKey)>0)&&r.a>0, bR=afterContracts().some(c=>catRenew(c,r.catKey)&&catAmt(c,r.catKey)>0)&&r.b>0;
+    return `<tr class="zebra"><td class="grp" style="font-size:8pt;${r.g?'':'background:#fff;border-bottom-color:#EAEEF4;'}">${esc(r.g)}</td><td class="cv">${esc(r.cat)}</td>
+    <td style="color:#94A3B5;white-space:nowrap;">${pAmt(r.a)}${aR?gMk:''}</td><td style="font-weight:800;color:#0E2C4D;white-space:nowrap;">${pAmt(r.b)}${bR?gMk:''}</td>
     <td class="c" style="white-space:nowrap;">${r.d===0
       ? '<span style="color:#C5CDD8;font-size:8pt;">유지</span>'
       : r.d>0
       ? `<span style="display:inline-block;font-size:7.5pt;font-weight:800;color:#1F8A5B;background:#E7F3EC;padding:0.5mm 2.2mm;border-radius:5mm;">▲ ${fmtMan(r.d)}</span>`
-      : `<span style="display:inline-block;font-size:7.5pt;font-weight:800;color:#C0392B;background:#FBE9E7;padding:0.5mm 2.2mm;border-radius:5mm;">▼ ${fmtMan(-r.d)}</span>`}</td></tr>`;
+      : `<span style="display:inline-block;font-size:7.5pt;font-weight:800;color:#C0392B;background:#FBE9E7;padding:0.5mm 2.2mm;border-radius:5mm;">▼ ${fmtMan(-r.d)}</span>`}</td></tr>`; };
   const cmpTbl = part => `<table class="pt" style="width:49%;"><colgroup>${['12%','36%','17%','17%','18%'].map(w=>`<col style="width:${w}">`).join('')}</colgroup>
     <tr><th class="c">구분</th><th class="l">담보</th><th>현재</th><th>개선 후</th><th class="c">증감</th></tr>
     ${part.map(cmpRow).join('')}</table>`;
