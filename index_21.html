@@ -281,6 +281,9 @@ table.pv td.infomerge{background:#f4f7fa;}
 table.pv td.colhi{box-shadow:inset 0 0 0 999px rgba(13,148,136,0.08);}
 table.pv td.rowhi{box-shadow:inset 0 0 0 999px rgba(13,148,136,0.08);}
 table.pv td.colhi.rowhi{box-shadow:inset 0 0 0 999px rgba(13,148,136,0.18);}
+.thdel{position:absolute;top:3px;right:3px;width:17px;height:17px;line-height:15px;border:none;border-radius:50%;background:rgba(255,255,255,.22);color:#fff;font-size:10px;cursor:pointer;opacity:0;transition:.12s;padding:0;text-align:center;}
+table.pv thead th:hover .thdel{opacity:1;}
+.thdel:hover{background:var(--c-danger);}
 table.pv td.mcell{cursor:pointer;}
 table.pv td.mcell:hover{background:var(--c-teal-bg-1);outline:1.5px solid var(--c-line-teal);outline-offset:-1.5px;}
 table.pv td.mcell.over{color:var(--c-primary);font-weight:800;background:#effcfa;}
@@ -539,10 +542,48 @@ function migrateState(st){
   return st;
 }
 
+let undoStack = [];          // 실행취소 스택 (이전 상태 JSON 보관)
+let undoBusy = false;        // 복원 중에는 스냅샷 푸시 안 함
+let lastPushedS = null;
+const UNDO_MAX = 80;
 function persist(){
   const meta = {cust:$('#custName').value, pn:$('#plannerName').value, pp:$('#plannerPhone').value};
-  try{ localStorage.setItem(LSKEY, JSON.stringify({S, meta, t: Date.now()})); }catch(e){}
+  try{
+    if(!undoBusy){
+      const prev = localStorage.getItem(LSKEY);   // 이번 변경 직전 상태
+      if(prev){
+        let prevSpart=null; try{ prevSpart = JSON.stringify(JSON.parse(prev).S); }catch(_){}
+        const curSpart = JSON.stringify(S);
+        if(prevSpart && prevSpart!==curSpart && prevSpart!==lastPushedS){   // 실제 변화가 있을 때만, 중복 제외
+          undoStack.push(prev); lastPushedS = prevSpart;
+          if(undoStack.length>UNDO_MAX) undoStack.shift();
+        }
+      }
+    }
+    localStorage.setItem(LSKEY, JSON.stringify({S, meta, t: Date.now()}));
+  }catch(e){}
 }
+function undo(){
+  if(!undoStack.length){ return; }
+  const prev = undoStack.pop(); lastPushedS = null;
+  undoBusy = true;
+  try{
+    const obj = JSON.parse(prev);
+    S = migrateState(obj.S);
+    if(obj.meta){ if($('#custName'))$('#custName').value=obj.meta.cust||''; if($('#plannerName'))$('#plannerName').value=obj.meta.pn||''; if($('#plannerPhone'))$('#plannerPhone').value=obj.meta.pp||''; }
+    localStorage.setItem(LSKEY, prev);
+  }catch(e){}
+  undoBusy = false;
+  mEdit=null; mCmpEdit=null; mEditInfo=null; mEditInfoTot=null;
+  refreshAll();
+}
+document.addEventListener('keydown', e=>{
+  if((e.ctrlKey||e.metaKey) && (e.key==='z'||e.key==='Z') && !e.shiftKey && !e.altKey){
+    const tag=(e.target&&e.target.tagName||'').toLowerCase();
+    if(tag==='input'||tag==='textarea'||(e.target&&e.target.isContentEditable)) return;   // 입력칸 안에서는 기본 텍스트 실행취소
+    e.preventDefault(); undo();
+  }
+});
 function checkRestore(){
   try{
     const d = JSON.parse(localStorage.getItem(LSKEY)||'null');
@@ -939,6 +980,12 @@ async function buildAnnexCovs(bytes){
       if(jong.length>1){
         const keep = jong.find(v=>/(^|[^0-9])5종|1\s*[~-]\s*5종/.test(v.name)) || jong.reduce((a,b)=>a.amt<=b.amt?a:b);
         out[prem] = arr.filter(v=>v.category!=='종수술비(1~5종)').concat([keep]);
+      }
+      // 자동차사고부상위로금은 14급 기준 1건만 취합 (14급 표기 우선, 없으면 최소금액=기본단위)
+      const inj = out[prem].filter(v=>v.category==='자동차사고부상위로금');
+      if(inj.length>1){
+        const keep = inj.find(v=>/14\s*급/.test(v.name)) || inj.reduce((a,b)=>a.amt<=b.amt?a:b);
+        out[prem] = out[prem].filter(v=>v.category!=='자동차사고부상위로금').concat([keep]);
       }
     });
   }catch(e){ /* 실패 시 무시 — AI 담보로 폴백 */ }
@@ -1796,7 +1843,7 @@ function renderMatrix(){
   let html = '<table class="pv"><thead><tr><th style="width:58px;">구분</th><th style="text-align:left;">담보</th>';
   cs.forEach(c=>{
     const cls = DROP_ST.includes(c.status)?'drop':c.status==='제안'?'prop':'';
-    html += `<th class="${cls}"><span class="ins" onclick="renameField('${c.id}','insurer')" title="클릭하면 보험사 수정" style="cursor:pointer;">${esc(c.insurer)}</span><span class="st" onclick="renameField('${c.id}','productName')" title="클릭하면 상품명 수정" style="cursor:pointer;">${esc(short(c.productName))} · ${c.status}</span></th>`;
+    html += `<th class="${cls}"><button class="thdel" onclick="event.stopPropagation();delContract('${c.id}')" title="이 계약(상품) 삭제">✕</button><span class="ins" onclick="renameField('${c.id}','insurer')" title="클릭하면 보험사 수정" style="cursor:pointer;">${esc(c.insurer)}</span><span class="st" onclick="renameField('${c.id}','productName')" title="클릭하면 상품명 수정" style="cursor:pointer;">${esc(short(c.productName))} · ${c.status}</span></th>`;
   });
   html += '<th>현재</th><th>개선 후</th></tr></thead><tbody>';
   const cur = curContracts(), aft = afterContracts();
