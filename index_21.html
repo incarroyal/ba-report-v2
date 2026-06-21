@@ -1705,7 +1705,7 @@ function ovData(){
 }
 function detailChunks(list, per=4){
   const out = [];
-  const MAX_COV_ROWS = 11;   // 한 시트당 담보 행 상한 (글씨 더 확대·행 높이 반영)
+  const MAX_COV_ROWS = 9;   // 한 시트당 담보 행 상한 (글씨 확대·행 높이 반영, 한 페이지 꽉 차도록)
   for(let i=0;i<list.length;i+=per){
     const grp = list.slice(i, i+per);
     const full = [];   // 이 묶음의 전체 담보 행
@@ -1713,10 +1713,12 @@ function detailChunks(list, per=4){
       const live = visCats(items).filter(cat => grp.some(c=>catAmt(c,cat)>0));
       live.forEach((cat,k)=> full.push({g, cat: catLabel(cat), catKey: cat, first: k===0, groupLen: live.length}));
     });
-    // 담보 행을 균등 분할 (한 페이지에 1행만 남는 일이 없도록)
+    // 페이지를 꽉 채우되(용량까지), 마지막 페이지만 너무 비면(2행 이하) 균등 분배로 보정
     const total = Math.max(1, full.length);
     const nPages = Math.ceil(total / MAX_COV_ROWS);
-    const perPage = Math.ceil(total / nPages);
+    let perPage = MAX_COV_ROWS;
+    const lastCount = total - (nPages-1)*perPage;
+    if(nPages>1 && lastCount>0 && lastCount<3) perPage = Math.ceil(total / nPages);
     for(let j=0;j<total;j+=perPage){
       const slice = full.slice(j, j+perPage);
       // 분할 경계에서 그룹 rowspan 재계산
