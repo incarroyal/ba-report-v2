@@ -277,6 +277,10 @@ table.pv tr.info td{background:#f8fafc;font-weight:700;color:var(--c-text-2);}
 table.pv tr.info td:first-child{color:var(--c-teal-deepest);}
 table.pv tr.info.b td{border-bottom:2px solid var(--c-line-teal);}
 table.pv td.infomerge{background:#f4f7fa;}
+/* 마우스오버 십자(가로·세로) 하이라이트 — 어느 상품·담보를 보는지 표시 */
+table.pv td.colhi{box-shadow:inset 0 0 0 999px rgba(13,148,136,0.08);}
+table.pv td.rowhi{box-shadow:inset 0 0 0 999px rgba(13,148,136,0.08);}
+table.pv td.colhi.rowhi{box-shadow:inset 0 0 0 999px rgba(13,148,136,0.18);}
 table.pv td.mcell{cursor:pointer;}
 table.pv td.mcell:hover{background:var(--c-teal-bg-1);outline:1.5px solid var(--c-line-teal);outline-offset:-1.5px;}
 table.pv td.mcell.over{color:var(--c-primary);font-weight:800;background:#effcfa;}
@@ -1605,6 +1609,13 @@ function renderCmpTable(){
   const spans = {};
   rows.forEach((r,i)=>{ if(r.gKey){ let n=1; for(let j=i+1;j<rows.length && !rows[j].gKey;j++) n++; spans[i]=n; } });
   let html = '<table class="pv" style="width:auto;margin:0 auto;"><colgroup><col style="width:84px;"><col><col style="width:128px;"><col style="width:128px;"><col style="width:104px;"></colgroup><thead><tr><th>구분</th><th style="text-align:left;">담보</th><th>현재</th><th>개선 후</th><th>증감</th></tr></thead><tbody>';
+  // 보험료·향후 납입할 보험료 (현재/개선후/증감) — 종합비교 상단에 추가
+  const curP=sumPrem(curContracts()), aftP=sumPrem(afterContracts());
+  const futC=curContracts().reduce((s,c)=>s+futurePrem(c),0), futA=afterContracts().reduce((s,c)=>s+futurePrem(c),0);
+  const wonDelta=(a,b)=>{ const d=b-a; if(d===0) return '<span style="color:#94A3B5;font-size:11px;">유지</span>'; return d<0?`<span class="up">▼ ${fmtWon(-d)}</span>`:`<span class="dn">▲ ${fmtWon(d)}</span>`; };
+  const premDisp=(key,side)=>{ const ov=S.infoTot&&S.infoTot[key]&&S.infoTot[key][side]; return ov!=null?esc(ov):cs2sum(side==='a'?curContracts():afterContracts(),key); };
+  html += `<tr class="sum"><td class="grp" rowspan="2">보험료</td><td class="cov">월 납입 보험료</td><td>${premDisp('prem','a')}</td><td>${premDisp('prem','b')}</td><td class="c" style="white-space:nowrap;">${wonDelta(curP,aftP)}</td></tr>`;
+  html += `<tr class="sum"><td class="cov">향후 납입할 보험료</td><td>${premDisp('future','a')}</td><td>${premDisp('future','b')}</td><td class="c" style="white-space:nowrap;">${wonDelta(futC,futA)}</td></tr>`;
   rows.forEach((r,i)=>{
     const d = r.d;
     html += '<tr>';
@@ -1800,22 +1811,23 @@ function renderMatrix(){
     const cls = r.key==='prem' ? 'sum' : (r.key==='mat' ? 'info b' : 'info');
     html += `<tr class="${cls}"><td colspan="2" style="text-align:center;">${r.label}
       <span class="rowacts"><button class="ract del" onclick="hideInfoRow('${r.key}')" title="이 행 삭제 (복원 가능)">✕</button></span></td>`;
-    cs.forEach(c=>{
+    cs.forEach((c,ci)=>{
       if(mEditInfo && mEditInfo.cid===c.id && mEditInfo.key===r.key){
-        html += `<td class="mcell ed"><input type="text" value="${esc(infoRaw(c,r.key))}" onblur="saveInfoCell('${c.id}','${r.key}',this.value)" onkeydown="if(event.key==='Enter'){this.blur();}else if(event.key==='Escape'){mEditInfo=null;renderMatrix();}"></td>`;
+        html += `<td class="mcell ed" data-col="c${ci}"><input type="text" value="${esc(infoRaw(c,r.key))}" onblur="saveInfoCell('${c.id}','${r.key}',this.value)" onkeydown="if(event.key==='Enter'){this.blur();}else if(event.key==='Escape'){mEditInfo=null;renderMatrix();}"></td>`;
       } else {
-        html += `<td class="mcell" onclick="editInfoCell('${c.id}','${r.key}')" title="클릭하면 수정">${r.disp(c)}</td>`;
+        html += `<td class="mcell" data-col="c${ci}" onclick="editInfoCell('${c.id}','${r.key}')" title="클릭하면 수정">${r.disp(c)}</td>`;
       }
     });
     if(r.tot){
       ['a','b'].forEach(side=>{
         const list = side==='a'?cur:aft;
         const ov = S.infoTot && S.infoTot[r.key] && S.infoTot[r.key][side];
+        const dc = side==='a'?'cur':'aft';
         if(mEditInfoTot && mEditInfoTot.key===r.key && mEditInfoTot.side===side){
-          html += `<td class="mcell ed"><input type="text" value="${esc(ov!=null?ov:cs2sum(list,r.key))}" onblur="saveInfoTot('${r.key}','${side}',this.value)" onkeydown="if(event.key==='Enter'){this.blur();}else if(event.key==='Escape'){mEditInfoTot=null;renderMatrix();}"></td>`;
+          html += `<td class="mcell ed" data-col="${dc}"><input type="text" value="${esc(ov!=null?ov:cs2sum(list,r.key))}" onblur="saveInfoTot('${r.key}','${side}',this.value)" onkeydown="if(event.key==='Enter'){this.blur();}else if(event.key==='Escape'){mEditInfoTot=null;renderMatrix();}"></td>`;
         } else {
           const over = ov!=null;
-          html += `<td class="mcell${over?' over':''}" onclick="editInfoTot('${r.key}','${side}')" title="클릭하면 수정 (+@ 포함 자유 입력)">${over?esc(ov):cs2sum(list,r.key)}</td>`;
+          html += `<td class="mcell${over?' over':''}" data-col="${dc}" onclick="editInfoTot('${r.key}','${side}')" title="클릭하면 수정 (+@ 포함 자유 입력)">${over?esc(ov):cs2sum(list,r.key)}</td>`;
         }
       });
     }
@@ -1836,32 +1848,44 @@ function renderMatrix(){
           <button class="ract edit" onclick="editCat('${esc(cat)}')" title="담보 이름·합계 수정">✎</button>
           <button class="ract del" onclick="hideCat('${esc(cat)}')" title="이 담보 행 삭제 (복원 가능)">✕</button>
         </span></td>`;
-      cs.forEach(c=>{
+      cs.forEach((c,ci)=>{
         const v = catAmt(c,cat);
         const over = !!(S.cellAmt && S.cellAmt[c.id] && S.cellAmt[c.id][cat]!=null);
         if(mEdit && mEdit.cid===c.id && mEdit.cat===cat){
           const s = catSplit([c],cat);
-          html += `<td class="mcell ed">${splitEditorHTML(s.renew, s.normal, `saveCell('${c.id}','${esc(cat)}')`)}</td>`;
+          html += `<td class="mcell ed" data-col="c${ci}">${splitEditorHTML(s.renew, s.normal, `saveCell('${c.id}','${esc(cat)}')`)}</td>`;
         } else {
-          html += `<td class="mcell${over?' over':''}" onclick="editCell('${c.id}','${esc(cat)}')" title="클릭하면 갱신·일반 금액을 각각 수정합니다">${v?catSplitFmt([c],cat,GMK_SCR,'<br>'):'<span class="add">+</span>'}</td>`;
+          html += `<td class="mcell${over?' over':''}" data-col="c${ci}" onclick="editCell('${c.id}','${esc(cat)}')" title="클릭하면 갱신·일반 금액을 각각 수정합니다">${v?catSplitFmt([c],cat,GMK_SCR,'<br>'):'<span class="add">+</span>'}</td>`;
         }
       });
       // 현재·개선 후 합계도 직접 수정(갱신/일반 각각)·복원 가능
       ['a','b'].forEach(f=>{
         const over = !!(S.cmpAmt && S.cmpAmt[cat] && S.cmpAmt[cat][f]!=null);
+        const dc = f==='a'?'cur':'aft';
         if(mCmpEdit && mCmpEdit.where==='mtx' && mCmpEdit.cat===cat && mCmpEdit.field===f){
           const s = catSplitSide(f, cat);
-          html += `<td class="tot mcell ed">${splitEditorHTML(s.renew, s.normal, `saveCmpCell('${esc(cat)}','${f}')`)}</td>`;
+          html += `<td class="tot mcell ed" data-col="${dc}">${splitEditorHTML(s.renew, s.normal, `saveCmpCell('${esc(cat)}','${f}')`)}</td>`;
         } else {
-          html += `<td class="tot mcell${over?' over':''}" onclick="editCmpCell('${esc(cat)}','${f}','mtx')" title="클릭하면 합계(갱신·일반)를 각각 수정합니다">${sideFmt(f,cat)}</td>`;
+          html += `<td class="tot mcell${over?' over':''}" data-col="${dc}" onclick="editCmpCell('${esc(cat)}','${f}','mtx')" title="클릭하면 합계(갱신·일반)를 각각 수정합니다">${sideFmt(f,cat)}</td>`;
         }
       });
       html += `</tr>`;
     });
   });
   html += '</tbody></table>';
-  $('#mtxWrap').innerHTML = html;
-  if(mEdit || mEditInfo || mEditInfoTot || (mCmpEdit && mCmpEdit.where==='mtx')){ const inp = $('#mtxWrap').querySelector('td.mcell.ed input'); if(inp){ inp.focus(); inp.select(); } }
+  const wrap = $('#mtxWrap');
+  wrap.innerHTML = html;
+  if(mEdit || mEditInfo || mEditInfoTot || (mCmpEdit && mCmpEdit.where==='mtx')){ const inp = wrap.querySelector('td.mcell.ed input'); if(inp){ inp.focus(); inp.select(); } }
+  // 마우스오버 십자(가로·세로) 하이라이트
+  const clearHi = ()=> wrap.querySelectorAll('.colhi,.rowhi').forEach(x=>x.classList.remove('colhi','rowhi'));
+  wrap.onmousemove = e=>{
+    const td = e.target.closest && e.target.closest('td[data-col]');
+    clearHi(); if(!td) return;
+    const col = td.getAttribute('data-col');
+    wrap.querySelectorAll('td[data-col="'+col+'"]').forEach(x=>x.classList.add('colhi'));
+    if(td.parentElement) td.parentElement.querySelectorAll('td').forEach(x=>x.classList.add('rowhi'));
+  };
+  wrap.onmouseleave = clearHi;
   renderCellRestoreBar();
 }
 
@@ -2011,7 +2035,7 @@ function detailChunks(list, per=4){
     const grp = list.slice(i, i+per);
     const full = [];   // 이 묶음의 전체 담보 행
     effectiveGroups().forEach(([g, items])=>{
-      const live = visCats(items).filter(cat => grp.some(c=>catAmt(c,cat)>0));
+      const live = visCats(items);   // 전체 기본틀 그대로 (담보 금액 없어도 표시 — 화면과 동일, 표 크기 일정)
       live.forEach((cat,k)=> full.push({g, cat: catLabel(cat), catKey: cat, first: k===0, groupLen: live.length}));
     });
     // 페이지를 꽉 채우되(용량까지), 마지막 페이지만 너무 비면(2행 이하) 균등 분배로 보정
@@ -2308,7 +2332,7 @@ function addCompareSlide(p, cust){
   statBox(s, 0.6+(bw+gap)*3, y0, bw, 1.0, '개선 후 월 보험료', fmtWon(after),
     after<=cur?`월 ${fmtWon(cur-after)} 절감`:`월 ${fmtWon(after-cur)} 증가`, C.NAVY, null, true);
 
-  const rows = compareData();
+  const rows = compareData(true);   // 전체 기본틀 그대로 (화면 종합비교와 동일)
   const half = Math.ceil(rows.length/2);
   const parts = [rows.slice(0, half), rows.slice(half)];
   const rh = fitH(half+1, 4.4, 0.34, 0.16);
@@ -2319,6 +2343,14 @@ function addCompareSlide(p, cust){
                  {text:'현재', options:{bold:true, color:C.WHITE, fill:{color:C.GREY6B}, align:'center', valign:'middle', fontSize:9.5}},
                  {text:'개선 후', options:{bold:true, color:C.WHITE, fill:{color:C.BLUE}, align:'center', valign:'middle', fontSize:9.5}},
                  th('증감',9.5) ]];
+    if(i===0){   // 보험료·향후 납입할 보험료 (첫 단 상단)
+      const curP=sumPrem(curContracts()), aftP=sumPrem(afterContracts());
+      const futC=curContracts().reduce((s,c)=>s+futurePrem(c),0), futA=afterContracts().reduce((s,c)=>s+futurePrem(c),0);
+      const wd=(a,b)=>{const d=b-a;return d===0?'':(d<0?'▼ '+fmtWon(-d):'▲ '+fmtWon(d));};
+      const pd=(key,side)=>{const ov=S.infoTot&&S.infoTot[key]&&S.infoTot[key][side];return ov!=null?ov:cs2sum(side==='a'?curContracts():afterContracts(),key);};
+      t.push([ td('보험료',{align:'center',fill:{color:C.NAVYBOX},color:C.WHITE,fontSize:8.5}), td('월 납입 보험료',{align:'left',fill:{color:C.ROWBLUE},bold:true}), td(pd('prem','a'),{color:C.BLUE,bold:true}), td(pd('prem','b'),{fill:{color:C.ROWBLUE},bold:true}), td(wd(curP,aftP),{align:'center',color:aftP<curP?C.GREEN:aftP>curP?C.RED:C.INK,fontSize:8}) ]);
+      t.push([ td('보험료',{align:'center',fill:{color:C.NAVYBOX},color:C.WHITE,fontSize:8.5}), td('향후 납입할 보험료',{align:'left',fill:{color:C.ROWBLUE}}), td(pd('future','a'),{}), td(pd('future','b'),{fill:{color:C.ROWBLUE}}), td(wd(futC,futA),{align:'center',color:futA<futC?C.GREEN:futA>futC?C.RED:C.INK,fontSize:8}) ]);
+    }
     part.forEach(r=>{
       t.push([
         td(r.g, {align:'center', fill:{color:C.NAVYBOX}, color:C.WHITE, fontSize:8.5}),
@@ -2590,8 +2622,15 @@ function buildPrintHTML(){
   if(props.length) h += dSec(props, 'NEW PROPOSAL', '신규 보장 제안');
 
   // ===== 7. 전후 비교 (2단, 페이지당 최대 행 수 제한) =====
-  const cmp = compareData();
+  const cmp = compareData(true);   // 전체 기본틀 그대로 (화면 종합비교와 동일)
   const curP = sumPrem(curContracts()), aftP = sumPrem(afterContracts()), dropP = sumPrem(dropContracts());
+  const futCp = curContracts().reduce((s,c)=>s+futurePrem(c),0), futAp = afterContracts().reduce((s,c)=>s+futurePrem(c),0);
+  const pWonDelta=(a,b)=>{ const d=b-a; if(d===0) return '<span style="color:#C5CDD8;font-size:8pt;">유지</span>'; return d<0?`<span style="display:inline-block;font-size:7.5pt;font-weight:800;color:#1F8A5B;background:#E7F3EC;padding:0.5mm 2.2mm;border-radius:5mm;">▼ ${fmtWon(-d)}</span>`:`<span style="display:inline-block;font-size:7.5pt;font-weight:800;color:#C0392B;background:#FBE9E7;padding:0.5mm 2.2mm;border-radius:5mm;">▲ ${fmtWon(d)}</span>`; };
+  const pPremDisp=(key,side)=>{ const ov=S.infoTot&&S.infoTot[key]&&S.infoTot[key][side]; return ov!=null?esc(ov):cs2sum(side==='a'?curContracts():afterContracts(),key); };
+  const premTbl = `<table class="pt" style="width:100%;margin-bottom:4mm;"><colgroup><col style="width:8%"><col style="width:24%"><col><col><col style="width:16%"></colgroup>
+    <tr><th class="c">구분</th><th class="l">항목</th><th class="c">현재</th><th class="c">개선 후</th><th class="c">증감</th></tr>
+    <tr><td class="grp" rowspan="2">보험료</td><td class="cv">월 납입 보험료</td><td class="c hl">${pPremDisp('prem','a')}</td><td class="c hl">${pPremDisp('prem','b')}</td><td class="c">${pWonDelta(curP,aftP)}</td></tr>
+    <tr><td class="cv">향후 납입할 보험료</td><td class="c">${pPremDisp('future','a')}</td><td class="c">${pPremDisp('future','b')}</td><td class="c">${pWonDelta(futCp,futAp)}</td></tr></table>`;
   const gMk = '<span style="color:#C0392B;font-size:6.5pt;">(갱신)</span>';
   const sideP = (side, cat)=>{ const s=catSplitSide(side,cat); const p=[]; if(s.renew>0)p.push(fmtMan(s.renew)+gMk); if(s.normal>0)p.push(fmtMan(s.normal)); return p.join('<br>')||'-'; };
   const cmpRow = r => {
@@ -2622,7 +2661,7 @@ function buildPrintHTML(){
            ['신규 제안', props.length?'+ '+fmtWon(sumPrem(props)):'0원', '', '#1565C0', ''],
            ['개선 후 월 보험료', fmtWon(aftP), 'dark', '', sub]]
           .map(b=>`<div class="pcard ${b[2]}">${b[3]?`<div class="topbar" style="background:${b[3]};"></div>`:''}<div class="lb">${b[0]}</div><div class="v" style="font-size:14pt;${b[2]?'':'color:'+b[3]+';'}">${b[1]}</div>${b[4]?`<div class="sub">${b[4]}</div>`:''}</div>`).join('')}
-      </div>`;
+      </div>` + premTbl;
     }
     h += `<div class="pbody"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:4mm;">${cmpTbl(pageRows.slice(0,hh))}${cmpTbl(pageRows.slice(hh))}</div></div>${pFoot(cust)}</div>`;
   });
