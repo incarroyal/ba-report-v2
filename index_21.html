@@ -744,13 +744,12 @@ async function buildContractTable(bytes){
     for(let p=1; p<=doc.numPages; p++){
       const tc = await (await doc.getPage(p)).getTextContent();
       const txt = tc.items.map(i=>i.str).join(' ').replace(/\s+/g,' ');
+      // 고객 나이는 모든 페이지에서 탐색 (요약표 미인식 시에도 갱신형 100세·만기 나이 계산 가능)
+      if(!S.custAge){ const am = txt.match(/(남|여)\s*([0-9]{1,3})\s*세/); if(am) S.custAge = +am[2]; }
       const rowCount = (txt.match(ROW) || []).length;
       if(rowCount >= 2){ detected.push(p); fullText += ' ' + txt; DBG.pages.push({ p, rows: rowCount, txt: txt.slice(0, 2200) }); }
     }
     DBG.detectedPages = detected;
-    // 고객 나이 추출 (갱신형 100세까지 향후 보험료 계산용)
-    const am = fullText.match(/(남|여)\s*([0-9]{1,3})\s*세/);
-    if(am){ S.custAge = +am[2]; }
     if(!fullText){ DBG.note='요약표 페이지를 찾지 못함'; DBG.result=out; window.__TBLDBG=DBG; return out; }
     // 2) 요약표 텍스트를 행 단위로 직접 파싱 (한 행: No 보험사 계약일 만기일 납입주기 납입횟수 보험료원 기납입원 잔여원 상품명)
     //    텍스트 레이어가 행 순서대로 추출되므로 AI 호출 없이 정확/빠름.
@@ -869,6 +868,35 @@ async function buildAnnexCovs(bytes){
       }
     });
   }catch(e){ /* 실패 시 무시 — AI 담보로 폴백 */ }
+  return out;
+}
+
+// 보유계약 리스트(표)가 없을 때: 별첨(계약 상세) 페이지 텍스트에서 계약 메타를 직접 추출 (AI 불필요)
+// 각 별첨 페이지 = 계약 1건: 보험사·상품명·납입주기/기간·보험료·보장기간
+async function buildAnnexContracts(bytes){
+  const out = [];
+  try{
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+    const doc = await pdfjsLib.getDocument({data: bytes,
+      cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/', cMapPacked: true}).promise;
+    const seen = new Set();
+    for(let p=1; p<=doc.numPages; p++){
+      const tc = await (await doc.getPage(p)).getTextContent();
+      const txt = tc.items.map(i=>i.str).join(' ').replace(/\s+/g,' ');
+      if(!/\(정상계약\s*리스트\)/.test(txt)) continue;
+      const header = (txt.split('(정상계약')[0]||'').replace(/\s+/g,' ').trim();
+      const sp = splitInsurer(header);
+      const pm = txt.match(/보험료\s*([0-9,]+)\s*원/); const prem = pm? parseInt(pm[1].replace(/,/g,'')) : 0;
+      const pt = txt.match(/납입주기\s*\/?\s*기간\s*([가-힣A-Za-z0-9/]+)/);
+      const payTerm = pt ? pt[1].replace(/\s/g,'') : '';
+      const pd = txt.match(/보장기간\s*([0-9.\s]+?)\s*~\s*([0-9.\s]+?)\s/);
+      const period = pd ? pd[1].replace(/\s/g,'') + ' ~ ' + pd[2].replace(/\s/g,'') : '';
+      if(prem<=0 && !sp.name) continue;
+      const key = (sp.insurer||'')+'|'+(sp.name||'')+'|'+prem;
+      if(seen.has(key)) continue; seen.add(key);
+      out.push({ insurer: sp.insurer, productName: sp.name, monthlyPremium: prem, payTerm, period });
+    }
+  }catch(e){ /* 무시 */ }
   return out;
 }
 
@@ -1144,26 +1172,26 @@ async function analyzeReport(bytes, useFilter){
     await runReportGroups([], 1);   // 빈 구간 → AI 미호출, 표 기반으로 계약 구성
     return;
   }
-  // 표가 없는 비정형 PDF만 기존 AI 별첨 분석으로 폴백
-  let pageIdx = null;
-  if(useFilter){
-    prog('#progReport', 0.04, '계약 상세 페이지 스캔 중...');
-    const annex = await detectAnnexPages(bytes.slice());
-    if(annex.length){ pageIdx = annex; RC.expected = annex.length; RC.filtered = true; }
-    else { RC.expected = 0; RC.filtered = false; }
-  } else { RC.expected = 0; RC.filtered = false; }
-
-  if(!pageIdx){
-    if(!RC.srcDoc) RC.srcDoc = await PDFLib.PDFDocument.load(bytes, {ignoreEncryption:true});
-    pageIdx = Array.from({length: RC.srcDoc.getPageCount()}, (_,i)=>i);
-  }
-  prog('#progReport', 0.08, RC.filtered
-    ? `계약 페이지 ${pageIdx.length}장만 추려서 분석합니다 (불필요한 페이지 제외 → 속도 향상)`
-    : `전체 ${pageIdx.length}페이지 분석을 시작합니다`);
-  RC.groups = chunkArr(pageIdx, 3);
-  RC.failed = [];
-  prog('#progReport', 0.12, `${RC.groups.length}개 구간 · AI 분석 시작`);
-  await runReportGroups(RC.groups, 2);
+  // 표가 없으면 별첨(계약 상세) 페이지 텍스트에서 직접 계약을 구성 (AI 미사용 → 타임아웃 없음)
+  prog('#progReport', 0.4, '계약 상세 페이지에서 계약·담보를 직접 추출 중...');
+  RC.filtered = false; RC.failed = [];
+  let acs = [];
+  try{ acs = await buildAnnexContracts(bytes.slice()); }catch(e){ acs = []; }
+  acs.forEach((c, i)=>{
+    const prem = +c.monthlyPremium||0;
+    S.contracts.push({ id: uid(), src:'report', status:'유지', _ord: i,
+      insurer: c.insurer||'', productName: c.productName||'', monthlyPremium: prem,
+      payProgress: (RC.payMap&&RC.payMap[prem]&&RC.payMap[prem].payProgress)||'', payTerm: c.payTerm||'', period: c.period||'',
+      csPhone: autoCs(c.insurer), special: guessSpecial(c.productName),
+      covs: ((RC.covMap||{})[prem]||[]).map(sanitizeCov).filter(v=>v.amt>0) });
+  });
+  finalizeReportView();
+  const reps = S.contracts.filter(c=>c.src==='report');
+  const nCov = reps.reduce((s,c)=>s+c.covs.length,0);
+  prog('#progReport', 1, reps.length
+    ? `✓ 완료 — 계약 ${reps.length}건, 담보 ${nCov}개 추출`
+    : '계약을 찾지 못했습니다. 보장분석 리포트(계약 상세 포함) PDF인지 확인해주세요.');
+  refreshAll(); persist();
 }
 
 async function handleReport(file){
@@ -1487,7 +1515,7 @@ function renderStats(){
 }
 
 function renderCmpTable(){
-  const rows = compareData();
+  const rows = compareData(true);   // 미리보기 종합비교는 기본 담보 틀 전부 표시 (담보상세와 동일)
   // 그룹별 rowspan 계산 (gKey 기준 — 연속 구간)
   const spans = {};
   rows.forEach((r,i)=>{ if(r.gKey){ let n=1; for(let j=i+1;j<rows.length && !rows[j].gKey;j++) n++; spans[i]=n; } });
@@ -1762,7 +1790,7 @@ function detailChunks(list, per=4){
   }
   return out;
 }
-function compareData(){
+function compareData(showAll){
   const cur = curContracts(), aft = afterContracts();
   const ov = S.cmpAmt || {};
   const rows = [];
@@ -1773,7 +1801,7 @@ function compareData(){
       const o = ov[cat];
       if(o){ if(o.a!=null) a = o.a; if(o.b!=null) b = o.b; }
       return {catKey:cat, cat:catLabel(cat), a, b, d: b-a};
-    }).filter(r=>r.a||r.b||isCustomCat(r.catKey));
+    }).filter(r=> showAll || r.a || r.b || isCustomCat(r.catKey));
     live.forEach((r,k)=> rows.push({g: k===0?groupLabel(g):'', gKey: k===0?g:'', ...r}));
   });
   return rows;
