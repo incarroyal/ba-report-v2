@@ -163,6 +163,12 @@ input:focus,select:focus{outline:none;border-color:var(--c-primary);box-shadow:0
   table.pt.detail th{padding:1.3mm 3mm;font-size:10.2pt;}
   table.pt tr.sum td{background:#0E2C4D;color:#fff;font-weight:800;border-bottom:none;}
   table.pt tr.sum td:first-child{border-bottom-left-radius:2mm;} table.pt tr.sum td:last-child{border-bottom-right-radius:2mm;}
+  /* 상담용 정비: 금액 가운데정렬(라벨과 시각적 연결) + 표를 페이지 세로 중앙에 배치(하단 여백 균형) */
+  table.pt.detail td{text-align:center;}
+  table.pt.detail td.cv{text-align:left;} table.pt.detail td.grp{text-align:center;}
+  .psheet.content{display:flex;flex-direction:column;}
+  .pbody{flex:1 1 auto;display:flex;flex-direction:column;justify-content:center;min-height:0;}
+  .pbody+.pbody{margin-top:4mm;}
   .stbadge{display:inline-block;font-size:7.5pt;font-weight:800;padding:0.6mm 2.4mm;border-radius:6mm;}
 
   /* 증감 */
@@ -502,7 +508,7 @@ const allCats = () => effectiveGroups().flatMap(g=>g[1]);
 const isCustomCat = cat => Object.values(S.extraCats||{}).some(arr=>arr.includes(cat));
 
 /* ================= 상태 ================= */
-let S = { contracts: [], hiddenCats: [], catLabels: {}, groupLabels: {}, cmpAmt: {}, cellAmt: {}, extraGroups: [], extraCats: {}, futureOv: {}, matOv: {}, hiddenInfoRows: [] };   // {id, src, status:'유지'|'리모델링'|'이체중지'|'증권확인'|'제안', insurer, productName, monthlyPremium, payProgress, period, covs:[{name,category,amt}]}
+let S = { contracts: [], hiddenCats: [], catLabels: {}, groupLabels: {}, cmpAmt: {}, cellAmt: {}, extraGroups: [], extraCats: {}, futureOv: {}, matOv: {}, hiddenInfoRows: [], infoTot: {} };   // {id, src, status:'유지'|'리모델링'|'이체중지'|'증권확인'|'제안', insurer, productName, monthlyPremium, payProgress, period, covs:[{name,category,amt}]}
 let editingId = null;
 let deletedCovs = [];   // 모달 세션 동안 삭제한 담보 임시 보관 (복원용, 저장 안 됨)
 let covBaseline = [];   // 담보 정상 순서 기준 (객체 참조) — 복원 위치 계산용
@@ -525,6 +531,7 @@ function migrateState(st){
   if(!st.futureOv || typeof st.futureOv!=='object') st.futureOv = {};
   if(!st.matOv || typeof st.matOv!=='object') st.matOv = {};
   if(!Array.isArray(st.hiddenInfoRows)) st.hiddenInfoRows = [];
+  if(!st.infoTot || typeof st.infoTot!=='object') st.infoTot = {};
   return st;
 }
 
@@ -1757,6 +1764,20 @@ function saveInfoCell(cid, key, val){
 }
 function hideInfoRow(key){ S.hiddenInfoRows=S.hiddenInfoRows||[]; if(!S.hiddenInfoRows.includes(key)) S.hiddenInfoRows.push(key); refreshPreviewOnly(); persist(); }
 function unhideInfoRow(key){ S.hiddenInfoRows=(S.hiddenInfoRows||[]).filter(k=>k!==key); refreshPreviewOnly(); persist(); }
+// 월보험료·향후납입 합계(현재 a / 개선후 b) 자유 텍스트 수정 — +@ 포함/제거 자유
+let mEditInfoTot = null;   // {key, side}
+function editInfoTot(key, side){ mEditInfoTot={key, side}; mEditInfo=null; renderMatrix(); }
+function saveInfoTot(key, side, val){
+  mEditInfoTot=null;
+  val=String(val).trim();
+  const auto = cs2sum(side==='a'?curContracts():afterContracts(), key);
+  S.infoTot=S.infoTot||{};
+  const rec=S.infoTot[key]||{};
+  if(!val || val===auto) delete rec[side]; else rec[side]=val;
+  if(rec.a==null && rec.b==null) delete S.infoTot[key]; else S.infoTot[key]=rec;
+  refreshPreviewOnly(); persist();
+}
+function revertInfoTot(key, side){ if(S.infoTot && S.infoTot[key]){ delete S.infoTot[key][side]; if(S.infoTot[key].a==null && S.infoTot[key].b==null) delete S.infoTot[key]; } refreshPreviewOnly(); persist(); }
 
 function renderMatrix(){
   const cs = S.contracts;
@@ -1786,8 +1807,19 @@ function renderMatrix(){
         html += `<td class="mcell" onclick="editInfoCell('${c.id}','${r.key}')" title="클릭하면 수정">${r.disp(c)}</td>`;
       }
     });
-    if(r.tot){ const a=cs2sum(cur,r.key), b=cs2sum(aft,r.key); html += `<td>${a}</td><td>${b}</td>`; }
-    else { if(nonTotSeen===0 && nNonTot>0) html += `<td colspan="${colSpanTail}" rowspan="${nNonTot}" class="infomerge"></td>`; nonTotSeen++; }
+    if(r.tot){
+      ['a','b'].forEach(side=>{
+        const list = side==='a'?cur:aft;
+        const ov = S.infoTot && S.infoTot[r.key] && S.infoTot[r.key][side];
+        if(mEditInfoTot && mEditInfoTot.key===r.key && mEditInfoTot.side===side){
+          html += `<td class="mcell ed"><input type="text" value="${esc(ov!=null?ov:cs2sum(list,r.key))}" onblur="saveInfoTot('${r.key}','${side}',this.value)" onkeydown="if(event.key==='Enter'){this.blur();}else if(event.key==='Escape'){mEditInfoTot=null;renderMatrix();}"></td>`;
+        } else {
+          const over = ov!=null;
+          html += `<td class="mcell${over?' over':''}" onclick="editInfoTot('${r.key}','${side}')" title="클릭하면 수정 (+@ 포함 자유 입력)">${over?esc(ov):cs2sum(list,r.key)}</td>`;
+        }
+      });
+    }
+    else { if(nonTotSeen===0 && nNonTot>0) html += `<td colspan="${colSpanTail}" rowspan="${nNonTot}" class="infomerge" style="vertical-align:middle;"></td>`; nonTotSeen++; }
     html += `</tr>`;
   });
 
@@ -1829,7 +1861,7 @@ function renderMatrix(){
   });
   html += '</tbody></table>';
   $('#mtxWrap').innerHTML = html;
-  if(mEdit || (mCmpEdit && mCmpEdit.where==='mtx')){ const inp = $('#mtxWrap').querySelector('td.mcell.ed input'); if(inp){ inp.focus(); inp.select(); } }
+  if(mEdit || mEditInfo || mEditInfoTot || (mCmpEdit && mCmpEdit.where==='mtx')){ const inp = $('#mtxWrap').querySelector('td.mcell.ed input'); if(inp){ inp.focus(); inp.select(); } }
   renderCellRestoreBar();
 }
 
@@ -1894,8 +1926,10 @@ function renderCellRestoreBar(){
   Object.keys(S.cellAmt||{}).forEach(cid=>Object.keys(S.cellAmt[cid]||{}).forEach(cat=>items.push({cid,cat})));
   const cmpItems = [];
   Object.keys(S.cmpAmt||{}).forEach(cat=>{ const o=S.cmpAmt[cat]||{}; if(o.a!=null) cmpItems.push({cat,field:'a'}); if(o.b!=null) cmpItems.push({cat,field:'b'}); });
+  const totItems = [];
+  Object.keys(S.infoTot||{}).forEach(key=>{ const o=S.infoTot[key]||{}; if(o.a!=null) totItems.push({key,side:'a'}); if(o.b!=null) totItems.push({key,side:'b'}); });
   const hiddenInfo = S.hiddenInfoRows||[];
-  if(!items.length && !cmpItems.length && !hiddenInfo.length){ bar.style.display='none'; bar.innerHTML=''; return; }
+  if(!items.length && !cmpItems.length && !totItems.length && !hiddenInfo.length){ bar.style.display='none'; bar.innerHTML=''; return; }
   bar.style.display='flex';
   let html = '';
   if(items.length){
@@ -1908,8 +1942,12 @@ function renderCellRestoreBar(){
     html += `<span style="margin-left:${items.length?'10px':'0'};">✎ 종합비교 수정 ${cmpItems.length}개 (클릭하면 복원):</span>` +
       cmpItems.map(({cat,field})=>`<span class="hchip" onclick="revertCmpCell('${esc(cat)}','${field}')">${esc(catLabel(cat))} ${field==='a'?'현재':'개선 후'} <i>↩</i></span>`).join('');
   }
+  if(totItems.length){
+    html += `<span style="margin-left:${(items.length||cmpItems.length)?'10px':'0'};">✎ 합계 수정 ${totItems.length}개 (클릭하면 복원):</span>` +
+      totItems.map(({key,side})=>`<span class="hchip" onclick="revertInfoTot('${key}','${side}')">${esc(INFO_LABEL[key]||key)} ${side==='a'?'현재':'개선 후'} <i>↩</i></span>`).join('');
+  }
   if(hiddenInfo.length){
-    html += `<span style="margin-left:${(items.length||cmpItems.length)?'10px':'0'};">🗑 삭제한 행 ${hiddenInfo.length}개 (클릭하면 복원):</span>` +
+    html += `<span style="margin-left:${(items.length||cmpItems.length||totItems.length)?'10px':'0'};">🗑 삭제한 행 ${hiddenInfo.length}개 (클릭하면 복원):</span>` +
       hiddenInfo.map(k=>`<span class="hchip" onclick="unhideInfoRow('${k}')">${esc(INFO_LABEL[k]||k)} <i>↩</i></span>`).join('');
   }
   bar.innerHTML = html;
@@ -2528,8 +2566,8 @@ function buildPrintHTML(){
   };
   const dSec = (list, eb, title) => detailChunks(list, 4).map(({grp, cats}, ci, arr)=>{
     const cw = (74/grp.length).toFixed(1);
-    return `<div class="psheet">${chrome(eb, title + (arr.length>1?` (${ci+1}/${arr.length})`:''))}
-    <table class="pt detail" style="font-size:11pt;"><colgroup><col style="width:7%"><col style="width:19%">${grp.map(()=>`<col style="width:${cw}%">`).join('')}</colgroup>
+    return `<div class="psheet content">${chrome(eb, title + (arr.length>1?` (${ci+1}/${arr.length})`:''))}
+    <div class="pbody"><table class="pt detail" style="font-size:11pt;"><colgroup><col style="width:7%"><col style="width:19%">${grp.map(()=>`<col style="width:${cw}%">`).join('')}</colgroup>
     <tr><th class="l" colspan="2" style="font-size:12pt;">보험사</th>${grp.map(c=>`<th class="c" style="background:${ST_HEX[c.status]};font-size:12.5pt;vertical-align:middle;">${esc(c.insurer)}<br><span style="font-weight:600;opacity:.9;font-size:9.5pt;">${c.status}${c.special?' · 분류외':''}</span></th>`).join('')}</tr>
     <tr><td colspan="2" class="grp">상품명</td>${grp.map(c=>`<td class="c" style="font-size:9.5pt;color:#5A6678;line-height:1.25;">${esc(cleanProd(c.productName))}</td>`).join('')}</tr>
     <tr><td colspan="2" class="grp">월 보험료</td>${grp.map(c=>`<td class="c hl">${fmtWon(c.monthlyPremium)}${isRenew(c)?' +@':''}</td>`).join('')}</tr>
@@ -2542,7 +2580,7 @@ function buildPrintHTML(){
         ? (ri===0 ? `<td rowspan="${cats.length}" style="vertical-align:top;text-align:left;padding:2.6mm 3mm;font-size:9.8pt;line-height:1.6;background:#FBFCFE;"><div style="font-size:9.5pt;font-weight:800;color:#B0894C;letter-spacing:.4px;margin-bottom:2mm;">분류 외 · 주요 보장 내용</div>${spList(c)}</td>` : '')
         : (()=>{const v=catAmt(c,catKey);return `<td${v?'':' style="color:#C5CDD8;"'}>${v?catSplitFmt([c],catKey,GMK_PDF,'<br>'):'·'}</td>`;})()
       ).join('')}</tr>`).join('')}
-    </table>${pFoot(cust)}</div>`;
+    </table></div>${pFoot(cust)}</div>`;
   }).join('');
   h += dSec(curContracts().filter(c=>!c.special), 'CURRENT COVERAGE', '계약별 보장 상세');
   const spList2 = specialCur();
@@ -2575,17 +2613,18 @@ function buildPrintHTML(){
   for(let i=0;i<cmp.length;i+=CMP_PER_PAGE) cmpPages.push(cmp.slice(i,i+CMP_PER_PAGE));
   cmpPages.forEach((pageRows, pi)=>{
     const hh = half(pageRows.length);
-    h += `<div class="psheet">${chrome('BEFORE & AFTER', `${cust}님 컨설팅 전후 보장 비교${cmpPages.length>1?` (${pi+1}/${cmpPages.length})`:''}`)}`;
+    h += `<div class="psheet content">${chrome('BEFORE & AFTER', `${cust}님 컨설팅 전후 보장 비교${cmpPages.length>1?` (${pi+1}/${cmpPages.length})`:''}`)}`;
     if(pi===0){
+      const sub = aftP<curP?`월 ${fmtWon(curP-aftP)} 절감`:(aftP>curP?`월 ${fmtWon(aftP-curP)} 증가`:'변동 없음');
       h += `<div class="pcards" style="margin-bottom:5mm;">
-        ${[['현재 월 보험료', fmtWon(curP), '', '#6B7888'],
-           ['리모델링·이체중지', dropP?'− '+fmtWon(dropP):'0원', '', '#D9730D'],
-           ['신규 제안', props.length?'+ '+fmtWon(sumPrem(props)):'0원', '', '#1565C0'],
-           ['개선 후 월 보험료', fmtWon(aftP)+(aftP<curP?`  (월 ${fmtWon(curP-aftP)} 절감)`:(aftP>curP?`  (월 ${fmtWon(aftP-curP)} 증가)`:'')), 'dark', '']]
-          .map(b=>`<div class="pcard ${b[2]}">${b[3]?`<div class="topbar" style="background:${b[3]};"></div>`:''}<div class="lb">${b[0]}</div><div class="v" style="font-size:13pt;${b[2]?'':'color:'+b[3]+';'}">${b[1]}</div></div>`).join('')}
+        ${[['현재 월 보험료', fmtWon(curP), '', '#6B7888', ''],
+           ['리모델링·이체중지', dropP?'− '+fmtWon(dropP):'0원', '', '#D9730D', ''],
+           ['신규 제안', props.length?'+ '+fmtWon(sumPrem(props)):'0원', '', '#1565C0', ''],
+           ['개선 후 월 보험료', fmtWon(aftP), 'dark', '', sub]]
+          .map(b=>`<div class="pcard ${b[2]}">${b[3]?`<div class="topbar" style="background:${b[3]};"></div>`:''}<div class="lb">${b[0]}</div><div class="v" style="font-size:14pt;${b[2]?'':'color:'+b[3]+';'}">${b[1]}</div>${b[4]?`<div class="sub">${b[4]}</div>`:''}</div>`).join('')}
       </div>`;
     }
-    h += `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:4mm;">${cmpTbl(pageRows.slice(0,hh))}${cmpTbl(pageRows.slice(hh))}</div>${pFoot(cust)}</div>`;
+    h += `<div class="pbody"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:4mm;">${cmpTbl(pageRows.slice(0,hh))}${cmpTbl(pageRows.slice(hh))}</div></div>${pFoot(cust)}</div>`;
   });
 
   // ===== 8. 메모 =====
