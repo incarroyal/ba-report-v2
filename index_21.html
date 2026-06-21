@@ -1172,7 +1172,7 @@ async function analyzeReport(bytes, useFilter){
     await runReportGroups([], 1);   // 빈 구간 → AI 미호출, 표 기반으로 계약 구성
     return;
   }
-  // 표가 없으면 별첨(계약 상세) 페이지 텍스트에서 직접 계약을 구성 (AI 미사용 → 타임아웃 없음)
+  // ① 표가 없으면 별첨(계약 상세) 페이지 텍스트에서 직접 계약 구성 (AI 미사용 → 빠르고 타임아웃 없음)
   prog('#progReport', 0.4, '계약 상세 페이지에서 계약·담보를 직접 추출 중...');
   RC.filtered = false; RC.failed = [];
   let acs = [];
@@ -1185,13 +1185,22 @@ async function analyzeReport(bytes, useFilter){
       csPhone: autoCs(c.insurer), special: guessSpecial(c.productName),
       covs: ((RC.covMap||{})[prem]||[]).map(sanitizeCov).filter(v=>v.amt>0) });
   });
-  finalizeReportView();
-  const reps = S.contracts.filter(c=>c.src==='report');
-  const nCov = reps.reduce((s,c)=>s+c.covs.length,0);
-  prog('#progReport', 1, reps.length
-    ? `✓ 완료 — 계약 ${reps.length}건, 담보 ${nCov}개 추출`
-    : '계약을 찾지 못했습니다. 보장분석 리포트(계약 상세 포함) PDF인지 확인해주세요.');
-  refreshAll(); persist();
+  if(S.contracts.some(c=>c.src==='report')){
+    finalizeReportView();
+    const reps = S.contracts.filter(c=>c.src==='report');
+    const nCov = reps.reduce((s,c)=>s+c.covs.length,0);
+    prog('#progReport', 1, `✓ 완료 — 계약 ${reps.length}건, 담보 ${nCov}개 추출`);
+    refreshAll(); persist();
+    return;
+  }
+  // ② 텍스트로 한 건도 못 읽음(비표준 양식·스캔 이미지 PDF) → AI 폴백. 페이지를 2장씩 잘게 나눠 타임아웃 최소화
+  prog('#progReport', 0.1, '표준 양식이 아니어서 AI로 분석합니다 (페이지를 나눠 안전하게 처리 중)...');
+  let pageIdx = null;
+  if(useFilter){ const annex = await detectAnnexPages(bytes.slice()); if(annex.length){ pageIdx = annex; RC.expected = annex.length; RC.filtered = true; } }
+  if(!pageIdx){ if(!RC.srcDoc) RC.srcDoc = await PDFLib.PDFDocument.load(bytes, {ignoreEncryption:true}); pageIdx = Array.from({length: RC.srcDoc.getPageCount()}, (_,i)=>i); }
+  RC.groups = chunkArr(pageIdx, 2);   // 2페이지/구간 — 10초 제한 여유
+  RC.failed = [];
+  await runReportGroups(RC.groups, 2);
 }
 
 async function handleReport(file){
