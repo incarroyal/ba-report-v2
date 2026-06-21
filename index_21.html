@@ -270,12 +270,20 @@ table.pv tr.sum td{background:var(--c-teal-bg-3);font-weight:800;}
 table.pv tr.info td{background:#f8fafc;font-weight:700;color:var(--c-text-2);}
 table.pv tr.info td:first-child{color:var(--c-teal-deepest);}
 table.pv tr.info.b td{border-bottom:2px solid var(--c-line-teal);}
+table.pv td.infomerge{background:#f4f7fa;}
 table.pv td.mcell{cursor:pointer;}
 table.pv td.mcell:hover{background:var(--c-teal-bg-1);outline:1.5px solid var(--c-line-teal);outline-offset:-1.5px;}
 table.pv td.mcell.over{color:var(--c-primary);font-weight:800;background:#effcfa;}
 table.pv td.mcell .add{color:#cbd5e1;font-weight:700;}
 table.pv td.mcell.ed{padding:2px;}
 table.pv td.mcell.ed input{width:66px;border:1.5px solid var(--c-primary);border-radius:5px;padding:3px 5px;font:inherit;font-size:12px;text-align:right;}
+table.pv td.mcell.ed .spwrap{display:flex;flex-direction:column;gap:2px;align-items:stretch;min-width:96px;}
+table.pv td.mcell.ed .spwrap label{display:flex;align-items:center;gap:3px;font-size:9px;color:#64748b;margin:0;}
+table.pv td.mcell.ed .spwrap label>span{width:22px;flex:none;text-align:left;}
+table.pv td.mcell.ed .spwrap label.spr>span{color:var(--c-orange);font-weight:800;}
+table.pv td.mcell.ed .spwrap input{width:100%;border:1.3px solid var(--c-line-teal);border-radius:4px;padding:2px 4px;font:inherit;font-size:11px;text-align:right;}
+table.pv td.mcell.ed .spwrap label.spr input{border-color:var(--c-orange);}
+table.pv td.mcell.ed .spwrap .spok{font-size:10px;padding:2px 0;margin-top:1px;border:none;border-radius:4px;background:var(--c-primary);color:#fff;cursor:pointer;font-weight:700;}
 .legend{display:flex;gap:16px;font-size:12.5px;font-weight:700;margin:0 0 10px;}
 .legend i{display:inline-block;width:11px;height:11px;margin-right:5px;border-radius:3px;vertical-align:-1px;}
 /* overlay */
@@ -548,22 +556,34 @@ function fmtMan(v){
 }
 const catAmtRaw = (c, cat) => c.covs.reduce((s,v)=> s + (v.category===cat ? (+v.amt||0) : 0), 0);
 // 담보상세에서 칸을 직접 수정하면 S.cellAmt[계약id][담보]에 값이 저장되어 우선 적용된다 (미리보기·PPT·PDF 공통)
+const ovNum = ov => (ov && typeof ov==='object') ? (+ov.r||0)+(+ov.n||0) : +ov||0;
 const catAmt = (c, cat) => {
   const ov = S.cellAmt && S.cellAmt[c.id] && S.cellAmt[c.id][cat];
-  return ov != null ? +ov : catAmtRaw(c, cat);
+  return ov != null ? ovNum(ov) : catAmtRaw(c, cat);
 };
 // 이 칸(계약×담보)이 갱신형인가 — 갱신형 상품 전체 또는 갱신형 특약 담보
 const catRenew = (c, cat) => isRenew(c) || (c.covs||[]).some(v=>v.category===cat && v.renew && +v.amt>0);
-// 합산 금액을 갱신/비갱신으로 분리 — {renew, normal}
+// 합산 금액을 갱신/비갱신으로 분리 — {renew, normal}. 오버라이드는 숫자 또는 {r,n} 객체 모두 지원
+function ovSplit(ov, isRen){   // 단일 오버라이드값을 {renew,normal}로
+  if(ov && typeof ov==='object') return {renew:+ov.r||0, normal:+ov.n||0};
+  return isRen ? {renew:+ov||0, normal:0} : {renew:0, normal:+ov||0};
+}
 function catSplit(list, cat){
   let renew=0, normal=0;
   list.forEach(c=>{
     const ov = S.cellAmt && S.cellAmt[c.id] && S.cellAmt[c.id][cat];
-    if(ov!=null){ if(catRenew(c,cat)) renew += +ov; else normal += +ov; return; }
+    if(ov!=null){ const s=ovSplit(ov, catRenew(c,cat)); renew+=s.renew; normal+=s.normal; return; }
     const whole = isRenew(c);
     (c.covs||[]).forEach(v=>{ if(v.category===cat && +v.amt>0){ if(whole||v.renew) renew += +v.amt; else normal += +v.amt; } });
   });
   return {renew, normal};
+}
+// 종합비교/합계 한쪽(현재 a / 개선후 b)의 갱신/비갱신 분리 — cmpAmt 오버라이드 우선
+function catSplitSide(side, cat){
+  const o = S.cmpAmt && S.cmpAmt[cat];
+  const list = side==='a' ? curContracts() : afterContracts();
+  if(o && o[side]!=null) return ovSplit(o[side], list.some(c=>catRenew(c,cat)));
+  return catSplit(list, cat);
 }
 // "2억(갱신) / 1억" 형태로 분리 표기 (mark=갱신 표식 HTML, sep=구분자)
 function catSplitFmt(list, cat, mark, sep){
@@ -1593,19 +1613,13 @@ function renderCmpTable(){
         <button class="ract edit" onclick="editCat('${esc(r.catKey)}')" title="담보 이름·금액 수정">✎ 수정</button>
         <button class="ract del" onclick="hideCat('${esc(r.catKey)}')" title="이 담보를 리포트에서 빼기 (복원 가능)">✕ 삭제</button>
       </span></td>`;
-    const aOver = !!(S.cmpAmt && S.cmpAmt[r.catKey] && S.cmpAmt[r.catKey].a!=null);
-    const bOver = !!(S.cmpAmt && S.cmpAmt[r.catKey] && S.cmpAmt[r.catKey].b!=null);
     ['a','b'].forEach(f=>{
-      const val = r[f], over = f==='a'?aOver:bOver;
-      // 오버라이드는 단일값이라 분리 불가 → 전체를 catRenew 기준 표기 / 아니면 갱신·비갱신 분리
-      const list = f==='a'?curContracts():afterContracts();
-      let disp;
-      if(over) disp = val ? fmtMan(val)+(list.some(c=>catRenew(c,r.catKey)&&catAmt(c,r.catKey)>0)?GMK_SCR:'') : '-';
-      else disp = catSplitFmt(list, r.catKey, GMK_SCR, '<br>') || '-';
-      if(mCmpEdit && mCmpEdit.catKey===r.catKey && mCmpEdit.field===f){
-        html += `<td class="mcell ed"><input type="number" value="${val||''}" onblur="saveCmpCell('${esc(r.catKey)}','${f}',this.value)" onkeydown="if(event.key==='Enter'){this.blur();}else if(event.key==='Escape'){mCmpEdit=null;renderCmpTable();}"></td>`;
+      const over = !!(S.cmpAmt && S.cmpAmt[r.catKey] && S.cmpAmt[r.catKey][f]!=null);
+      if(mCmpEdit && mCmpEdit.where==='cmp' && mCmpEdit.cat===r.catKey && mCmpEdit.field===f){
+        const s = catSplitSide(f, r.catKey);
+        html += `<td class="mcell ed">${splitEditorHTML(s.renew, s.normal, `saveCmpCell('${esc(r.catKey)}','${f}')`)}</td>`;
       } else {
-        html += `<td class="mcell${over?' over':''}" onclick="editCmpCell('${esc(r.catKey)}','${f}')" title="클릭하면 금액을 직접 수정합니다">${disp}</td>`;
+        html += `<td class="mcell${over?' over':''}" onclick="editCmpCell('${esc(r.catKey)}','${f}','cmp')" title="클릭하면 갱신·일반 금액을 각각 수정합니다">${sideFmt(f, r.catKey)}</td>`;
       }
     });
     html += `<td class="${d>0?'up':d<0?'dn':''}">${d===0?'':(d>0?'▲ '+fmtMan(d):'▼ '+fmtMan(-d))}</td></tr>`;
@@ -1616,23 +1630,10 @@ function renderCmpTable(){
   renderHiddenBar(); renderCellRestoreBar();
 }
 
-/* ----- 종합비교 현재/개선 후 금액 직접 수정·삭제·복원 ----- */
-let mCmpEdit = null;   // {catKey, field:'a'|'b'}
-function editCmpCell(catKey, field){ mCmpEdit = {catKey, field}; renderCmpTable(); }
-function saveCmpCell(catKey, field, val){
-  mCmpEdit = null;
-  S.cmpAmt = S.cmpAmt || {};
-  const cur = curContracts(), aft = afterContracts();
-  const auto = field==='a' ? cur.reduce((s,c)=>s+catAmt(c,catKey),0) : aft.reduce((s,c)=>s+catAmt(c,catKey),0);
-  let n = parseInt(String(val).replace(/[^0-9]/g,''));
-  if(isNaN(n)) n = 0;
-  const rec = S.cmpAmt[catKey] || {};
-  if(n === auto) delete rec[field]; else rec[field] = n;   // 자동 합계와 같으면 오버라이드 해제
-  if(rec.a==null && rec.b==null) delete S.cmpAmt[catKey]; else S.cmpAmt[catKey] = rec;
-  refreshPreviewOnly(); persist();
-}
-function revertCmpCell(catKey, field){
-  if(S.cmpAmt && S.cmpAmt[catKey]){ delete S.cmpAmt[catKey][field]; if(S.cmpAmt[catKey].a==null && S.cmpAmt[catKey].b==null) delete S.cmpAmt[catKey]; }
+/* ----- 종합비교/합계 현재·개선 후 금액 직접 수정·삭제·복원 (갱신/비갱신 각각) ----- */
+let mCmpEdit = null;   // {cat, field:'a'|'b', where:'cmp'|'mtx'}
+function revertCmpCell(cat, field){
+  if(S.cmpAmt && S.cmpAmt[cat]){ delete S.cmpAmt[cat][field]; if(S.cmpAmt[cat].a==null && S.cmpAmt[cat].b==null) delete S.cmpAmt[cat]; }
   refreshPreviewOnly(); persist();
 }
 
@@ -1763,7 +1764,7 @@ function renderMatrix(){
   let html = '<table class="pv"><thead><tr><th style="width:58px;">구분</th><th style="text-align:left;">담보</th>';
   cs.forEach(c=>{
     const cls = DROP_ST.includes(c.status)?'drop':c.status==='제안'?'prop':'';
-    html += `<th class="${cls}"><span class="ins">${esc(c.insurer)}</span><span class="st">${esc(short(c.productName))} · ${c.status}</span></th>`;
+    html += `<th class="${cls}"><span class="ins" onclick="renameField('${c.id}','insurer')" title="클릭하면 보험사 수정" style="cursor:pointer;">${esc(c.insurer)}</span><span class="st" onclick="renameField('${c.id}','productName')" title="클릭하면 상품명 수정" style="cursor:pointer;">${esc(short(c.productName))} · ${c.status}</span></th>`;
   });
   html += '<th>현재</th><th>개선 후</th></tr></thead><tbody>';
   const cur = curContracts(), aft = afterContracts();
@@ -1771,8 +1772,10 @@ function renderMatrix(){
 
   // 계약 요약 정보 행 — 각 칸 클릭 시 인라인 수정, 행 ✕로 삭제(복원 가능)
   const hir = S.hiddenInfoRows||[];
-  INFO_ROWS.forEach((r,ri)=>{
-    if(hir.includes(r.key)) return;
+  const visInfo = INFO_ROWS.filter(r=>!hir.includes(r.key));
+  const nNonTot = visInfo.filter(r=>!r.tot).length;   // 합계칸이 없는 정보행 수(납입기간·회차·만기) → 한 칸으로 병합
+  let nonTotSeen = 0;
+  visInfo.forEach(r=>{
     const cls = r.key==='prem' ? 'sum' : (r.key==='mat' ? 'info b' : 'info');
     html += `<tr class="${cls}"><td colspan="2" style="text-align:center;">${r.label}
       <span class="rowacts"><button class="ract del" onclick="hideInfoRow('${r.key}')" title="이 행 삭제 (복원 가능)">✕</button></span></td>`;
@@ -1784,7 +1787,7 @@ function renderMatrix(){
       }
     });
     if(r.tot){ const a=cs2sum(cur,r.key), b=cs2sum(aft,r.key); html += `<td>${a}</td><td>${b}</td>`; }
-    else html += `<td colspan="${colSpanTail}"></td>`;
+    else { if(nonTotSeen===0 && nNonTot>0) html += `<td colspan="${colSpanTail}" rowspan="${nNonTot}" class="infomerge"></td>`; nonTotSeen++; }
     html += `</tr>`;
   });
 
@@ -1805,37 +1808,86 @@ function renderMatrix(){
         const v = catAmt(c,cat);
         const over = !!(S.cellAmt && S.cellAmt[c.id] && S.cellAmt[c.id][cat]!=null);
         if(mEdit && mEdit.cid===c.id && mEdit.cat===cat){
-          html += `<td class="mcell ed"><input type="number" value="${v||''}" onblur="saveCell('${c.id}','${esc(cat)}',this.value)" onkeydown="if(event.key==='Enter'){this.blur();}else if(event.key==='Escape'){mEdit=null;renderMatrix();}"></td>`;
+          const s = catSplit([c],cat);
+          html += `<td class="mcell ed">${splitEditorHTML(s.renew, s.normal, `saveCell('${c.id}','${esc(cat)}')`)}</td>`;
         } else {
-          html += `<td class="mcell${over?' over':''}" onclick="editCell('${c.id}','${esc(cat)}')" title="클릭하면 이 칸 금액을 직접 수정합니다">${v?catSplitFmt([c],cat,GMK_SCR,'<br>'):'<span class="add">+</span>'}</td>`;
+          html += `<td class="mcell${over?' over':''}" onclick="editCell('${c.id}','${esc(cat)}')" title="클릭하면 갱신·일반 금액을 각각 수정합니다">${v?catSplitFmt([c],cat,GMK_SCR,'<br>'):'<span class="add">+</span>'}</td>`;
         }
       });
-      html += `<td class="tot">${catSplitFmt(cur,cat,GMK_SCR,'<br>')||'-'}</td>`;
-      html += `<td class="tot">${catSplitFmt(aft,cat,GMK_SCR,'<br>')||'-'}</td></tr>`;
+      // 현재·개선 후 합계도 직접 수정(갱신/일반 각각)·복원 가능
+      ['a','b'].forEach(f=>{
+        const over = !!(S.cmpAmt && S.cmpAmt[cat] && S.cmpAmt[cat][f]!=null);
+        if(mCmpEdit && mCmpEdit.where==='mtx' && mCmpEdit.cat===cat && mCmpEdit.field===f){
+          const s = catSplitSide(f, cat);
+          html += `<td class="tot mcell ed">${splitEditorHTML(s.renew, s.normal, `saveCmpCell('${esc(cat)}','${f}')`)}</td>`;
+        } else {
+          html += `<td class="tot mcell${over?' over':''}" onclick="editCmpCell('${esc(cat)}','${f}','mtx')" title="클릭하면 합계(갱신·일반)를 각각 수정합니다">${sideFmt(f,cat)}</td>`;
+        }
+      });
+      html += `</tr>`;
     });
   });
   html += '</tbody></table>';
   $('#mtxWrap').innerHTML = html;
-  if(mEdit){ const inp = $('#mtxWrap').querySelector('td.mcell.ed input'); if(inp){ inp.focus(); inp.select(); } }
+  if(mEdit || (mCmpEdit && mCmpEdit.where==='mtx')){ const inp = $('#mtxWrap').querySelector('td.mcell.ed input'); if(inp){ inp.focus(); inp.select(); } }
   renderCellRestoreBar();
 }
 
 /* ----- 담보상세 칸(셀) 직접 수정·복원 (미리보기 + PPT + PDF 공통 반영) ----- */
-let mEdit = null;   // {cid, cat} — 현재 인라인 수정 중인 칸
-function editCell(cid, cat){ mEdit = {cid, cat}; renderMatrix(); }
-function saveCell(cid, cat, val){
+// 매트릭스 헤더에서 보험사/상품명 빠른 수정
+function renameField(id, field){
+  const c = S.contracts.find(x=>x.id===id); if(!c) return;
+  const cur = c[field]||'';
+  const nv = prompt(field==='productName'?'상품명 수정:':'보험사 수정:', cur);
+  if(nv==null) return;
+  c[field] = nv.trim();
+  if(field==='insurer' && DROP_ST.includes(c.status)) c.csPhone = autoCs(c.insurer) || c.csPhone;
+  refreshAll(); persist();
+}
+let mEdit = null;   // {cid, cat} — 개별 칸 인라인 수정 중
+// 갱신/비갱신 2칸 인라인 편집기 HTML
+function splitEditorHTML(r, n, saveCall){
+  const ent = `if(event.key==='Enter'){event.preventDefault();${saveCall}}else if(event.key==='Escape'){mEdit=null;mCmpEdit=null;renderMatrix();renderCmpTable();}`;
+  return `<div class="spwrap">
+    <label class="spr"><span>갱신</span><input type="number" class="er" value="${r||''}" placeholder="0" onkeydown="${ent}"></label>
+    <label class="spn"><span>일반</span><input type="number" class="en" value="${n||''}" placeholder="0" onkeydown="${ent}"></label>
+    <button class="spok" onmousedown="event.preventDefault();${saveCall}">저장</button>
+  </div>`;
+}
+function editCell(cid, cat){ mEdit = {cid, cat}; mCmpEdit=null; renderMatrix(); }
+function saveCell(cid, cat){
+  const td = $('#mtxWrap td.mcell.ed');
+  const r = td ? parseInt((td.querySelector('.er')||{}).value)||0 : 0;
+  const n = td ? parseInt((td.querySelector('.en')||{}).value)||0 : 0;
   mEdit = null;
   S.cellAmt = S.cellAmt || {};
+  if(S.cellAmt[cid]) delete S.cellAmt[cid][cat];   // 먼저 해제하고 원본 분리값 계산
   const c = S.contracts.find(x=>x.id===cid);
-  const raw = c ? catAmtRaw(c, cat) : 0;
-  let n = parseInt(String(val).replace(/[^0-9]/g,''));
-  if(isNaN(n)) n = 0;
-  if(n === raw){ if(S.cellAmt[cid]) delete S.cellAmt[cid][cat]; }   // 원래 계산값과 같으면 오버라이드 해제
-  else { (S.cellAmt[cid] = S.cellAmt[cid]||{})[cat] = n; }
+  const auto = c ? catSplit([c], cat) : {renew:0,normal:0};
+  if(r===auto.renew && n===auto.normal){ /* 원본과 동일 → 오버라이드 없음 */ }
+  else { (S.cellAmt[cid] = S.cellAmt[cid]||{})[cat] = {r, n}; }
   refreshPreviewOnly(); persist();
 }
 function revertCell(cid, cat){ if(S.cellAmt && S.cellAmt[cid]) delete S.cellAmt[cid][cat]; refreshPreviewOnly(); persist(); }
 function revertAllCells(){ S.cellAmt = {}; refreshPreviewOnly(); persist(); }
+// 종합비교/합계(현재 a·개선후 b) 한쪽 분리 표기 HTML
+function sideFmt(side, cat){ const s=catSplitSide(side,cat); const p=[]; if(s.renew>0)p.push(fmtMan(s.renew)+GMK_SCR); if(s.normal>0)p.push(fmtMan(s.normal)); return p.join('<br>')||'-'; }
+function editCmpCell(cat, field, where){ mCmpEdit={cat, field, where:where||'cmp'}; mEdit=null; if(mCmpEdit.where==='mtx') renderMatrix(); else renderCmpTable(); }
+function saveCmpCell(cat, field){
+  const where = (mCmpEdit&&mCmpEdit.where)||'cmp';
+  const root = where==='mtx' ? $('#mtxWrap') : $('#cmpWrap');
+  const td = root && root.querySelector('td.mcell.ed');
+  const r = td ? parseInt((td.querySelector('.er')||{}).value)||0 : 0;
+  const n = td ? parseInt((td.querySelector('.en')||{}).value)||0 : 0;
+  mCmpEdit = null;
+  S.cmpAmt = S.cmpAmt || {};
+  const auto = catSplit(field==='a'?curContracts():afterContracts(), cat);
+  const rec = S.cmpAmt[cat] || {};
+  if(r===auto.renew && n===auto.normal) delete rec[field];
+  else rec[field] = {r, n};
+  if(rec.a==null && rec.b==null) delete S.cmpAmt[cat]; else S.cmpAmt[cat] = rec;
+  refreshPreviewOnly(); persist();
+}
 function renderCellRestoreBar(){
   const bar = $('#cellRestoreBar'); if(!bar) return;
   const items = [];
@@ -1957,7 +2009,7 @@ function compareData(showAll){
       let a = cur.reduce((s,c)=>s+catAmt(c,cat),0);
       let b = aft.reduce((s,c)=>s+catAmt(c,cat),0);
       const o = ov[cat];
-      if(o){ if(o.a!=null) a = o.a; if(o.b!=null) b = o.b; }
+      if(o){ if(o.a!=null) a = ovNum(o.a); if(o.b!=null) b = ovNum(o.b); }
       return {catKey:cat, cat:catLabel(cat), a, b, d: b-a};
     }).filter(r=> showAll || r.a || r.b || isCustomCat(r.catKey));
     live.forEach((r,k)=> rows.push({g: k===0?groupLabel(g):'', gKey: k===0?g:'', ...r}));
@@ -2503,11 +2555,10 @@ function buildPrintHTML(){
   const cmp = compareData();
   const curP = sumPrem(curContracts()), aftP = sumPrem(afterContracts()), dropP = sumPrem(dropContracts());
   const gMk = '<span style="color:#C0392B;font-size:6.5pt;">(갱신)</span>';
-  const cmpAOv = c => S.cmpAmt && S.cmpAmt[c] && S.cmpAmt[c].a!=null;
-  const cmpBOv = c => S.cmpAmt && S.cmpAmt[c] && S.cmpAmt[c].b!=null;
+  const sideP = (side, cat)=>{ const s=catSplitSide(side,cat); const p=[]; if(s.renew>0)p.push(fmtMan(s.renew)+gMk); if(s.normal>0)p.push(fmtMan(s.normal)); return p.join('<br>')||'-'; };
   const cmpRow = r => {
-    const aDisp = cmpAOv(r.catKey) ? (r.a?pAmt(r.a)+(curContracts().some(c=>catRenew(c,r.catKey)&&catAmt(c,r.catKey)>0)?gMk:''):'-') : (catSplitFmt(curContracts(),r.catKey,gMk,'<br>')||'-');
-    const bDisp = cmpBOv(r.catKey) ? (r.b?pAmt(r.b)+(afterContracts().some(c=>catRenew(c,r.catKey)&&catAmt(c,r.catKey)>0)?gMk:''):'-') : (catSplitFmt(afterContracts(),r.catKey,gMk,'<br>')||'-');
+    const aDisp = sideP('a', r.catKey);
+    const bDisp = sideP('b', r.catKey);
     return `<tr class="zebra"><td class="grp" style="font-size:8pt;${r.g?'':'background:#fff;border-bottom-color:#EAEEF4;'}">${esc(r.g)}</td><td class="cv">${esc(r.cat)}</td>
     <td style="color:#94A3B5;white-space:nowrap;">${aDisp}</td><td style="font-weight:800;color:#0E2C4D;white-space:nowrap;">${bDisp}</td>
     <td class="c" style="white-space:nowrap;">${r.d===0
