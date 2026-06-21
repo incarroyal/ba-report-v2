@@ -151,16 +151,16 @@ input:focus,select:focus{outline:none;border-color:var(--c-primary);box-shadow:0
     letter-spacing:0.2px;border-right:0.5pt solid rgba(255,255,255,.12);line-height:1.25;}
   table.pt th:first-child{border-top-left-radius:2mm;} table.pt th:last-child{border-top-right-radius:2mm;border-right:none;}
   table.pt th.l{text-align:left;} table.pt th.c{text-align:center;}
-  table.pt td{border-bottom:0.5pt solid #EAEEF4;padding:1.4mm 2.6mm;text-align:right;font-weight:600;color:#2A3645;line-height:1.25;}
+  table.pt td{border-bottom:0.5pt solid #EAEEF4;padding:1.0mm 2.6mm;text-align:right;font-weight:600;color:#2A3645;line-height:1.2;}
   table.pt td.l{text-align:left;} table.pt td.c{text-align:center;}
   table.pt tbody tr.zebra:nth-child(even){background:#F8FAFC;}
   table.pt td.grp{background:#EEF3F9;color:#0E2C4D;font-weight:800;text-align:center;font-size:8.5pt;border-bottom:0.5pt solid #DCE5F0;}
   table.pt td.cv{text-align:left;background:#FCFDFE;color:#3A4655;font-weight:600;}
   table.pt td.hl{background:#F4F8FC;font-weight:800;color:#1B4470;}
-  table.pt.detail td{padding:2.7mm 3mm;font-size:10.5pt;line-height:1.4;}
-  table.pt.detail td.cv,table.pt.detail td.grp{font-size:10.5pt;}
+  table.pt.detail td{padding:1.7mm 3mm;font-size:10pt;line-height:1.25;}
+  table.pt.detail td.cv,table.pt.detail td.grp{font-size:10pt;}
   table.pt.detail td.grp{font-weight:800;}
-  table.pt.detail th{padding:3mm 3mm;font-size:11pt;}
+  table.pt.detail th{padding:2mm 3mm;font-size:10.5pt;}
   table.pt tr.sum td{background:#0E2C4D;color:#fff;font-weight:800;border-bottom:none;}
   table.pt tr.sum td:first-child{border-bottom-left-radius:2mm;} table.pt tr.sum td:last-child{border-bottom-right-radius:2mm;}
   .stbadge{display:inline-block;font-size:7.5pt;font-weight:800;padding:0.6mm 2.4mm;border-radius:6mm;}
@@ -257,12 +257,12 @@ table.pv td.grp:hover .rowacts.g{opacity:1;}
 .tblwrap{overflow-x:auto;border:1px solid var(--c-line);border-radius:10px;}
 table.pv{border-collapse:collapse;width:100%;font-size:12.5px;white-space:nowrap;}
 table.pv th{background:var(--c-teal-deep);color:#fff;padding:5px 10px;font-size:12px;border:1px solid #0c8278;position:sticky;top:0;}
-table.pv th .ins{font-weight:800;} table.pv th .st{font-size:10.5px;opacity:.9;display:block;}
+table.pv th .ins{font-weight:800;display:block;max-width:120px;overflow:hidden;text-overflow:ellipsis;} table.pv th .st{font-size:10.5px;opacity:.9;display:block;max-width:120px;overflow:hidden;text-overflow:ellipsis;}
 table.pv th.drop{background:var(--c-orange);border-color:#d96f12;}
 table.pv th.prop{background:var(--c-purple);border-color:#5b2483;}
-table.pv td{border:1px solid var(--c-line);padding:3px 10px;text-align:right;background:#fff;line-height:1.25;}
+table.pv td{border:1px solid var(--c-line);padding:3px 7px;text-align:right;background:#fff;line-height:1.25;}
 table.pv td.grp{background:var(--c-teal-bg-2);font-weight:700;text-align:center;color:var(--c-teal-deepest);}
-table.pv td.cov{text-align:left;font-weight:600;background:#fcfefd;}
+table.pv td.cov{text-align:left;font-weight:600;background:#fcfefd;white-space:normal;line-height:1.2;}
 table.pv td.tot{font-weight:700;background:var(--c-teal-bg-1);}
 table.pv td.up{color:var(--c-success);font-weight:700;} table.pv td.dn{color:var(--c-danger);font-weight:700;}
 table.pv tr.sum td{background:var(--c-teal-bg-3);font-weight:800;}
@@ -422,7 +422,7 @@ table.pv td.mcell.ed input{width:66px;border:1.5px solid var(--c-primary);border
           <div><label>보험사</label><input type="text" id="edIns" style="width:150px;"></div>
           <div><label>상품명</label><input type="text" id="edName" style="width:280px;"></div>
           <div><label>월 보험료(원)</label><input type="number" id="edPrem" style="width:115px;"></div>
-          <div><label>향후 납입할 보험료</label><input type="text" id="edFuture" style="width:130px;background:#f1f5f9;" readonly title="월 보험료·납입회차·갱신여부로 자동 계산됩니다"></div>
+          <div><label>향후 납입할 보험료</label><input type="text" id="edFuture" style="width:130px;" title="비우면 월 보험료·납입회차·갱신여부로 자동 계산됩니다" placeholder="자동 계산"></div>
           <div><label>계약일</label><input type="text" id="edStart" style="width:110px;" placeholder="2023.01.10"></div>
           <div><label>보장만기</label><input type="text" id="edEnd" style="width:110px;" placeholder="2043.01.10"></div>
           <div><label>납입(횟수)</label><input type="text" id="edPay" style="width:90px;" placeholder="41/240"></div>
@@ -1362,7 +1362,8 @@ function openEditor(id){
   document.body.style.overflow = 'hidden';
   $('#edIns').value = c.insurer; $('#edName').value = c.productName;
   $('#edPrem').value = c.monthlyPremium;
-  $('#edFuture').value = (futurePrem(c)||0).toLocaleString() + '원' + (isRenew(c)?' +@':'');
+  $('#edFuture').value = (S.futureOv && S.futureOv[c.id]!=null) ? (+S.futureOv[c.id]).toLocaleString() : '';
+  $('#edFuture').placeholder = '자동 ' + (futurePrem(c)||0).toLocaleString() + '원';
   const [ps, pe] = splitPeriod(c.period);
   // 보장만기는 나이 기준으로 표시(읽기전용), 실제 만기일은 c.period에 보존
   $('#edStart').value = ps; $('#edEnd').value = maturityAge(c); $('#edEnd').readOnly = true; $('#edEnd').dataset.raw = pe;
@@ -1465,6 +1466,10 @@ function closeEditor(){
     c.period = ps || pe ? `${ps}~${pe}` : '';
     c.payProgress = $('#edPay').value.trim(); c.payTerm = $('#edPayTerm').value.trim();
     c.csPhone = $('#edCs').value.trim(); c.special = $('#edSpecial').checked;
+    // 향후 납입할 보험료: 입력값 있으면 오버라이드, 비우면 자동계산으로 복원
+    S.futureOv = S.futureOv || {};
+    const fv = parseInt(($('#edFuture').value||'').replace(/[^0-9]/g,''));
+    if(!isNaN(fv) && fv>0) S.futureOv[c.id] = fv; else delete S.futureOv[c.id];
   }
   editingId = null;
   $('#editModal').classList.remove('on');
@@ -1541,7 +1546,7 @@ function renderCmpTable(){
   // 그룹별 rowspan 계산 (gKey 기준 — 연속 구간)
   const spans = {};
   rows.forEach((r,i)=>{ if(r.gKey){ let n=1; for(let j=i+1;j<rows.length && !rows[j].gKey;j++) n++; spans[i]=n; } });
-  let html = '<table class="pv"><thead><tr><th style="width:104px;">구분</th><th style="text-align:left;">담보</th><th>현재</th><th>개선 후</th><th>증감</th></tr></thead><tbody>';
+  let html = '<table class="pv" style="table-layout:fixed;"><colgroup><col style="width:90px;"><col style="width:210px;"><col><col><col style="width:88px;"></colgroup><thead><tr><th>구분</th><th style="text-align:left;">담보</th><th>현재</th><th>개선 후</th><th>증감</th></tr></thead><tbody>';
   rows.forEach((r,i)=>{
     const d = r.d;
     html += '<tr>';
@@ -1688,7 +1693,7 @@ function unhideInfoRow(key){ S.hiddenInfoRows=(S.hiddenInfoRows||[]).filter(k=>k
 function renderMatrix(){
   const cs = S.contracts;
   if(!cs.length){ $('#mtxWrap').innerHTML=''; return; }
-  let html = '<table class="pv"><thead><tr><th style="width:80px;">구분</th><th style="text-align:left;">담보</th>';
+  let html = '<table class="pv"><thead><tr><th style="width:58px;">구분</th><th style="text-align:left;width:130px;">담보</th>';
   cs.forEach(c=>{
     const cls = DROP_ST.includes(c.status)?'drop':c.status==='제안'?'prop':'';
     html += `<th class="${cls}"><span class="ins">${esc(c.insurer)}</span><span class="st">${esc(short(c.productName))} · ${c.status}</span></th>`;
@@ -1824,7 +1829,7 @@ function ovData(){
 }
 function detailChunks(list, per=4){
   const out = [];
-  const MAX_COV_ROWS = 8;   // 한 시트당 담보 행 상한 (글씨 확대·행 높이 반영, 넘침 없이 꽉 차도록)
+  const MAX_COV_ROWS = 12;   // 한 시트당 담보 행 상한 (행 높이 축소 반영 — 한 묶음이 최대한 한 페이지에 들어가도록)
   for(let i=0;i<list.length;i+=per){
     const grp = list.slice(i, i+per);
     const full = [];   // 이 묶음의 전체 담보 행
