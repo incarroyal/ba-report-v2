@@ -262,7 +262,7 @@ table.pv th.drop{background:var(--c-orange);border-color:#d96f12;}
 table.pv th.prop{background:var(--c-purple);border-color:#5b2483;}
 table.pv td{border:1px solid var(--c-line);padding:3px 7px;text-align:right;background:#fff;line-height:1.25;}
 table.pv td.grp{background:var(--c-teal-bg-2);font-weight:700;text-align:center;color:var(--c-teal-deepest);}
-table.pv td.cov{text-align:left;font-weight:600;background:#fcfefd;white-space:normal;line-height:1.2;position:relative;font-size:12px;padding-right:4px;}
+table.pv td.cov{text-align:left;font-weight:600;background:#fcfefd;white-space:nowrap;line-height:1.2;position:relative;font-size:12px;padding-right:6px;}
 table.pv td.cov .rowacts{position:absolute;right:2px;top:50%;transform:translateY(-50%);margin:0;background:rgba(252,254,253,.96);padding:0 2px;border-radius:4px;}
 table.pv td.tot{font-weight:700;background:var(--c-teal-bg-1);}
 table.pv td.up{color:var(--c-success);font-weight:700;} table.pv td.dn{color:var(--c-danger);font-weight:700;}
@@ -423,7 +423,7 @@ table.pv td.mcell.ed input{width:66px;border:1.5px solid var(--c-primary);border
           <div><label>보험사</label><input type="text" id="edIns" style="width:150px;"></div>
           <div><label>상품명</label><input type="text" id="edName" style="width:280px;"></div>
           <div><label>월 보험료(원)</label><input type="number" id="edPrem" style="width:115px;"></div>
-          <div><label>향후 납입할 보험료</label><input type="text" id="edFuture" style="width:130px;" title="비우면 월 보험료·납입회차·갱신여부로 자동 계산됩니다" placeholder="자동 계산"></div>
+          <div><label>향후 납입할 보험료(원)</label><input type="text" id="edFuture" style="width:130px;" title="수정 가능합니다"></div>
           <div><label>계약일</label><input type="text" id="edStart" style="width:110px;" placeholder="2023.01.10"></div>
           <div><label>보장만기</label><input type="text" id="edEnd" style="width:110px;" placeholder="2043.01.10"></div>
           <div><label>납입(횟수)</label><input type="text" id="edPay" style="width:90px;" placeholder="41/240"></div>
@@ -595,13 +595,16 @@ const totalPrem = c => (+c.monthlyPremium||0) * totalPayCount(c);
 //  · 갱신형: 지금부터 100세까지 → (100 - 고객나이) × 12개월 (현재 보험료 기준 추정)
 //  · 그 외: 남은 납입회차 = 총회차 - 기납입회차 (예: 41/240 → 199회)
 const isRenew = c => /갱신/.test(String(c.productName||'')+String(c.payTerm||''));
-function futurePrem(c){
-  if(S.futureOv && S.futureOv[c.id]!=null) return +S.futureOv[c.id];   // 사용자 직접 수정값 우선
+function autoFuture(c){
   const monthly = +c.monthlyPremium||0; if(!monthly) return 0;
   if(isRenew(c) && S.custAge){ return monthly * Math.max(0, (100 - S.custAge) * 12); }
   const m = String(c.payProgress||'').match(/(\d+)\s*\/\s*(\d+)/);
   if(m){ return monthly * Math.max(0, (+m[2]) - (+m[1])); }
   return monthly * totalPayCount(c);
+}
+function futurePrem(c){
+  if(S.futureOv && S.futureOv[c.id]!=null) return +S.futureOv[c.id];   // 사용자 직접 수정값 우선
+  return autoFuture(c);
 }
 // 납입회차 표기: 갱신형은 '기납입 / 100세까지 총회차'(기납입 + 100세까지 남은 개월)
 function payProgressDisp(c){
@@ -1363,8 +1366,7 @@ function openEditor(id){
   document.body.style.overflow = 'hidden';
   $('#edIns').value = c.insurer; $('#edName').value = c.productName;
   $('#edPrem').value = c.monthlyPremium;
-  $('#edFuture').value = (S.futureOv && S.futureOv[c.id]!=null) ? (+S.futureOv[c.id]).toLocaleString() : '';
-  $('#edFuture').placeholder = '자동 ' + (futurePrem(c)||0).toLocaleString() + '원';
+  $('#edFuture').value = (futurePrem(c)||0).toLocaleString();
   const [ps, pe] = splitPeriod(c.period);
   // 보장만기는 나이 기준으로 표시(읽기전용), 실제 만기일은 c.period에 보존
   $('#edStart').value = ps; $('#edEnd').value = maturityAge(c); $('#edEnd').readOnly = true; $('#edEnd').dataset.raw = pe;
@@ -1467,10 +1469,10 @@ function closeEditor(){
     c.period = ps || pe ? `${ps}~${pe}` : '';
     c.payProgress = $('#edPay').value.trim(); c.payTerm = $('#edPayTerm').value.trim();
     c.csPhone = $('#edCs').value.trim(); c.special = $('#edSpecial').checked;
-    // 향후 납입할 보험료: 입력값 있으면 오버라이드, 비우면 자동계산으로 복원
+    // 향후 납입할 보험료: 자동 계산값과 다르면 오버라이드 저장, 같으면 해제
     S.futureOv = S.futureOv || {};
     const fv = parseInt(($('#edFuture').value||'').replace(/[^0-9]/g,''));
-    if(!isNaN(fv) && fv>0) S.futureOv[c.id] = fv; else delete S.futureOv[c.id];
+    if(!isNaN(fv) && fv!==autoFuture(c)) S.futureOv[c.id] = fv; else delete S.futureOv[c.id];
   }
   editingId = null;
   $('#editModal').classList.remove('on');
@@ -1547,7 +1549,7 @@ function renderCmpTable(){
   // 그룹별 rowspan 계산 (gKey 기준 — 연속 구간)
   const spans = {};
   rows.forEach((r,i)=>{ if(r.gKey){ let n=1; for(let j=i+1;j<rows.length && !rows[j].gKey;j++) n++; spans[i]=n; } });
-  let html = '<table class="pv" style="table-layout:fixed;"><colgroup><col style="width:90px;"><col style="width:210px;"><col><col><col style="width:88px;"></colgroup><thead><tr><th>구분</th><th style="text-align:left;">담보</th><th>현재</th><th>개선 후</th><th>증감</th></tr></thead><tbody>';
+  let html = '<table class="pv" style="width:auto;margin:0 auto;"><colgroup><col style="width:84px;"><col><col style="width:128px;"><col style="width:128px;"><col style="width:104px;"></colgroup><thead><tr><th>구분</th><th style="text-align:left;">담보</th><th>현재</th><th>개선 후</th><th>증감</th></tr></thead><tbody>';
   rows.forEach((r,i)=>{
     const d = r.d;
     html += '<tr>';
@@ -1563,12 +1565,42 @@ function renderCmpTable(){
         <button class="ract edit" onclick="editCat('${esc(r.catKey)}')" title="담보 이름·금액 수정">✎ 수정</button>
         <button class="ract del" onclick="hideCat('${esc(r.catKey)}')" title="이 담보를 리포트에서 빼기 (복원 가능)">✕ 삭제</button>
       </span></td>`;
-    html += `<td>${fmtMan(r.a)||'-'}</td><td>${fmtMan(r.b)||'-'}</td>` +
-      `<td class="${d>0?'up':d<0?'dn':''}">${d===0?'':(d>0?'▲ '+fmtMan(d):'▼ '+fmtMan(-d))}</td></tr>`;
+    const aOver = !!(S.cmpAmt && S.cmpAmt[r.catKey] && S.cmpAmt[r.catKey].a!=null);
+    const bOver = !!(S.cmpAmt && S.cmpAmt[r.catKey] && S.cmpAmt[r.catKey].b!=null);
+    ['a','b'].forEach(f=>{
+      const val = r[f], over = f==='a'?aOver:bOver;
+      if(mCmpEdit && mCmpEdit.catKey===r.catKey && mCmpEdit.field===f){
+        html += `<td class="mcell ed"><input type="number" value="${val||''}" onblur="saveCmpCell('${esc(r.catKey)}','${f}',this.value)" onkeydown="if(event.key==='Enter'){this.blur();}else if(event.key==='Escape'){mCmpEdit=null;renderCmpTable();}"></td>`;
+      } else {
+        html += `<td class="mcell${over?' over':''}" onclick="editCmpCell('${esc(r.catKey)}','${f}')" title="클릭하면 금액을 직접 수정합니다">${fmtMan(val)||'-'}</td>`;
+      }
+    });
+    html += `<td class="${d>0?'up':d<0?'dn':''}">${d===0?'':(d>0?'▲ '+fmtMan(d):'▼ '+fmtMan(-d))}</td></tr>`;
   });
   html += '</tbody></table>';
   $('#cmpWrap').innerHTML = html;
-  renderHiddenBar();
+  if(mCmpEdit){ const inp = $('#cmpWrap').querySelector('td.mcell.ed input'); if(inp){ inp.focus(); inp.select(); } }
+  renderHiddenBar(); renderCellRestoreBar();
+}
+
+/* ----- 종합비교 현재/개선 후 금액 직접 수정·삭제·복원 ----- */
+let mCmpEdit = null;   // {catKey, field:'a'|'b'}
+function editCmpCell(catKey, field){ mCmpEdit = {catKey, field}; renderCmpTable(); }
+function saveCmpCell(catKey, field, val){
+  mCmpEdit = null;
+  S.cmpAmt = S.cmpAmt || {};
+  const cur = curContracts(), aft = afterContracts();
+  const auto = field==='a' ? cur.reduce((s,c)=>s+catAmt(c,catKey),0) : aft.reduce((s,c)=>s+catAmt(c,catKey),0);
+  let n = parseInt(String(val).replace(/[^0-9]/g,''));
+  if(isNaN(n)) n = 0;
+  const rec = S.cmpAmt[catKey] || {};
+  if(n === auto) delete rec[field]; else rec[field] = n;   // 자동 합계와 같으면 오버라이드 해제
+  if(rec.a==null && rec.b==null) delete S.cmpAmt[catKey]; else S.cmpAmt[catKey] = rec;
+  refreshPreviewOnly(); persist();
+}
+function revertCmpCell(catKey, field){
+  if(S.cmpAmt && S.cmpAmt[catKey]){ delete S.cmpAmt[catKey][field]; if(S.cmpAmt[catKey].a==null && S.cmpAmt[catKey].b==null) delete S.cmpAmt[catKey]; }
+  refreshPreviewOnly(); persist();
 }
 
 /* ----- 담보·구분 숨기기 (미리보기 + PPT + PDF 공통 반영) ----- */
@@ -1694,7 +1726,7 @@ function unhideInfoRow(key){ S.hiddenInfoRows=(S.hiddenInfoRows||[]).filter(k=>k
 function renderMatrix(){
   const cs = S.contracts;
   if(!cs.length){ $('#mtxWrap').innerHTML=''; return; }
-  let html = '<table class="pv"><thead><tr><th style="width:58px;">구분</th><th style="text-align:left;width:144px;">담보</th>';
+  let html = '<table class="pv"><thead><tr><th style="width:58px;">구분</th><th style="text-align:left;">담보</th>';
   cs.forEach(c=>{
     const cls = DROP_ST.includes(c.status)?'drop':c.status==='제안'?'prop':'';
     html += `<th class="${cls}"><span class="ins">${esc(c.insurer)}</span><span class="st">${esc(short(c.productName))} · ${c.status}</span></th>`;
@@ -1774,8 +1806,10 @@ function renderCellRestoreBar(){
   const bar = $('#cellRestoreBar'); if(!bar) return;
   const items = [];
   Object.keys(S.cellAmt||{}).forEach(cid=>Object.keys(S.cellAmt[cid]||{}).forEach(cat=>items.push({cid,cat})));
+  const cmpItems = [];
+  Object.keys(S.cmpAmt||{}).forEach(cat=>{ const o=S.cmpAmt[cat]||{}; if(o.a!=null) cmpItems.push({cat,field:'a'}); if(o.b!=null) cmpItems.push({cat,field:'b'}); });
   const hiddenInfo = S.hiddenInfoRows||[];
-  if(!items.length && !hiddenInfo.length){ bar.style.display='none'; bar.innerHTML=''; return; }
+  if(!items.length && !cmpItems.length && !hiddenInfo.length){ bar.style.display='none'; bar.innerHTML=''; return; }
   bar.style.display='flex';
   let html = '';
   if(items.length){
@@ -1784,8 +1818,12 @@ function renderCellRestoreBar(){
         return `<span class="hchip" onclick="revertCell('${cid}','${esc(cat)}')">${esc(nm)} · ${esc(catLabel(cat))} <i>↩</i></span>`; }).join('') +
       `<button class="btn gray sm" onclick="revertAllCells()">모두 원래대로</button>`;
   }
+  if(cmpItems.length){
+    html += `<span style="margin-left:${items.length?'10px':'0'};">✎ 종합비교 수정 ${cmpItems.length}개 (클릭하면 복원):</span>` +
+      cmpItems.map(({cat,field})=>`<span class="hchip" onclick="revertCmpCell('${esc(cat)}','${field}')">${esc(catLabel(cat))} ${field==='a'?'현재':'개선 후'} <i>↩</i></span>`).join('');
+  }
   if(hiddenInfo.length){
-    html += `<span style="margin-left:${items.length?'10px':'0'};">🗑 삭제한 행 ${hiddenInfo.length}개 (클릭하면 복원):</span>` +
+    html += `<span style="margin-left:${(items.length||cmpItems.length)?'10px':'0'};">🗑 삭제한 행 ${hiddenInfo.length}개 (클릭하면 복원):</span>` +
       hiddenInfo.map(k=>`<span class="hchip" onclick="unhideInfoRow('${k}')">${esc(INFO_LABEL[k]||k)} <i>↩</i></span>`).join('');
   }
   bar.innerHTML = html;
