@@ -2562,12 +2562,24 @@ function buildPrintHTML(){
   {
   const cnm = ($('#custName').value.trim()) || 'OOO';
   const pnm = pn || 'OO';
-  h += `<div class="psheet" style="padding:0;background:#eaf1f7;overflow:hidden;display:flex;align-items:center;justify-content:center;">
-    <div style="position:relative;width:100%;line-height:0;">
-      <img src="${COVER156_BG}" style="width:100%;display:block;">
-      <div style="position:absolute;left:6.4%;top:10.6%;font-size:13pt;font-weight:800;letter-spacing:0.3px;white-space:nowrap;line-height:1;">
-        <span style="color:#1565C0;">${esc(cnm)}</span><span style="color:#0D3B66;"> 고객님 보장분석 컨설팅</span></div>
-      <div style="position:absolute;left:6.5%;top:76.2%;font-size:16pt;font-weight:800;color:#0D3B66;white-space:nowrap;line-height:1;">${esc(pnm)} 설계사</div>
+  h += `<div class="psheet" style="padding:0;overflow:hidden;display:flex;flex-direction:column;background:#fff;">
+    <!-- 상단 브랜드 이미지(세로 크롭) -->
+    <div style="height:43%;background:url('${COVER156_BG}') center 26%/cover no-repeat;position:relative;">
+      <div style="position:absolute;left:0;right:0;bottom:0;height:30mm;background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,0.96));"></div>
+    </div>
+    <!-- 하단 정보 -->
+    <div style="flex:1;padding:11mm 18mm 12mm;display:flex;flex-direction:column;">
+      <div style="font-size:9pt;font-weight:800;color:#B0894C;letter-spacing:4px;margin-bottom:5mm;">CONSULTING REPORT</div>
+      <div style="font-size:29pt;font-weight:800;color:#0E2C4D;line-height:1.25;letter-spacing:-1px;"><span style="color:#1565C0;">${esc(cnm)}</span> 고객님<br>보장분석 컨설팅</div>
+      <div style="font-size:11.5pt;font-weight:700;color:#5A6678;margin-top:7mm;line-height:1.5;">모두의 인생이 더 단단해지도록,<br>우리는 설계합니다</div>
+      <div style="width:34mm;height:2.6pt;background:#B0894C;border-radius:2pt;margin:9mm 0 5mm;"></div>
+      <div style="font-size:16pt;font-weight:800;color:#0E2C4D;">${esc(pnm)} 설계사</div>
+      <div style="flex:1;"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;border-top:0.8pt solid #E5E9F0;padding-top:5mm;">
+        <div><span style="font-size:13pt;font-weight:900;color:#0E2C4D;font-style:italic;letter-spacing:-0.6px;">iN</span><span style="font-size:13pt;font-weight:900;color:#1565C0;font-style:italic;letter-spacing:-0.6px;">CAR</span>&nbsp;<span style="font-size:11pt;font-weight:800;color:#0E2C4D;">인카금융서비스(주)</span>&nbsp;<span style="font-size:8.5pt;font-weight:700;color:#8B96A5;">KOSDAQ 상장법인</span></div>
+        <div style="font-size:8.5pt;color:#9AA6B6;font-weight:700;">${dstr}</div>
+      </div>
+      <div style="font-size:7pt;color:#A7B2C0;font-weight:600;line-height:1.6;margin-top:3mm;">본 자료는 인카금융서비스 로얄사업단 내부자료입니다. 무단 유출·복제·배포 및 로얄사업단 외 인원이 사용 시 민형사상 책임을 물을 수 있습니다.</div>
     </div>
   </div>`;
   }
