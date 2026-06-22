@@ -2727,9 +2727,25 @@ function buildPrintHTML(){
       ).join('')}</tr>`).join('')}
     </table></div>${pFoot(cust)}</div>`;
   }).join('');
+  // 분류 외 보험 전용 레이아웃 — 빈 기본틀(구분/담보) 열을 빼고 '주요 보장 내용'을 넓게
+  const chunk3 = a => { const o=[]; for(let i=0;i<a.length;i+=3) o.push(a.slice(i,i+3)); return o; };
+  const dSecSpecial = (list, eb, title) => chunk3(list).map((grp, ci, arr)=>{
+    const cw = (84/grp.length).toFixed(1);
+    return `<div class="psheet content">${chrome(eb, title + (arr.length>1?` (${ci+1}/${arr.length})`:''))}
+    <div class="pbody pbody-top"><table class="pt detail" style="font-size:11pt;"><colgroup><col style="width:16%">${grp.map(()=>`<col style="width:${cw}%">`).join('')}</colgroup>
+    <tr><th class="l" style="font-size:11.5pt;">보험사</th>${grp.map(c=>`<th class="c" style="background:${ST_HEX[c.status]};font-size:11.5pt;vertical-align:middle;">${esc(c.insurer)}<br><span style="font-weight:600;opacity:.9;font-size:8.5pt;">${c.status} · 분류외</span></th>`).join('')}</tr>
+    <tr><td class="grp">상품명</td>${grp.map(c=>`<td class="c" style="font-size:9.5pt;color:#5A6678;line-height:1.25;">${esc(cleanProd(c.productName))}</td>`).join('')}</tr>
+    <tr><td class="grp">월 보험료</td>${grp.map(c=>`<td class="c hl" style="font-size:10pt;">${fmtWon(c.monthlyPremium)}${isRenew(c)?' +@':''}</td>`).join('')}</tr>
+    <tr><td class="grp">향후 납입할 보험료</td>${grp.map(c=>{const f=futurePrem(c);return `<td class="c" style="font-size:9.5pt;color:#5A6678;">${f?fmtWon(f)+(isRenew(c)?' +@':''):'-'}</td>`;}).join('')}</tr>
+    <tr><td class="grp">계약일</td>${grp.map(c=>`<td class="c" style="font-size:9.5pt;">${esc(splitPeriod(c.period)[0]||'-')}</td>`).join('')}</tr>
+    <tr><td class="grp">보장만기</td>${grp.map(c=>`<td class="c" style="font-size:9.5pt;">${esc(maturityAge(c))}</td>`).join('')}</tr>
+    <tr><td class="grp">납입기간 및 회차</td>${grp.map(c=>`<td class="c" style="font-size:9.5pt;">${esc([payProgressDisp(c),(c.payTerm||'')+(isRenew(c)?' 갱신형':'')].filter(x=>x&&x.trim()).join(' · ')||'-')}</td>`).join('')}</tr>
+    <tr><td class="grp" style="vertical-align:top;">주요 보장 내용</td>${grp.map(c=>`<td style="vertical-align:top;text-align:left;padding:2.8mm 3.5mm;font-size:10pt;line-height:1.6;background:#FBFCFE;">${spList(c)}</td>`).join('')}</tr>
+    </table></div>${pFoot(cust)}</div>`;
+  }).join('');
   h += dSec(curContracts().filter(c=>!c.special), 'CURRENT COVERAGE', '계약별 보장 상세');
   const spList2 = specialCur();
-  if(spList2.length) h += dSec(spList2, 'SPECIAL POLICIES', '분류 외 보험 · 계약별 상세');   // 분류외는 자기들끼리 모아서
+  if(spList2.length) h += dSecSpecial(spList2, 'SPECIAL POLICIES', '분류 외 보험 · 계약별 상세');   // 분류외는 자기들끼리 모아서
 
   const props = S.contracts.filter(c=>c.status==='제안');
   if(props.length) h += dSec(props, 'NEW PROPOSAL', '신규 보장 제안');
