@@ -409,9 +409,14 @@ table.pv td.mcell.ed .spwrap .spcancel{background:#e5e9f0;color:#5a6678;}
     <span style="font-size:11.5px;font-weight:600;color:var(--c-text-muted);margin-left:8px;">계약별 담보 가입금액과 월 보험료·향후 납입할 보험료·납입기간·납입회차·만기를 함께 표시합니다. (갱신형은 100세까지 기준)</span></h2>
   <div class="tblwrap" id="mtxWrap"></div>
   <div class="hidbar" id="cellRestoreBar" style="display:none;"></div>
-  <div style="margin:8px 0 0;display:flex;gap:8px;flex-wrap:wrap;">
+  <div style="margin:8px 0 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
     <button class="btn ghost sm" onclick="addGroupUI()">+ 대분류 추가</button>
     <button class="btn ghost sm" onclick="addCatUI()">+ 중분류(담보) 추가</button>
+    <span style="width:1px;height:18px;background:var(--c-line);margin:0 2px;"></span>
+    <button class="btn ghost sm" onclick="saveTool()" title="현재 담보 분류 구성(대/중분류·순서·이름·추가·숨김)을 내 파일로 저장">💾 내 툴 저장</button>
+    <button class="btn ghost sm" onclick="$('#toolFile').click()" title="저장해 둔 내 툴 파일을 불러와 분류 구성을 그대로 적용">📂 내 툴 불러오기</button>
+    <input type="file" id="toolFile" accept=".json,application/json" style="display:none;" onchange="loadTool(this.files[0]);this.value='';">
+    <span style="font-size:11px;color:var(--c-text-muted);">담보 분류 구성만 저장/불러오기 (계약 데이터는 영향 없음)</span>
   </div>
   <h2 style="font-size:14px;margin:20px 0 8px;">보장 종합 비교 (현재 → 개선 후)
     <span style="font-size:11.5px;font-weight:600;color:var(--c-text-muted);margin-left:8px;">행에 마우스를 올리면 ✎(이름·금액 수정) · ✕(리포트에서 빼기) 버튼이 나타납니다. 수정·삭제는 PPT·PDF에도 동일 적용됩니다.</span></h2>
@@ -1637,6 +1642,38 @@ function activeRows(){
     if(live.length || isCustomGroup) rows.push([g, live]);
   });
   return rows;
+}
+
+/* ----- 나만의 툴(담보 분류 구성) 저장 / 불러오기 ----- */
+// '툴' = 담보 분류 틀 (대/중분류 추가·순서·이름변경·숨김). 계약 데이터(가입금액 등)는 포함하지 않음.
+const TOOL_KEYS = ['extraGroups','extraCats','catLabels','groupLabels','hiddenCats','groupOrder','catOrder','hiddenInfoRows'];
+function saveTool(){
+  const tool = { _type:'ba-tool', _ver:1, saved: new Date().toISOString() };
+  TOOL_KEYS.forEach(k=> tool[k] = S[k]);
+  const blob = new Blob([JSON.stringify(tool, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const d = new Date(); const ymd = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+  const who = ($('#plannerName').value.trim()||'나의');
+  a.href = url; a.download = `보장분석_${who}_담보툴_${ymd}.json`;
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+function loadTool(file){
+  if(!file) return;
+  const r = new FileReader();
+  r.onload = e=>{
+    try{
+      const tool = JSON.parse(e.target.result);
+      if(tool._type!=='ba-tool'){ if(!confirm('이 파일이 담보 툴 파일이 아닐 수 있습니다. 그래도 적용할까요?')) return; }
+      TOOL_KEYS.forEach(k=>{ if(tool[k]!==undefined) S[k] = tool[k]; });
+      // 누락 키 기본값 보정
+      S.extraGroups=S.extraGroups||[]; S.extraCats=S.extraCats||{}; S.catLabels=S.catLabels||{}; S.groupLabels=S.groupLabels||{};
+      S.hiddenCats=S.hiddenCats||[]; S.groupOrder=S.groupOrder||[]; S.catOrder=S.catOrder||{}; S.hiddenInfoRows=S.hiddenInfoRows||[];
+      refreshPreviewOnly(); persist();
+      alert('내 툴을 불러왔습니다. 담보 분류 구성이 저장해 두신 대로 적용되었습니다.');
+    }catch(err){ alert('툴 파일을 읽지 못했습니다: '+err.message); }
+  };
+  r.readAsText(file);
 }
 
 /* ----- 대분류(그룹) · 중분류(담보) 직접 추가 ----- */
