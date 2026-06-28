@@ -571,7 +571,14 @@ function migrateState(st){
     // <UNKNOWN>·미상 자리표시자 정리 (제안서 등에서 못 읽은 값)
     ['period','payTerm','payProgress','productName'].forEach(k=>{ if(c[k]!=null){ c[k]=String(c[k]).replace(/<?\s*UNKNOWN\s*>?/gi,'').replace(/미상/g,'').replace(/\s{2,}/g,' ').trim(); } });
     if(c.period){ c.period=c.period.replace(/~\s*$/,'').replace(/^\s*~/,'').replace(/~\s*~/,'~').trim(); }
-    if(c.payTerm){ c.payTerm=c.payTerm.replace(/^[·\s]+/,'').replace(/[·\s]+$/,'').replace(/^\s*년납\s*$/,''); }
+    if(c.payTerm){ c.payTerm=c.payTerm.replace(/^[·\s/]+/,'').replace(/[·\s/]+$/,'').replace(/^(년납|년|세납|세|개월납|개월|납)$/,''); }
+    if(c.payProgress){ c.payProgress = /\d+\s*\/\s*\d+/.test(c.payProgress) ? c.payProgress.trim() : ''; }   // 숫자/숫자 형태만 유지
+    if(c.productName){
+      let p=c.productName.replace(/(\S+)\s+\1(?=\s|\)|$)/g,'$1');   // 중복 토큰 'V2 V2' → 'V2'
+      let op=(p.match(/\(/g)||[]).length, cl=(p.match(/\)/g)||[]).length;
+      while(cl>op && /\)\s*$/.test(p)){ p=p.replace(/\)\s*$/,''); cl--; }   // 짝 안 맞는 끝 괄호 제거
+      c.productName=p.trim();
+    }
   });
   if(!Array.isArray(st.hiddenCats)) st.hiddenCats = [];
   if(!st.catLabels || typeof st.catLabels!=='object') st.catLabels = {};
