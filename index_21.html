@@ -1404,33 +1404,46 @@ async function fullScan(){
 /* ----- 제안서 텍스트에서 메타(상품명·보험기간·납입기간·합계보험료) 직접 추출 — AI 누락분 보완 ----- */
 function proposalMeta(txt){
   txt = String(txt||'').replace(/\s+/g,' ');
+  const txtNS = txt.replace(/\s+/g,'');   // 글자 단위로 띄워진 PDF(미래에셋 등) 대응용 공백제거판
   const r = {};
-  // 보험상품명
-  let mm = txt.match(/보험\s*상품\s*명\s*([^]+?)(?:\s*계약자|\s*보험종류|\s*피보험자|\s*납입주기|\s*가입설계|\s*상품명\s+가입금액)/);
-  if(!mm) mm = txt.match(/상품\s*명\s*[:：]?\s*([^]+?)(?:\s*계약자|\s*가입금액|\s*보험기간)/);
-  if(mm) r.productName = mm[1].replace(/\s+/g,' ').trim();
+  // 보험상품명 — ① '보험상품명' 라벨 ② '상품명 :' 콜론 라벨 ③ 주계약/[1]/보험료 다음 ④ 첫 '(무)…보험' 토큰 ⑤ 공백제거판(가입안내서/타이틀)
+  const tail = '(?:V\\d+|Ⅰ|Ⅱ|Ⅲ|Ⅳ|Ⅴ|[0-9]+)?(?:\\([^)]*\\))?(?:V\\d+|Ⅰ|Ⅱ|Ⅲ|Ⅳ|Ⅴ)?';
+  const body = '[가-힣A-Za-z0-9:&·()\\- ]{2,36}?(?<!피)보험' + tail;   // '피보험' 오인식 방지
+  let nm = txt.match(new RegExp('보험\\s*상품\\s*명\\s*((?:\\(무[^)]*\\)|\\(무배당\\))?\\s*[가-힣A-Za-z]' + body));
+  if(!nm) nm = txt.match(new RegExp('상품\\s*명\\s*[:：]\\s*((?:\\(무[^)]*\\)|\\(무배당\\)|무배당\\s*)?[가-힣A-Za-z(]' + body));
+  if(!nm) nm = txt.match(new RegExp('(?:주계약|\\[1\\]|초회보험료)\\s+((?:\\(무[^)]*\\)|\\(무배당\\))?\\s*[가-힣A-Za-z]' + body));
+  if(!nm) nm = txt.match(new RegExp('((?:\\(무[^)]*\\)|\\(무배당\\))\\s*[가-힣A-Za-z]' + body));
+  if(!nm) nm = txtNS.match(/(?:가입안내서|보험상품명|상품명)([가-힣A-Za-z][가-힣A-Za-z0-9:&·()\-]{1,33}?(?<!피)보험(?:\(갱신형\))?)/);
+  if(nm){ let pn=nm[1].replace(/\s+/g,' ').trim();
+    pn = pn.split(/\s*(?:계약자|피보험|증권번호|가입금액|보험기간|보험종류|납입주기|순번|담보명)\s*/)[0].trim();
+    if(/보험|공제|플랜|연금|let|드림|케어/i.test(pn) && !/^납입|^면제|^미적용/.test(pn)) r.productName = pn;
+  }
   // 보장설계 표 영역만 우선 사용 (갱신형 안내문의 5년/10년만기 등 잡음 배제)
   let tbl = txt;
   const tm = txt.match(/가입\s*금액[^]{0,30}?보험\s*기간[^]{0,2000}?(?:합계\s*보험료|실납입\s*보험료|보험료\s*합계)/);
   if(tm) tbl = tm[0];
   const numOf = x => /종\s*신/.test(x)?120 : /전기/.test(x)?115 : /일시/.test(x)?0 : (+(String(x).match(/\d+/)||[0])[0]);
   const pickMode = list => { if(!list.length) return null; const c={}; list.forEach(x=>{const k=String(x).replace(/\s+/g,'');c[k]=(c[k]||0)+1;}); return Object.keys(c).sort((a,b)=> c[b]-c[a] || numOf(b)-numOf(a))[0]; };
-  const matRX = /\d{1,3}\s*세\s*만기|종\s*신|\d{1,3}\s*년\s*만기/g, payRX = /\d{1,3}\s*년\s*납|\d{1,3}\s*세\s*납|전기\s*납|일시\s*납/g;
-  // 보장만기(보험기간) — 표 영역 우선, 없으면 전체
-  r.period = pickMode(tbl.match(matRX) || []) || pickMode(txt.match(matRX) || []) || undefined;
-  // 납입기간
-  r.payTerm = pickMode(tbl.match(payRX) || []) || pickMode(txt.match(payRX) || []) || undefined;
-  // 'N년/N세'(납기/만기) 형식 보강 (DB손보 등)
-  const slash = tbl.match(/\d{1,3}\s*년\s*\/\s*\d{1,3}\s*세/g) || txt.match(/\d{1,3}\s*년\s*\/\s*\d{1,3}\s*세/g) || [];
-  if(slash.length){
-    if(!r.period){ const p=pickMode(slash.map(s=>s.replace(/.*\/\s*(\d+)\s*세/,'$1'))); if(p) r.period=p+'세만기'; }
-    if(!r.payTerm){ const y=pickMode(slash.map(s=>s.replace(/(\d+)\s*년.*/,'$1'))); if(y) r.payTerm=y+'년납'; }
-  }
+  // 만기/납입 후보를 두 형식 모두에서 수집해 통합 (① 'N세만기/종신' ② 'N년/N세' 납기/만기)
+  const collect = src => {
+    const mats=[], pays=[];
+    (src.match(/\d{1,3}\s*세\s*만기|종\s*신|\d{1,3}\s*년\s*만기/g)||[]).forEach(x=>mats.push(x.replace(/\s+/g,'')));
+    (src.match(/\d{1,3}\s*년\s*납|\d{1,3}\s*세\s*납|전기\s*납|일시\s*납/g)||[]).forEach(x=>pays.push(x.replace(/\s+/g,'')));
+    (src.match(/\d{1,3}\s*년\s*\/\s*\d{1,3}\s*세/g)||[]).forEach(x=>{ const mm2=x.match(/(\d{1,3})\s*년\s*\/\s*(\d{1,3})\s*세/); if(mm2){ pays.push(mm2[1]+'년납'); mats.push(mm2[2]+'세만기'); } });
+    return {mats, pays};
+  };
+  let cc = collect(tbl); if(!cc.mats.length && !cc.pays.length) cc = collect(txt);
+  if(!cc.mats.length && !cc.pays.length) cc = collect(txtNS);   // 글자 띄움 PDF 폴백
+  r.period = pickMode(cc.mats) || undefined;
+  r.payTerm = pickMode(cc.pays) || undefined;
+  // 만기 표기가 없으면 '계약기간/보험기간 YYYY.MM.DD ~ YYYY.MM.DD' 날짜 범위 사용 (담보내역서 등)
+  if(!r.period){ const dm = txt.match(/(?:계약기간|보험기간)\s*[:：]?\s*(\d{4}\.\d{1,2}\.\d{1,2})\s*~\s*(\d{4}\.\d{1,2}\.\d{1,2})/) || txtNS.match(/(?:계약기간|보험기간)(\d{4}\.\d{1,2}\.\d{1,2})~(\d{4}\.\d{1,2}\.\d{1,2})/); if(dm){ r.periodDates = dm[1]+'~'+dm[2]; } }
   // 납입주기
   const cyc = txt.match(/납입\s*주기\s*[:：]?\s*(월납|연납|일시납|분기납|반기납|월\s*납)/);
   if(cyc) r.cycle = cyc[1].replace(/\s+/g,'');
   // 합계보험료(실납입 우선) — '합계보험료'·'보험료 합계' 양쪽 순서 모두 인식
   let pm = txt.match(/(?:실납입\s*보험료|합계\s*보험료|보험료\s*합계|월\s*납입?\s*보험료)\s*([\d,]+)\s*원/);
+  if(!pm) pm = txtNS.match(/(?:실납입보험료|합계보험료|보험료합계|월납입보험료|월보험료)([\d,]+)원/);   // 글자 띄움 PDF 폴백
   if(pm) r.prem = +pm[1].replace(/,/g,'');
   return r;
 }
@@ -1506,9 +1519,10 @@ async function handleProposals(files){
         prog('#progProp', base+span, `'${f.name}' — 담보를 인식하지 못했습니다. 계약 목록에서 직접 입력해 주세요.`);
       }
       const cid = uid();
-      m.period = '';   // 제안은 계약일 없음 → 계약일 '-'
+      if(propMeta.periodDates){ m.period = propMeta.periodDates.replace('~',' ~ '); }   // 날짜형(담보내역서 등): 계약일~만기
+      else m.period = '';   // 제안 만기표기형은 계약일 없음 → 계약일 '-'
       S.contracts.push({ id: cid, src:'proposal', status:'제안', ...m });
-      if(propMeta.period){ S.matOv = S.matOv||{}; S.matOv[cid] = propMeta.period; }   // 보장만기 표기
+      if(!propMeta.periodDates && propMeta.period){ S.matOv = S.matOv||{}; S.matOv[cid] = propMeta.period; }   // 보장만기 표기형
       done++;
       const okN = res.filter(r=>r.ok).length, failN = res.length - okN;
       prog('#progProp', base+span, `${done}/${list.length} 분석 완료${failN?` (일부 구간 ${failN}개 건너뜀)`:''}`);
