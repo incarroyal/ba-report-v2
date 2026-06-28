@@ -16,6 +16,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 /* ===== INCAR 디자인 시스템 ===== */
 :root{
@@ -2654,31 +2655,47 @@ function addMemoSlide(p){
   for(let i=0;i<9;i++) s.addShape('line', {x:7.15, y:2.46+i*0.48, w:5.4, h:0, line:{color:'CBD5E1', width:0.75}});
 }
 
-/* ----- PPT 내보내기 ----- */
-function exportPPT(){
+/* ----- PPT 내보내기 (PDF 세로 페이지를 그대로 이미지로 캡처 → 세로 슬라이드에 1장씩 · PDF와 100% 동일) ----- */
+async function exportPPT(){
+  if(!S.contracts.length){ alert('출력할 계약이 없습니다.'); return; }
+  if(typeof html2canvas==='undefined'){ alert('이미지 변환 모듈을 불러오는 중입니다. 잠시 후 다시 시도해주세요.'); return; }
+  const cust = $('#custName').value.trim() || '고객';
+  const today = new Date();
+  const dstr = `${today.getFullYear()}.${String(today.getMonth()+1).padStart(2,'0')}.${String(today.getDate()).padStart(2,'0')}`;
+  const pa = $('#printArea');
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(14,44,77,.93);color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;font-family:inherit;letter-spacing:0.3px;';
+  ov.textContent = 'PPT 생성 중...';
+  let flips = [];
   try{
-    FONT = ($('#pptFont').value||'').trim() || '나눔스퀘어 네오';
-    const cust = $('#custName').value.trim() || '고객';
-    const pn = $('#plannerName').value.trim(), pp = $('#plannerPhone').value.trim();
-    const today = new Date();
-    const dstr = `${today.getFullYear()}.${String(today.getMonth()+1).padStart(2,'0')}.${String(today.getDate()).padStart(2,'0')}`;
+    document.body.appendChild(ov);
+    pa.innerHTML = buildPrintHTML();
+    // 인쇄(@media print) 스타일을 화면에 임시 적용 (캡처용) · @media screen 의 .psheet 숨김은 잠시 해제
+    for(const ss of document.styleSheets){ let rules; try{ rules = ss.cssRules; }catch(_){ continue; } if(!rules) continue;
+      for(const r of rules){ if(r.type===CSSRule.MEDIA_RULE){ const mt = r.media.mediaText;
+        if(/print/.test(mt) && !/screen/.test(mt)){ flips.push([r, mt]); r.media.mediaText = 'screen'; }
+        else if(/screen/.test(mt) && /psheet/.test(r.cssText) && /display\s*:\s*none/.test(r.cssText)){ flips.push([r, mt]); r.media.mediaText = 'print'; } } } }
+    pa.style.cssText = 'display:block;position:fixed;left:0;top:0;z-index:-99999;background:#fff;';
+    await (document.fonts ? document.fonts.ready : Promise.resolve());
+    await new Promise(r=>setTimeout(r, 450));
+    const sheets = [...pa.querySelectorAll('.psheet')];
     const pptx = new PptxGenJS();
-    pptx.defineLayout({name:'WIDE', width:13.33, height:7.5}); pptx.layout = 'WIDE';
-    GINFO = { cust, pn, pp, dstr };
-    PAGE = 1;   // 표지 = 01, 이후 슬라이드 02부터
-
-    addCover(pptx, cust, dstr, pn, pp);
-    addSummarySlide(pptx, cust);
-    addOverviewSlide(pptx, cust);
-    addDetailSlides(pptx, curContracts().filter(c=>!c.special), '03 · CURRENT COVERAGE', '계약별 보장 상세');
-    addSpecialSlide(pptx);
-    const props = S.contracts.filter(c=>c.status==='제안');
-    if(props.length) addDetailSlides(pptx, props, '05 · NEW PROPOSAL', '신규 보장 제안');
-    addCompareSlide(pptx, cust);
-    addMemoSlide(pptx);
-
-    pptx.writeFile({fileName: `${cust}_보장분석표_${dstr}.pptx`});
+    pptx.defineLayout({ name:'A4P', width:8.27, height:11.69 }); pptx.layout = 'A4P';   // A4 세로
+    for(let i=0; i<sheets.length; i++){
+      ov.textContent = `PPT 생성 중...  ${i+1} / ${sheets.length}`;
+      const sh = sheets[i];
+      const canvas = await html2canvas(sh, { scale:2, useCORS:true, backgroundColor:'#ffffff', width:sh.offsetWidth, height:sh.offsetHeight, windowWidth:sh.scrollWidth, scrollX:0, scrollY:0 });
+      const png = canvas.toDataURL('image/png');
+      const s = pptx.addSlide();
+      s.addImage({ data: png, x:0, y:0, w:8.27, h:11.69 });
+    }
+    await pptx.writeFile({ fileName: `${cust}_보장분석표_${dstr}.pptx` });
   }catch(e){ alert('PPT 생성 오류: ' + e.message); }
+  finally{
+    for(const [r, mt] of flips){ try{ r.media.mediaText = mt; }catch(_){ } }
+    pa.removeAttribute('style'); pa.style.display = 'none'; pa.innerHTML = '';
+    ov.remove();
+  }
 }
 
 /* ================= 인쇄 · PDF 저장 (PPT와 동일 구성 · INCAR 화이트·네이비, 웹폰트 적용) ================= */
