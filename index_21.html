@@ -668,6 +668,7 @@ function repCovs(c, cat){
   if(!covs.length) return [];
   if(cat==='특정질병수술비') return [covs.reduce((a,b)=>(+a.amt>=+b.amt?a:b))];
   if(cat==='자동차사고부상위로금'){ const k=covs.find(v=>/14\s*급/.test(v.name||'')); return [k || covs.reduce((a,b)=>(+a.amt<=+b.amt?a:b))]; }
+  if(cat==='종수술비(1~5종)'){ const k=covs.find(v=>/(^|[^0-9])5\s*종|1\s*[~-]\s*5\s*종/.test(v.name||'')); return [k || covs.reduce((a,b)=>(+a.amt<=+b.amt?a:b))]; }   // 5종기준 1건
   return covs;
 }
 const catAmtRaw = (c, cat) => repCovs(c, cat).reduce((s,v)=> s + (+v.amt||0), 0);
@@ -1017,7 +1018,7 @@ async function buildAnnexCovs(bytes){
     const doc = await pdfjsLib.getDocument({data: bytes,
       cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/', cMapPacked: true}).promise;
     // 담보명(숫자로 시작 가능: 82대/3종/5대) + 금액(공백/끝이 뒤따르는 숫자만 → '82대'의 82는 이름으로 처리)
-    const RX = /([0-9]*[가-힣A-Za-z(][가-힣A-Za-z0-9()+\-·\/~ ]*?)\s+([0-9][0-9,]*)(?=\s|$)/g;
+    const RX = /([0-9]*[가-힣A-Za-z(\[Ⅰ-ⅿ][가-힣A-Za-z0-9()\[\]+\-·,\/~Ⅰ-ⅿ一-鿿 ]*?)\s+([0-9][0-9,]*)(?=\s|$)/g;
     for(let p=1; p<=doc.numPages; p++){
       const tc = await (await doc.getPage(p)).getTextContent();
       const txt = tc.items.map(i=>i.str).join(' ').replace(/\s+/g,' ');
@@ -2195,7 +2196,12 @@ function renderCellRestoreBar(){
 }
 const short = s => s.length>16 ? s.slice(0,15)+'…' : s;
 // 상품명 앞 (무)/(무배당)/무배당 제거 (화면 표시용)
-const stripMu = n => String(n||'').replace(/[（(][^（()）]*[）)]/g,'').replace(/^\s*무배당\s+/,'').replace(/\s{2,}/g,' ').trim();
+// 상품명에서 보험사 이름 제거용 (긴 이름 우선)
+const INSURER_RX = /(흥국생명|흥국화재|메리츠화재|DB손해보험|DB손보|DB생명|삼성생명|삼성화재|한화손해보험|한화손보|한화생명|현대해상|KB손해보험|KB손보|KB생명|롯데손해보험|롯데손보|농협손해보험|농협손보|NH농협|하나손해보험|하나손보|카카오페이손보|신한라이프|신한생명|동양생명|라이나생명|미래에셋생명|MG손해보험|AIA생명|메트라이프|처브라이프|교보생명|동부화재|악사손해보험|메리츠|흥국|롯데|동양|라이나|미래에셋|신한|현대|삼성|한화|교보)\s*/g;
+const stripIns = n => String(n||'').replace(INSURER_RX,'').replace(/\s{2,}/g,' ').replace(/^\s+/,'').trim();
+const stripMu = n => stripIns(String(n||'').replace(/[（(][^（()）]*[）)]/g,'').replace(/^\s*무배당\s+/,'').replace(/\s{2,}/g,' ').trim());
+// 분류외 담보명 표시: 괄호 안 공백 제거(줄바꿈 시 단어 안 짤리게)
+const covNameDisp = n => String(n||'').replace(/[（(]\s*([^（()）]*?)\s*[）)]/g, (m,p)=>'('+p.replace(/\s+/g,'')+')');
 // 상품명에서 행 높이를 키우는 군더더기 제거 (해약환급금미지급형·날짜·최초·N종N형·코드 등) — 표시용
 function cleanProd(name){
   let s = String(name||'');
@@ -2210,6 +2216,7 @@ function cleanProd(name){
        .replace(/\d{4}[.\-]\d{1,2}(?:[.\-]\d{1,2})?/g,' ')  // 날짜
        .replace(/\s*[·,]\s*/g,' ')
        .replace(/\s{2,}/g,' ').trim();
+  s = stripIns(s);   // 보험사 이름 제거
   return s || String(name||'');
 }
 
@@ -2827,7 +2834,7 @@ function buildPrintHTML(){
     const arr = [...c.covs].filter(v=>+v.amt>0).sort((a,b)=>b.amt-a.amt);
     if(!arr.length) return '<span style="color:#9AA6B6;">담보 정보 없음</span>';
     return arr.map(v=>`<div style="display:flex;justify-content:space-between;gap:3mm;padding:0.8mm 0;border-bottom:0.3pt solid #EEF1F6;">`
-      + `<span style="word-break:keep-all;overflow-wrap:break-word;">${esc(v.name||catLabel(v.category)||'담보')}</span><b style="white-space:nowrap;color:#0E2C4D;">${fmtMan(v.amt)}</b></div>`).join('');
+      + `<span style="word-break:keep-all;overflow-wrap:break-word;">${esc(covNameDisp(v.name||catLabel(v.category)||'담보'))}</span><b style="white-space:nowrap;color:#0E2C4D;">${fmtMan(v.amt)}</b></div>`).join('');
   };
   const dSec = (list, eb, title) => detailChunks(list, 3).map(({grp, cats}, ci, arr)=>{
     const cw = (74/grp.length).toFixed(1);
@@ -2879,15 +2886,17 @@ function buildPrintHTML(){
   if(spList2.length) h += dSecSpecial(spList2, 'SPECIAL POLICIES', '분류 외 보험 · 계약별 상세');   // 분류외는 자기들끼리 모아서
 
   const props = S.contracts.filter(c=>c.status==='제안');
-  if(props.length) h += dSec(props, 'NEW PROPOSAL', '신규 보장 제안');
+  const propsNorm = props.filter(c=>!c.special), propsSp = props.filter(c=>c.special);
+  if(propsNorm.length) h += dSec(propsNorm, 'NEW PROPOSAL', '신규 보장 제안');
+  if(propsSp.length) h += dSecSpecial(propsSp, 'NEW PROPOSAL', '신규 보장 제안 · 분류 외');   // 제안 분류외도 카드형
 
   // ===== 7. 전후 비교 (2단, 페이지당 최대 행 수 제한) =====
   const cmp = compareData(true);   // 전체 기본틀 그대로 (화면 종합비교와 동일)
   const curP = sumPrem(curContracts()), aftP = sumPrem(afterContracts()), dropP = sumPrem(dropContracts());
   const futCp = curContracts().reduce((s,c)=>s+futurePrem(c),0), futAp = afterContracts().reduce((s,c)=>s+futurePrem(c),0);
-  const pWonDelta=(a,b)=>{ const d=b-a; if(d===0) return '<span style="color:#C5CDD8;font-size:8pt;">유지</span>'; return d<0?`<span style="display:inline-block;font-size:7.5pt;font-weight:800;color:#1F8A5B;background:#E7F3EC;padding:0.5mm 2.2mm;border-radius:5mm;">▼ ${fmtWon(-d)}</span>`:`<span style="display:inline-block;font-size:7.5pt;font-weight:800;color:#C0392B;background:#FBE9E7;padding:0.5mm 2.2mm;border-radius:5mm;">▲ ${fmtWon(d)}</span>`; };
+  const pWonDelta=(a,b)=>{ const d=b-a; if(d===0) return '<span style="color:#C5CDD8;font-size:8pt;">유지</span>'; return d<0?`<span style="display:inline-block;white-space:nowrap;font-size:7.5pt;font-weight:800;color:#1F8A5B;background:#E7F3EC;padding:0.5mm 2.2mm;border-radius:5mm;">▼ ${fmtWon(-d)}</span>`:`<span style="display:inline-block;white-space:nowrap;font-size:7.5pt;font-weight:800;color:#C0392B;background:#FBE9E7;padding:0.5mm 2.2mm;border-radius:5mm;">▲ ${fmtWon(d)}</span>`; };
   const pPremDisp=(key,side)=>{ const ov=S.infoTot&&S.infoTot[key]&&S.infoTot[key][side]; return ov!=null?esc(ov):cs2sum(side==='a'?curContracts():afterContracts(),key); };
-  const premTbl = `<table class="pt" style="width:100%;margin-bottom:4mm;"><colgroup><col style="width:8%"><col style="width:24%"><col><col><col style="width:16%"></colgroup>
+  const premTbl = `<table class="pt" style="width:100%;margin-bottom:4mm;"><colgroup><col style="width:8%"><col style="width:21%"><col><col><col style="width:21%"></colgroup>
     <tr><th class="c">구분</th><th class="l">항목</th><th class="c">현재</th><th class="c">개선 후</th><th class="c">증감</th></tr>
     <tr><td class="grp" rowspan="2">보험료</td><td class="cv">월 납입 보험료</td><td class="c hl">${pPremDisp('prem','a')}</td><td class="c hl">${pPremDisp('prem','b')}</td><td class="c">${pWonDelta(curP,aftP)}</td></tr>
     <tr><td class="cv">향후 납입할 보험료</td><td class="c">${pPremDisp('future','a')}</td><td class="c">${pPremDisp('future','b')}</td><td class="c">${pWonDelta(futCp,futAp)}</td></tr></table>`;
@@ -2896,14 +2905,14 @@ function buildPrintHTML(){
   const cmpRow = r => {
     const aDisp = sideP('a', r.catKey);
     const bDisp = sideP('b', r.catKey);
-    return `<tr class="zebra"><td class="grp" style="font-size:8pt;${r.g?'':'background:#fff;border-bottom-color:#EAEEF4;'}">${esc(r.g)}</td><td class="cv">${esc(r.cat)}</td>
+    return `<tr class="zebra"><td class="grp" style="font-size:7.5pt;word-break:keep-all;white-space:nowrap;${r.g?'':'background:#fff;border-bottom-color:#EAEEF4;'}">${esc(r.g)}</td><td class="cv" style="word-break:keep-all;">${esc(r.cat)}</td>
     <td style="color:#94A3B5;white-space:nowrap;">${aDisp}</td><td style="font-weight:800;color:#0E2C4D;white-space:nowrap;">${bDisp}</td>
     <td class="c" style="white-space:nowrap;">${r.d===0
       ? '<span style="color:#C5CDD8;font-size:8pt;">유지</span>'
       : r.d>0
       ? `<span style="display:inline-block;font-size:7.5pt;font-weight:800;color:#1F8A5B;background:#E7F3EC;padding:0.5mm 2.2mm;border-radius:5mm;">▲ ${fmtMan(r.d)}</span>`
       : `<span style="display:inline-block;font-size:7.5pt;font-weight:800;color:#C0392B;background:#FBE9E7;padding:0.5mm 2.2mm;border-radius:5mm;">▼ ${fmtMan(-r.d)}</span>`}</td></tr>`; };
-  const cmpTbl = part => `<table class="pt" style="width:100%;"><colgroup>${['9%','33%','19%','19%','20%'].map(w=>`<col style="width:${w}">`).join('')}</colgroup>
+  const cmpTbl = part => `<table class="pt" style="width:100%;"><colgroup>${['12%','30%','19%','19%','20%'].map(w=>`<col style="width:${w}">`).join('')}</colgroup>
     <tr><th class="c">구분</th><th class="l">담보</th><th class="c">현재</th><th class="c">개선 후</th><th class="c">증감</th></tr>
     ${part.map(cmpRow).join('')}</table>`;
   // 세로 1단 — 페이지당 최대 행 수 (첫 장은 카드·보험료표가 있어 조금 적게)
