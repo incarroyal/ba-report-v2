@@ -2129,11 +2129,11 @@ function renderCellRestoreBar(){
 }
 const short = s => s.length>16 ? s.slice(0,15)+'…' : s;
 // 상품명 앞 (무)/(무배당)/무배당 제거 (화면 표시용)
-const stripMu = n => String(n||'').replace(/\(\s*무배당\s*\)/g,'').replace(/\(\s*무\s*\)/g,'').replace(/^\s*무배당\s+/,'').replace(/^\s+/,'').trim();
+const stripMu = n => String(n||'').replace(/[（(][^（()）]*[）)]/g,'').replace(/^\s*무배당\s+/,'').replace(/\s{2,}/g,' ').trim();
 // 상품명에서 행 높이를 키우는 군더더기 제거 (해약환급금미지급형·날짜·최초·N종N형·코드 등) — 표시용
 function cleanProd(name){
   let s = String(name||'');
-  s = s.replace(/\(\s*무배당\s*\)/g,' ').replace(/\(\s*무\s*\)/g,' ')   // (무배당)·(무) 제거
+  s = s.replace(/[（(][^（()）]*[）)]/g,' ')   // 괄호와 그 안 내용 전부 제거 (무)·(多)·(2104)·(갱신형) 등
        .replace(/^\s*무배당\s+/,'')                                   // 맨 앞 '무배당 ' 제거
        .replace(/\(?\s*무?해[약지]환급금?\s*미지급형?\s*\)?/g,' ')   // 해약/해지환급금 미지급(형)
        .replace(/무\s*해지\s*환급형?/g,' ')
@@ -2761,7 +2761,7 @@ function buildPrintHTML(){
     const arr = [...c.covs].filter(v=>+v.amt>0).sort((a,b)=>b.amt-a.amt);
     if(!arr.length) return '<span style="color:#9AA6B6;">담보 정보 없음</span>';
     return arr.map(v=>`<div style="display:flex;justify-content:space-between;gap:3mm;padding:0.8mm 0;border-bottom:0.3pt solid #EEF1F6;">`
-      + `<span>${esc(v.name||catLabel(v.category)||'담보')}</span><b style="white-space:nowrap;color:#0E2C4D;">${fmtMan(v.amt)}</b></div>`).join('');
+      + `<span style="word-break:keep-all;overflow-wrap:break-word;">${esc(v.name||catLabel(v.category)||'담보')}</span><b style="white-space:nowrap;color:#0E2C4D;">${fmtMan(v.amt)}</b></div>`).join('');
   };
   const dSec = (list, eb, title) => detailChunks(list, 3).map(({grp, cats}, ci, arr)=>{
     const cw = (74/grp.length).toFixed(1);
