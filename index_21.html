@@ -1416,7 +1416,8 @@ function proposalMeta(txt){
   if(!nm) nm = txtNS.match(/(?:가입안내서|보험상품명|상품명)([가-힣A-Za-z][가-힣A-Za-z0-9:&·()\-]{1,33}?(?<!피)보험(?:\(갱신형\))?)/);
   if(nm){ let pn=nm[1].replace(/\s+/g,' ').trim();
     pn = pn.split(/\s*(?:계약자|피보험|증권번호|가입금액|보험기간|보험종류|납입주기|순번|담보명)\s*/)[0].trim();
-    if(/보험|공제|플랜|연금|let|드림|케어/i.test(pn) && !/^납입|^면제|^미적용/.test(pn)) r.productName = pn;
+    const bad = /으로|또는|명칭|기준|경우|이며|됩니다|있습니다|에서|에는|에\s대한|^[^가-힣A-Za-z(]/.test(pn);
+    if(!bad && /보험|공제|플랜|연금|드림|케어|let/i.test(pn) && pn.replace(/[()\s]/g,'').length>=4) r.productName = pn;
   }
   // 보장설계 표 영역만 우선 사용 (갱신형 안내문의 5년/10년만기 등 잡음 배제)
   let tbl = txt;
