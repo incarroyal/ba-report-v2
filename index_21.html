@@ -566,7 +566,13 @@ const LSKEY = 'baReportV2';
 // 구버전 데이터 호환: '해지' → '리모델링', 신규 필드 보장
 function migrateState(st){
   if(!st) return st;
-  (st.contracts||[]).forEach(c=>{ if(c.status==='해지') c.status='리모델링'; });
+  (st.contracts||[]).forEach(c=>{
+    if(c.status==='해지') c.status='리모델링';
+    // <UNKNOWN>·미상 자리표시자 정리 (제안서 등에서 못 읽은 값)
+    ['period','payTerm','payProgress','productName'].forEach(k=>{ if(c[k]!=null){ c[k]=String(c[k]).replace(/<?\s*UNKNOWN\s*>?/gi,'').replace(/미상/g,'').replace(/\s{2,}/g,' ').trim(); } });
+    if(c.period){ c.period=c.period.replace(/~\s*$/,'').replace(/^\s*~/,'').replace(/~\s*~/,'~').trim(); }
+    if(c.payTerm){ c.payTerm=c.payTerm.replace(/^[·\s]+/,'').replace(/[·\s]+$/,'').replace(/^\s*년납\s*$/,''); }
+  });
   if(!Array.isArray(st.hiddenCats)) st.hiddenCats = [];
   if(!st.catLabels || typeof st.catLabels!=='object') st.catLabels = {};
   if(!st.groupLabels || typeof st.groupLabels!=='object') st.groupLabels = {};
@@ -783,12 +789,13 @@ function maturityAge(c){
     if(age>110) return '종신';
     if(age>0) return age + '세만기';
   }
+  if(!mat || /UNKNOWN|미상/i.test(mat)) return '-';   // 못 읽은 값은 '-'로
   return mat;
 }
 const isHiddenCat = cat => (S.hiddenCats||[]).includes(cat);
 const visCats = items => items.filter(cat=>!isHiddenCat(cat));
 // 기본 표시 라벨 (사용자 지정 라벨이 없을 때) — 특정질병수술비는 항상 'N대수술비'로 보이게
-const CAT_DISPLAY = { '특정질병수술비':'N대수술비', '종수술비(1~5종)':'종수술비(1~5종/5종기준)' };
+const CAT_DISPLAY = { '특정질병수술비':'N대수술비(최대금액기준)', '종수술비(1~5종)':'종수술비(1~5종/5종기준)' };
 const catLabel = cat => (S.catLabels && S.catLabels[cat]) || CAT_DISPLAY[cat] || cat;
 const groupLabel = g => (S.groupLabels && S.groupLabels[g]) || g;
 
@@ -1003,7 +1010,7 @@ async function buildAnnexCovs(bytes){
     const doc = await pdfjsLib.getDocument({data: bytes,
       cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/', cMapPacked: true}).promise;
     // 담보명(숫자로 시작 가능: 82대/3종/5대) + 금액(공백/끝이 뒤따르는 숫자만 → '82대'의 82는 이름으로 처리)
-    const RX = /([0-9]*[가-힣A-Za-z(][가-힣A-Za-z0-9()+\-·\/ ]*?)\s+([0-9][0-9,]*)(?=\s|$)/g;
+    const RX = /([0-9]*[가-힣A-Za-z(][가-힣A-Za-z0-9()+\-·\/~ ]*?)\s+([0-9][0-9,]*)(?=\s|$)/g;
     for(let p=1; p<=doc.numPages; p++){
       const tc = await (await doc.getPage(p)).getTextContent();
       const txt = tc.items.map(i=>i.str).join(' ').replace(/\s+/g,' ');
@@ -1234,7 +1241,7 @@ function finalizeReportView(){
     const top=nk.sort((a,b)=>ns[b]-ns[a])[0];
     S.catLabels = S.catLabels||{};
     const cur=S.catLabels['특정질병수술비'];
-    if(!cur || cur==='특정질병수술비' || /^\d+대수술비$/.test(cur)) S.catLabels['특정질병수술비'] = top+'대수술비';
+    if(!cur || cur==='특정질병수술비' || /^\d+대수술비(\(최대금액기준\))?$/.test(cur)) S.catLabels['특정질병수술비'] = top+'대수술비(최대금액기준)';
   }
   // ② 종수술비(1~5종) → '종수술비(1~5종/5종기준)' 기본 라벨
   S.catLabels = S.catLabels||{};
@@ -1463,7 +1470,7 @@ function renderContracts(){
     const isProp = c.status==='제안';
     d.innerHTML = `
       <div class="ctop" onclick="openEditor('${c.id}')" title="클릭하면 상세 편집 창이 열립니다">
-        <div class="nm">${esc(c.insurer)} · ${esc(c.productName)} ${c.special?'<span class="badge sp">분류외</span>':''}</div>
+        <div class="nm">${esc(c.insurer)} · ${esc(stripMu(c.productName))} ${c.special?'<span class="badge sp">분류외</span>':''}</div>
         <div class="mt">
           <span>월 ${fmtWon(c.monthlyPremium)}${isRenew(c)?' +@':''}</span>
           ${(c.payProgress||c.payTerm)?`<span>납입 ${esc([payProgressDisp(c), (c.payTerm||'')+(isRenew(c)?' 갱신형':'')].filter(x=>x&&x.trim()).join(' · '))}</span>`:''}
@@ -1928,7 +1935,7 @@ function renderMatrix(){
   let html = '<table class="pv"><thead><tr><th style="width:58px;">구분</th><th style="text-align:left;">담보</th>';
   cs.forEach(c=>{
     const cls = DROP_ST.includes(c.status)?'drop':c.status==='제안'?'prop':'';
-    html += `<th class="${cls}"><button class="thdel" onclick="event.stopPropagation();delContract('${c.id}')" title="이 계약(상품) 삭제">✕</button><span class="ins" onclick="renameField('${c.id}','insurer')" title="클릭하면 보험사 수정" style="cursor:pointer;">${esc(c.insurer)}</span><span class="st" onclick="renameField('${c.id}','productName')" title="클릭하면 상품명 수정" style="cursor:pointer;">${esc(short(c.productName))} · ${c.status}</span></th>`;
+    html += `<th class="${cls}"><button class="thdel" onclick="event.stopPropagation();delContract('${c.id}')" title="이 계약(상품) 삭제">✕</button><span class="ins" onclick="renameField('${c.id}','insurer')" title="클릭하면 보험사 수정" style="cursor:pointer;">${esc(c.insurer)}</span><span class="st" onclick="renameField('${c.id}','productName')" title="클릭하면 상품명 수정" style="cursor:pointer;">${esc(short(stripMu(c.productName)))} · ${c.status}</span></th>`;
   });
   html += '<th>현재</th><th>개선 후</th></tr></thead><tbody>';
   const cur = curContracts(), aft = afterContracts();
@@ -2114,10 +2121,14 @@ function renderCellRestoreBar(){
   bar.innerHTML = html;
 }
 const short = s => s.length>16 ? s.slice(0,15)+'…' : s;
+// 상품명 앞 (무)/(무배당)/무배당 제거 (화면 표시용)
+const stripMu = n => String(n||'').replace(/\(\s*무배당\s*\)/g,'').replace(/\(\s*무\s*\)/g,'').replace(/^\s*무배당\s+/,'').replace(/^\s+/,'').trim();
 // 상품명에서 행 높이를 키우는 군더더기 제거 (해약환급금미지급형·날짜·최초·N종N형·코드 등) — 표시용
 function cleanProd(name){
   let s = String(name||'');
-  s = s.replace(/\(?\s*무?해[약지]환급금?\s*미지급형?\s*\)?/g,' ')   // 해약/해지환급금 미지급(형)
+  s = s.replace(/\(\s*무배당\s*\)/g,' ').replace(/\(\s*무\s*\)/g,' ')   // (무배당)·(무) 제거
+       .replace(/^\s*무배당\s+/,'')                                   // 맨 앞 '무배당 ' 제거
+       .replace(/\(?\s*무?해[약지]환급금?\s*미지급형?\s*\)?/g,' ')   // 해약/해지환급금 미지급(형)
        .replace(/무\s*해지\s*환급형?/g,' ')
        .replace(/최초\s*가입/g,' ').replace(/최초/g,' ')
        .replace(/\d+\s*종\s*\d*\s*형?/g,' ')        // 1종1형, 1종, 1종 1형
