@@ -170,8 +170,14 @@ const PROPOSAL_PROMPT = `이 PDF는 한국 보험사 '가입제안서(가입설�
 ${MAPPING_RULES}
 반드시 ${"extract_proposal"} 도구를 호출해 결과를 반환하세요.`;
 
+// CORS — HTML을 로컬 파일(file://)로 직접 열어도 배포 서버 함수를 호출할 수 있게 허용
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type"
+};
 const json = (obj, status = 200) =>
-  new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json" } });
+  new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json", ...CORS } });
 
 // Claude(Anthropic) 호출 — Netlify 10초 강제 종료 전에 자체 9초 컷
 async function callClaude(body) {
@@ -200,7 +206,8 @@ function finalize(obj, isReport) {
 }
 
 export default async (req) => {
-  if (req.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
+  if (req.method === "OPTIONS") return new Response("", { status: 204, headers: CORS });   // CORS preflight
+  if (req.method !== "POST") return new Response("Method Not Allowed", { status: 405, headers: CORS });
 
   let mode, pdfBase64;
   try { ({ mode = "report", pdfBase64 } = await req.json()); }
