@@ -1148,7 +1148,8 @@ async function callAI(mode, pdfBase64, tries=4){
   let lastErr;
   for(let a=0; a<tries; a++){
     try{
-      const r = await fetch(API, {method:'POST', headers:{'Content-Type':'application/json'},
+      // text/plain = CORS 사전요청(preflight) 불필요한 단순 요청 — 로컬 파일(file://)에서도 서버 함수 호출 가능 (서버는 본문을 JSON으로 파싱)
+      const r = await fetch(API, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
         body: JSON.stringify({mode, pdfBase64})});
       const txt = await r.text();
       let j;
@@ -3181,7 +3182,7 @@ async function diagnose(){
   box.style.display = 'block';
   box.innerHTML = '연결 상태 확인 중...';
   try{
-    const r = await fetch(API, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mode:'ping'})});
+    const r = await fetch(API, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({mode:'ping'})});
     const txt = await r.text();
     let j;
     try{ j = JSON.parse(txt); }
