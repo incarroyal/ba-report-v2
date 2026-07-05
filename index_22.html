@@ -565,7 +565,9 @@ let deletedCovs = [];   // 모달 세션 동안 삭제한 담보 임시 보관 (
 let covBaseline = [];   // 담보 정상 순서 기준 (객체 참조) — 복원 위치 계산용
 const $ = s => document.querySelector(s);
 const uid = () => 'c' + Math.random().toString(36).slice(2,9);
-const API = '/.netlify/functions/ai-parse';
+// 배포 사이트에서는 상대 경로, 그 외(로컬 파일로 직접 열기 등)에서는 배포 서버로 자동 연결
+const SITE_ORIGIN = 'https://stellular-pudding-daeb72.netlify.app';
+const API = (/netlify\.app$/.test(location.hostname) ? '' : SITE_ORIGIN) + '/.netlify/functions/ai-parse';
 const LSKEY = 'baReportV2';
 
 // 구버전 데이터 호환: '해지' → '리모델링', 신규 필드 보장
@@ -3188,7 +3190,7 @@ async function diagnose(){
         /.netlify/functions/ai-parse 가 응답하지 않습니다.<br>
         · <b>Netlify Drop(폴더 드래그)으로 올린 경우</b>가 가장 흔한 원인 — Drop은 서버 함수를 배포하지 않습니다.<br>
         · Git 연동 또는 터미널에서 <code>netlify deploy --prod</code> 로 배포하고, 폴더에 <code>netlify.toml</code> 과 <code>netlify/functions/ai-parse.mjs</code> 가 포함됐는지 확인하세요.<br>
-        · 로컬에서 index.html 을 직접 연 경우에도 함수는 동작하지 않습니다 (배포된 주소에서 사용).`;
+        · 로컬 파일로 연 경우에는 배포 서버(${esc(SITE_ORIGIN)})로 자동 연결됩니다 — 이 오류가 계속되면 인터넷 연결과 배포 상태를 확인하세요.`;
       return;
     }
     if(j.ok){
