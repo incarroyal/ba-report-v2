@@ -434,7 +434,7 @@ table.pv td.mcell.ed .spwrap .spcancel{background:#e5e9f0;color:#5a6678;}
 <div class="card" id="secExport" style="display:none;">
   <span class="step-tag">STEP 5</span>
   <h2>PPT · PDF 출력</h2>
-  <p class="desc">표지 → 리모델링 요약 → 보험 현황 종합 → 계약별 보장 상세(4건/페이지) → 분류 외 보험 → 신규 제안 → 컨설팅 전후 비교 → 상담 메모 순서로, 모든 표가 한 페이지에 들어가도록 자동 조정됩니다.</p>
+  <p class="desc">PPT와 PDF 모두 A4 세로, 같은 구성으로 출력됩니다: 표지 → 계약별 보장 상세(3건/페이지) → 분류 외 보험 → 신규 제안 → 컨설팅 전후 비교 → 상담 메모. 표가 넘치면 페이지가 자동으로 나뉩니다.</p>
   <div class="inrow" style="margin-bottom:14px;">
     <div><label>PPT 폰트 (PPT를 여는 PC에 설치된 폰트명)</label>
       <input type="text" id="pptFont" value="나눔스퀘어 네오" style="width:220px;"></div>
@@ -443,7 +443,7 @@ table.pv td.mcell.ed .spwrap .spcancel{background:#e5e9f0;color:#5a6678;}
     <button class="btn primary" onclick="exportPPT()">📊 PPT 다운로드</button>
     <button class="btn ghost" onclick="exportPDF()">🖨 인쇄 · PDF로 저장</button>
   </div>
-  <div class="note" style="margin-top:14px;">PPT는 파일에 폰트가 포함되지 않아 <b>여는 PC에 나눔스퀘어 네오 설치가 필요</b>합니다(미설치 시 자동 대체). PDF는 인쇄 대화상자에서 "PDF로 저장"을 선택하면 폰트가 그대로 적용된 A4 가로 문서로 저장됩니다.</div>
+  <div class="note" style="margin-top:14px;">PPT는 파일에 폰트가 포함되지 않아 <b>여는 PC에 나눔스퀘어 네오 설치가 필요</b>합니다(미설치 시 자동 대체). PDF는 인쇄 대화상자에서 "PDF로 저장"을 선택하면 폰트가 그대로 적용된 A4 세로 문서로 저장됩니다.</div>
 </div>
 
 </div>
@@ -2815,10 +2815,273 @@ function addMemoSlide(p){
   for(let i=0;i<9;i++) s.addShape('line', {x:7.15, y:2.46+i*0.48, w:5.4, h:0, line:{color:'CBD5E1', width:0.75}});
 }
 
-/* ----- PPT 내보내기 (네이티브 · 가로) -----
-   ⚠ 인수인계 메모: PDF와 동일한 '세로' PPT를 이미지 캡처(html2canvas)로 만들려 했으나,
-   pptx.write(JSZip) 단계가 30초+ 걸리며 브라우저가 멈춰 실사용 불가로 판단, 아래 원래 네이티브(가로) 버전으로 되돌림.
-   세로 PPT가 필요하면 addCover/slideChrome/addDetailSlides/addCompareSlide 등을 A4 세로 좌표로 다시 짜는 '네이티브 세로' 방식 권장(이미지 방식 재시도 비권장). */
+/* ================= PPT 세로(A4) — PDF와 동일 구성·디자인 (네이티브) =================
+   위의 가로(WIDE) 슬라이드 함수들은 더 이상 사용하지 않음 (참고용으로 남겨둠).
+   아래 *P 함수들이 인쇄(PDF)의 buildPrintHTML과 같은 페이지 구성을 A4 세로 좌표로 그린다. */
+const PC = { NAVY:'0E2C4D', NAVY2:'16406E', GOLD:'B0894C', BLUE:'1565C0', INK:'1A2433', TXT:'2A3645',
+  GRAY:'6B7888', MUTE:'9AA6B6', LINE:'E5E9F0', GRP:'EEF3F9', CV:'FCFDFE', ZEB:'F8FAFC',
+  HL:'F4F8FC', HLTX:'1B4470', GREEN:'1F8A5B', RED:'C0392B', DARKSUB:'A9C2DD' };
+const PW = 8.27, PH = 11.69, PX = 0.5, PCW = 7.27;   // A4 세로 페이지·여백·본문폭 (inch)
+const P_TOP = 1.32, P_BOT = 11.05;                    // 본문 세로 범위
+const stHexP = st => String(ST_HEX[st]||'#0E2C4D').replace('#','');
+const thP  = (t, o={}) => ({text:t, options:{bold:true, color:'FFFFFF', fill:{color:PC.NAVY}, align:'center', valign:'middle', fontSize:8.5, ...o}});
+const tdP  = (t, o={}) => ({text:String(t??''), options:{bold:true, color:PC.TXT, valign:'middle', align:'center', fontSize:8, ...o}});
+const grpP = (t, o={}) => tdP(t, {fill:{color:PC.GRP}, color:PC.NAVY, fontSize:8, ...o});
+
+// 페이지 공통 (머리글·바닥글·쪽번호)
+function chromeP(s, eyebrow, title){
+  PAGE++;
+  s.background = {color:'FFFFFF'};
+  s.addText(eyebrow, {x:PX, y:0.34, w:5, h:0.24, fontSize:9.5, bold:true, color:PC.GOLD, charSpacing:2.5, fontFace:FONT});
+  s.addText(title, {x:PX-0.02, y:0.58, w:5.5, h:0.5, fontSize:20, bold:true, color:PC.NAVY, fontFace:FONT, charSpacing:-0.3});
+  s.addText([
+    {text:'ROYAL INSURANCE\n', options:{color:PC.GOLD, bold:true, fontSize:7.5, charSpacing:1.2}},
+    {text:`${GINFO.cust}님 보장분석\n`, options:{color:PC.NAVY, bold:true, fontSize:9}},
+    {text:GINFO.dstr + (GINFO.pn?` · ${GINFO.pn}`:''), options:{color:PC.MUTE, fontSize:7.5}}
+  ], {x:5.55, y:0.36, w:2.22, h:0.78, align:'right', fontFace:FONT, lineSpacingMultiple:1.25, valign:'top'});
+  s.addShape('line', {x:PX, y:11.16, w:PCW, h:0, line:{color:PC.LINE, width:0.75}});
+  s.addText(`ROYAL Insurance · ${GINFO.cust}님 보장분석 리포트`, {x:PX, y:11.21, w:3.4, h:0.22, fontSize:7, color:PC.MUTE, bold:true, fontFace:FONT});
+  s.addText('본 자료는 보험 이해를 돕기 위한 참고자료이며, 정확한 내용은 약관 및 증권을 따릅니다',
+    {x:2.9, y:11.21, w:4.5, h:0.22, fontSize:6.5, color:PC.MUTE, align:'right', fontFace:FONT});
+  s.addText(String(PAGE).padStart(2,'0'), {x:7.48, y:11.21, w:0.29, h:0.22, fontSize:8, color:PC.GRAY, bold:true, align:'right', fontFace:FONT});
+}
+
+/* ----- 1P. 표지 (인쇄 표지와 동일 구성) ----- */
+function addCoverP(p, cust, dstr, pn){
+  const s = p.addSlide(); s.background = {color:'FFFFFF'};
+  const cnm = (cust && cust!=='고객') ? cust : 'OOO';
+  const pnm = pn || 'OO';
+  s.addImage({ data: COVER156_BG, x:0, y:0, w:PW, h:5.0, sizing:{type:'cover', w:PW, h:5.0} });
+  s.addText('CONSULTING REPORT', {x:0.7, y:5.35, w:4.5, h:0.28, fontSize:10, bold:true, color:PC.GOLD, charSpacing:3.2, fontFace:FONT});
+  s.addText([
+    {text:cnm, options:{color:PC.BLUE}},
+    {text:' 고객님\n보장분석 컨설팅', options:{color:PC.NAVY}}
+  ], {x:0.68, y:5.72, w:6.9, h:1.25, fontSize:27, bold:true, fontFace:FONT, charSpacing:-0.5, lineSpacingMultiple:1.12, valign:'top'});
+  s.addText('모두의 인생이 더 단단해지도록,\n우리는 설계합니다', {x:0.7, y:7.12, w:5.5, h:0.66, fontSize:11.5, bold:true, color:'5A6678', fontFace:FONT, lineSpacingMultiple:1.35, valign:'top'});
+  s.addShape('rect', {x:0.7, y:8.05, w:1.34, h:0.04, fill:{color:PC.GOLD}});
+  s.addText(`${pnm} 설계사`, {x:0.7, y:8.22, w:4, h:0.4, fontSize:15, bold:true, color:PC.NAVY, fontFace:FONT});
+  s.addShape('line', {x:0.7, y:10.38, w:6.87, h:0, line:{color:PC.LINE, width:1}});
+  s.addText([
+    {text:'iN', options:{color:PC.NAVY, bold:true, italic:true, fontSize:12.5}},
+    {text:'CAR', options:{color:PC.BLUE, bold:true, italic:true, fontSize:12.5}},
+    {text:'  인카금융서비스(주)', options:{color:PC.NAVY, bold:true, fontSize:10.5}},
+    {text:'  KOSDAQ 상장법인', options:{color:'8B96A5', bold:true, fontSize:8}}
+  ], {x:0.7, y:10.5, w:5.6, h:0.32, fontFace:FONT, valign:'middle'});
+  s.addText(dstr, {x:5.9, y:10.52, w:1.67, h:0.28, fontSize:8.5, bold:true, color:PC.MUTE, align:'right', fontFace:FONT, valign:'middle'});
+  s.addText('본 자료는 인카금융서비스 로얄사업단 내부자료입니다. 무단 유출·복제·배포 및 로얄사업단 외 인원이 사용 시 민형사상 책임을 물을 수 있습니다.',
+    {x:0.7, y:10.92, w:6.87, h:0.4, fontSize:6.5, color:'A7B2C0', fontFace:FONT, lineSpacingMultiple:1.3, valign:'top'});
+}
+
+/* ----- 2P. 계약별 보장 상세 / 신규 제안 (3건/페이지 · 갱신 분리 2줄 행 높이 반영) ----- */
+function addDetailSlidesP(p, list, eyebrow, baseTitle){
+  const weighP = (grp, cat) => grp.some(c=>{ const sp=catSplit([c],cat); return sp.renew>0 && sp.normal>0; }) ? 1.65 : 1;
+  const chunks = detailChunks(list, 3, 40, weighP);
+  chunks.forEach(({grp, cats}, ci)=>{
+    const s = p.addSlide(); chromeP(s, eyebrow, baseTitle + (chunks.length>1?` (${ci+1}/${chunks.length})`:''));
+    const catW = 0.4, subW = 1.55;
+    const cw = (PCW - catW - subW) / grp.length;
+    const PRD = cpl(cw, 7.5);
+    const corner = t => ({text:t, options:{colspan:2, bold:true, color:'FFFFFF', fill:{color:PC.NAVY}, align:'left', valign:'middle', fontSize:8.5}});
+    const rows = [];
+    rows.push([ corner('보험사'),
+      ...grp.map(c=> tdP(`${c.insurer}\n${c.status}${c.special?' · 분류외':''}`, {color:'FFFFFF', fill:{color:stHexP(c.status)}, fontSize:8.5})) ]);
+    rows.push([ corner('상품명'),
+      ...grp.map(c=> tdP(wrap2t(cleanProd(c.productName), PRD), {fontSize:7.5, color:'5A6678', fill:{color:PC.ZEB}, bold:false})) ]);
+    rows.push([ corner('월 보험료'),
+      ...grp.map(c=> tdP(fmtWon(c.monthlyPremium)+(isRenew(c)?' +@':''), {fontSize:8.5, color:PC.HLTX, fill:{color:PC.HL}})) ]);
+    rows.push([ corner('향후 납입할 보험료'),
+      ...grp.map(c=>{ const f=futurePrem(c); return tdP(f?fmtWon(f)+(isRenew(c)?' +@':''):'-', {fontSize:7.5, color:'5A6678', fill:{color:PC.ZEB}}); }) ]);
+    rows.push([ corner('계약일'), ...grp.map(c=> tdP(splitPeriod(c.period)[0]||'-', {fontSize:7.5, fill:{color:PC.ZEB}})) ]);
+    rows.push([ corner('보장만기'), ...grp.map(c=> tdP(maturityAge(c), {fontSize:7.5, fill:{color:PC.ZEB}})) ]);
+    rows.push([ corner('납입기간 및 회차'),
+      ...grp.map(c=> tdP([payProgressDisp(c),(c.payTerm||'')+(isRenew(c)?' 갱신형':'')].filter(x=>x&&x.trim()).join(' · ')||'-', {fontSize:7.5, fill:{color:PC.ZEB}})) ]);
+    const rowH = [0.38, 0.42, 0.26, 0.26, 0.24, 0.24, 0.26];
+    const metaSum = rowH.reduce((a,b)=>a+b,0);
+    const totalW = cats.reduce((s2,r)=>s2+(r.w||1),0) || 1;
+    const unit = Math.max(0.16, Math.min(0.24, ((P_BOT - P_TOP) - metaSum) / totalW));
+    cats.forEach(({g, catKey, span, w}, ri)=>{
+      const row = [];
+      if(span) row.push({text:g, options:{bold:true, color:'FFFFFF', fill:{color:PC.NAVY2}, align:'center', valign:'middle', fontSize:7.5, rowspan:span}});
+      row.push(tdP(catLabel(catKey), {align:'left', fill:{color: ri%2?PC.ZEB:PC.CV}, color:'3A4655', fontSize:8, bold:false}));
+      grp.forEach(c=>{
+        const sp2 = catSplit([c], catKey);
+        const parts = []; if(sp2.renew>0) parts.push(fmtMan(sp2.renew)+'(갱신)'); if(sp2.normal>0) parts.push(fmtMan(sp2.normal));
+        row.push(tdP(parts.join('\n')||'·', {color: parts.length?PC.INK:'C5CDD8', fontSize:8, fill: ri%2?{color:PC.ZEB}:undefined}));
+      });
+      rows.push(row);
+      rowH.push(unit * ((w||1)>1 ? 1.65 : 1));
+    });
+    s.addTable(rows, {x:PX, y:P_TOP, w:PCW, colW:[catW, subW, ...grp.map(()=>cw)],
+      border:{type:'solid', color:PC.LINE, pt:0.5}, rowH, fontSize:8, fontFace:FONT, valign:'middle'});
+  });
+}
+
+/* ----- 3P. 분류 외 보험 카드 (3장/페이지) ----- */
+function addSpecialCardsP(p, list, eyebrow, title){
+  const chunks = []; for(let i=0;i<list.length;i+=3) chunks.push(list.slice(i,i+3));
+  chunks.forEach((grp, ci)=>{
+    const s = p.addSlide(); chromeP(s, eyebrow, title + (chunks.length>1?` (${ci+1}/${chunks.length})`:''));
+    const n = Math.max(grp.length, 2), gap = 0.14;
+    const cardW = (PCW - gap*(n-1)) / n;
+    grp.forEach((c, i)=>{
+      const x = PX + i*(cardW+gap);
+      let y = P_TOP;
+      s.addShape('roundRect', {x, y, w:cardW, h:0.62, rectRadius:0.05, fill:{color:stHexP(c.status)}, line:{type:'none'}});
+      s.addText(c.insurer, {x:x+0.12, y:y+0.05, w:cardW-0.24, h:0.3, fontSize:11.5, bold:true, color:'FFFFFF', fontFace:FONT});
+      s.addText(`${c.status} · 분류외`, {x:x+0.12, y:y+0.34, w:cardW-0.24, h:0.22, fontSize:7.5, color:'FFFFFF', fontFace:FONT});
+      y += 0.62;
+      const f = futurePrem(c);
+      const nm = wrap2(cleanProd(c.productName), cpl(cardW*0.66, 7.5));
+      const meta = [
+        ['상품명', nm.txt],
+        ['월 보험료', fmtWon(c.monthlyPremium)+(isRenew(c)?' +@':'')],
+        ['향후 납입', f?fmtWon(f)+(isRenew(c)?' +@':''):'-'],
+        ['계약일', splitPeriod(c.period)[0]||'-'],
+        ['보장만기', maturityAge(c)],
+        ['납입', [payProgressDisp(c),(c.payTerm||'')+(isRenew(c)?' 갱신형':'')].filter(x=>x&&x.trim()).join(' · ')||'-']
+      ];
+      const mRows = meta.map(([k,v])=>[ tdP(k, {align:'left', color:'8B96A5', fontSize:7.5}), tdP(v, {align:'left', fontSize:7.5, color:PC.TXT, bold:false}) ]);
+      const mH = meta.map(([k],idx)=> idx===0 && nm.lines>1 ? 0.4 : 0.23);
+      s.addTable(mRows, {x, y, w:cardW, colW:[cardW*0.34, cardW*0.66],
+        border:{type:'solid', color:PC.LINE, pt:0.5}, rowH:mH, fontFace:FONT, valign:'middle'});
+      y += mH.reduce((a,b)=>a+b,0) + 0.14;
+      s.addText('주요 보장 내용', {x:x+0.02, y, w:cardW, h:0.22, fontSize:8.5, bold:true, color:PC.GOLD, charSpacing:0.5, fontFace:FONT});
+      y += 0.3;
+      const covs = [...(c.covs||[])].filter(v=>+v.amt>0).sort((a,b)=>b.amt-a.amt);
+      if(!covs.length){ s.addText('담보 정보 없음', {x, y, w:cardW, h:0.3, fontSize:8, color:PC.MUTE, fontFace:FONT}); return; }
+      const cplC = cpl(cardW*0.72, 7.5);
+      const cRows = [], cH = []; let used = 0, shown = 0;
+      for(const v of covs){
+        const cvn = covNameDisp(v.name||catLabel(v.category)||'담보');
+        const h = cvn.length>cplC ? 0.4 : 0.225;
+        if(used + h > (P_BOT - y - 0.24)) break;
+        cRows.push([ tdP(cvn, {align:'left', fontSize:7.5, color:'3A4655', bold:false}),
+                     tdP(fmtMan(v.amt), {align:'right', fontSize:7.5, color:PC.NAVY}) ]);
+        cH.push(h); used += h; shown++;
+      }
+      if(covs.length > shown){ cRows.push([ tdP(`외 ${covs.length-shown}건 (증권·설계서 참조)`, {align:'left', fontSize:7, color:'8B96A5', colspan:2, bold:false}) ]); cH.push(0.22); }
+      s.addTable(cRows, {x, y, w:cardW, colW:[cardW*0.72, cardW*0.28],
+        border:{type:'solid', color:'EEF1F6', pt:0.5}, rowH:cH, fontFace:FONT, valign:'middle'});
+    });
+  });
+}
+
+/* ----- 4P. 컨설팅 전후 비교 (1단 · 높이 기반 페이지 분할) ----- */
+function addComparePagesP(p, cust){
+  const curP = sumPrem(curContracts()), aftP = sumPrem(afterContracts());
+  const dropP = sumPrem(dropContracts());
+  const propP = sumPrem(S.contracts.filter(c=>c.status==='제안'));
+  const sideTxtP = (list, catKey, fb)=>{
+    const sp2 = catSplit(list, catKey); const parts = [];
+    if(sp2.renew>0) parts.push(fmtMan(sp2.renew)+'(갱신)'); if(sp2.normal>0) parts.push(fmtMan(sp2.normal));
+    if(!parts.length) return {t: fb||'-', n:1};
+    return {t: parts.join('\n'), n: parts.length};
+  };
+  const items = compareData(true).map(r=>{
+    const a = sideTxtP(curContracts(), r.catKey, r.a?fmtMan(r.a):'-');
+    const b = sideTxtP(afterContracts(), r.catKey, r.b?fmtMan(r.b):'-');
+    return {...r, aTxt:a.t, bTxt:b.t, h: Math.max(a.n,b.n)>1 ? 0.36 : 0.225};
+  });
+  const HEAD = 0.28, FIRST_EXTRA = 2.15;
+  const pages = []; let pg = [], used = HEAD;
+  items.forEach(it=>{
+    const budget = (P_BOT - P_TOP) - (pages.length===0 ? FIRST_EXTRA : 0);
+    if(pg.length && used + it.h > budget){ pages.push(pg); pg=[]; used=HEAD; }
+    pg.push(it); used += it.h;
+  });
+  if(pg.length || !pages.length) pages.push(pg);
+  pages.forEach((rows, pi)=>{
+    const s = p.addSlide();
+    chromeP(s, 'BEFORE & AFTER', `${cust}님 컨설팅 전후 보장 비교${pages.length>1?` (${pi+1}/${pages.length})`:''}`);
+    let y = P_TOP;
+    if(pi===0){
+      const bw = (PCW - 0.36)/4;
+      const sub = aftP<curP?`월 ${fmtWon(curP-aftP)} 절감`:(aftP>curP?`월 ${fmtWon(aftP-curP)} 증가`:'변동 없음');
+      const cards = [
+        ['현재 월 보험료', fmtWon(curP), PC.GRAY, false],
+        ['리모델링·이체중지', dropP?'− '+fmtWon(dropP):'0원', 'D9730D', false],
+        ['신규 제안', propP?'+ '+fmtWon(propP):'0원', PC.BLUE, false],
+        ['개선 후 월 보험료', fmtWon(aftP), PC.NAVY, true]
+      ];
+      cards.forEach((cd, i)=>{
+        const x = PX + i*(bw+0.12);
+        s.addShape('roundRect', {x, y, w:bw, h:0.92, rectRadius:0.06, fill:{color: cd[3]?PC.NAVY:'FFFFFF'}, line: cd[3]?{type:'none'}:{color:PC.LINE, width:0.75}});
+        if(!cd[3]) s.addShape('rect', {x:x+0.02, y, w:bw-0.04, h:0.05, fill:{color:String(cd[2])}});
+        s.addText(cd[0], {x:x+0.09, y:y+0.1, w:bw-0.18, h:0.2, fontSize:7.5, bold:true, color: cd[3]?PC.DARKSUB:PC.GRAY, fontFace:FONT});
+        s.addText(cd[1], {x:x+0.09, y:y+0.33, w:bw-0.18, h:0.34, fontSize:12, bold:true, color: cd[3]?'FFFFFF':String(cd[2]), fontFace:FONT});
+        if(cd[3]) s.addText(sub, {x:x+0.09, y:y+0.66, w:bw-0.18, h:0.2, fontSize:7, bold:true, color:PC.DARKSUB, fontFace:FONT});
+      });
+      y += 1.08;
+      const futC = curContracts().reduce((s2,c)=>s2+futurePrem(c),0), futA = afterContracts().reduce((s2,c)=>s2+futurePrem(c),0);
+      const pd = (key,side)=>{ const ov=S.infoTot&&S.infoTot[key]&&S.infoTot[key][side]; return ov!=null?ov:cs2sum(side==='a'?curContracts():afterContracts(),key); };
+      const wd = (a,b)=>{ const d=b-a; return d===0?'변동 없음':(d<0?'▼ '+fmtWon(-d):'▲ '+fmtWon(d)); };
+      const pt = [
+        [thP('구분'), thP('항목',{align:'left'}), thP('현재'), thP('개선 후'), thP('증감')],
+        [grpP('보험료',{rowspan:2}), tdP('월 납입 보험료',{align:'left', fill:{color:PC.ZEB}}), tdP(pd('prem','a'),{color:PC.BLUE}), tdP(pd('prem','b'),{fill:{color:PC.ZEB}, color:PC.HLTX}), tdP(wd(curP,aftP),{fontSize:7.5, color: aftP<curP?PC.GREEN:aftP>curP?PC.RED:'C5CDD8'})],
+        [tdP('향후 납입할 보험료',{align:'left', fill:{color:PC.ZEB}, bold:false}), tdP(pd('future','a')), tdP(pd('future','b'),{fill:{color:PC.ZEB}}), tdP(wd(futC,futA),{fontSize:7.5, color: futA<futC?PC.GREEN:futA>futC?PC.RED:'C5CDD8'})]
+      ];
+      s.addTable(pt, {x:PX, y, w:PCW, colW:[0.62, 2.2, 1.6, 1.6, 1.25],
+        border:{type:'solid', color:PC.LINE, pt:0.5}, rowH:[0.26, 0.3, 0.3], fontFace:FONT, valign:'middle'});
+      y += 1.0;
+    }
+    const t = [[thP('구분'), thP('담보',{align:'left'}),
+      {text:'현재', options:{bold:true, color:'FFFFFF', fill:{color:PC.GRAY}, align:'center', valign:'middle', fontSize:8.5}},
+      {text:'개선 후', options:{bold:true, color:'FFFFFF', fill:{color:PC.BLUE}, align:'center', valign:'middle', fontSize:8.5}},
+      thP('증감')]];
+    const rh = [HEAD];
+    rows.forEach((r, ri)=>{
+      t.push([
+        grpP(r.g, {fontSize:7.5}),
+        tdP(r.cat, {align:'left', fill:{color: ri%2?PC.ZEB:PC.CV}, color:'3A4655', bold:false}),
+        tdP(r.aTxt, {color:'94A3B5'}),
+        tdP(r.bTxt, {fill:{color:PC.ZEB}, color:PC.NAVY}),
+        tdP(r.d===0?'유지':(r.d>0?'▲ '+fmtMan(r.d):'▼ '+fmtMan(-r.d)), {fontSize:7.5, color: r.d>0?PC.GREEN : r.d<0?PC.RED : 'C5CDD8'})
+      ]);
+      rh.push(r.h);
+    });
+    s.addTable(t, {x:PX, y, w:PCW, colW:[0.85, 2.35, 1.5, 1.5, 1.07],
+      border:{type:'solid', color:PC.LINE, pt:0.5}, rowH:rh, fontSize:8, fontFace:FONT, valign:'middle'});
+  });
+}
+
+/* ----- 5P. 비고 및 상담 메모 ----- */
+function addMemoP(p){
+  const s = p.addSlide(); chromeP(s, 'NOTES', '비고 및 상담 메모');
+  const drops = dropContracts();
+  const checks = S.contracts.filter(c=>c.status==='증권확인');
+  const colw = (PCW - 0.3)/2, xL = PX, xR = PX + colw + 0.3;
+  s.addText('리모델링 · 자동이체 중지 보험', {x:xL, y:P_TOP, w:colw, h:0.26, fontSize:10.5, bold:true, color:'D9730D', fontFace:FONT});
+  s.addText('해당 보험사 고객센터로 문의하시면 됩니다.', {x:xL, y:P_TOP+0.27, w:colw, h:0.2, fontSize:7.5, color:'8B96A5', bold:true, fontFace:FONT});
+  let yL = P_TOP + 0.58;
+  if(drops.length){
+    const t = [[thP('보험사',{fontSize:7.5}), thP('상품명',{align:'left', fontSize:7.5}), thP('상태',{fontSize:7.5}), thP('월보험료',{fontSize:7.5}), thP('고객센터',{fontSize:7.5})]];
+    const rh = [0.26]; const NM = cpl(1.12, 7);
+    drops.forEach(c=>{
+      const nm = wrap2(cleanProd(c.productName), NM);
+      t.push([ tdP(c.insurer, {align:'left', fontSize:7}), tdP(nm.txt, {align:'left', fontSize:7, bold:false}),
+        tdP(c.status, {fontSize:7, color:stHexP(c.status)}), tdP((c.monthlyPremium||0).toLocaleString(), {fontSize:7}),
+        tdP(c.csPhone||'확인 필요', {fontSize:7, color:PC.NAVY}) ]);
+      rh.push(nm.lines>1 ? 0.36 : 0.24);
+    });
+    s.addTable(t, {x:xL, y:yL, w:colw, colW:[0.72, 1.12, 0.5, 0.58, 0.56],
+      border:{type:'solid', color:PC.LINE, pt:0.5}, rowH:rh, fontFace:FONT, valign:'middle'});
+    yL += rh.reduce((a,b)=>a+b,0) + 0.35;
+  } else {
+    s.addText('리모델링 또는 자동이체 중지 대상 보험이 없습니다.', {x:xL, y:yL, w:colw, h:0.3, fontSize:8, color:PC.GRAY, bold:true, fontFace:FONT});
+    yL += 0.6;
+  }
+  s.addText('증권 원본 확인이 필요한 계약', {x:xL, y:yL, w:colw, h:0.26, fontSize:10.5, bold:true, color:'B8860B', fontFace:FONT});
+  const chkTxt = checks.length
+    ? checks.map(c=>`☐  ${c.insurer} · ${short2(cleanProd(c.productName), 20)}`).join('\n')
+    : '해당 없음 — 모든 계약이 전산에서 정상 조회되었습니다.';
+  const boxH = Math.min(3.4, 0.4 + Math.max(1, checks.length)*0.32);
+  s.addShape('roundRect', {x:xL, y:yL+0.32, w:colw, h:boxH, rectRadius:0.05, fill:{color:PC.ZEB}, line:{color:PC.LINE, width:0.75}});
+  s.addText(chkTxt, {x:xL+0.13, y:yL+0.45, w:colw-0.26, h:boxH-0.2, fontSize:8, color:'3A4655', bold:true, fontFace:FONT, lineSpacingMultiple:1.5, valign:'top'});
+  s.addText('상담 메모', {x:xR, y:P_TOP, w:colw, h:0.26, fontSize:10.5, bold:true, color:PC.NAVY, fontFace:FONT});
+  for(let i=0;i<14;i++) s.addShape('line', {x:xR, y:P_TOP+0.72+i*0.62, w:colw, h:0, line:{color:'D5DEEA', width:0.75}});
+}
+
+/* ----- PPT 내보내기 (A4 세로 · PDF와 동일 구성) ----- */
 function exportPPT(){
   try{
     FONT = ($('#pptFont').value||'').trim() || '나눔스퀘어 네오';
@@ -2827,19 +3090,20 @@ function exportPPT(){
     const today = new Date();
     const dstr = `${today.getFullYear()}.${String(today.getMonth()+1).padStart(2,'0')}.${String(today.getDate()).padStart(2,'0')}`;
     const pptx = new PptxGenJS();
-    pptx.defineLayout({name:'WIDE', width:13.33, height:7.5}); pptx.layout = 'WIDE';
+    pptx.defineLayout({name:'A4P', width:8.27, height:11.69}); pptx.layout = 'A4P';
     GINFO = { cust, pn, pp, dstr };
     PAGE = 1;   // 표지 = 01, 이후 슬라이드 02부터
 
-    addCover(pptx, cust, dstr, pn, pp);
-    addSummarySlide(pptx, cust);
-    addOverviewSlide(pptx, cust);
-    addDetailSlides(pptx, curContracts().filter(c=>!c.special), '03 · CURRENT COVERAGE', '계약별 보장 상세');
-    addSpecialSlide(pptx);
+    addCoverP(pptx, cust, dstr, pn);
+    addDetailSlidesP(pptx, curContracts().filter(c=>!c.special), 'CURRENT COVERAGE', '계약별 보장 상세');
+    const sp = specialCur();
+    if(sp.length) addSpecialCardsP(pptx, sp, 'SPECIAL POLICIES', '분류 외 보험 · 계약별 상세');
     const props = S.contracts.filter(c=>c.status==='제안');
-    if(props.length) addDetailSlides(pptx, props, '05 · NEW PROPOSAL', '신규 보장 제안');
-    addCompareSlide(pptx, cust);
-    addMemoSlide(pptx);
+    const propsNorm = props.filter(c=>!c.special), propsSp = props.filter(c=>c.special);
+    if(propsNorm.length) addDetailSlidesP(pptx, propsNorm, 'NEW PROPOSAL', '신규 보장 제안');
+    if(propsSp.length) addSpecialCardsP(pptx, propsSp, 'NEW PROPOSAL', '신규 보장 제안 · 분류 외');
+    addComparePagesP(pptx, cust);
+    addMemoP(pptx);
 
     pptx.writeFile({fileName: `${cust}_보장분석표_${dstr}.pptx`});
   }catch(e){ alert('PPT 생성 오류: ' + e.message); }
