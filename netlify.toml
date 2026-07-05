@@ -5,8 +5,9 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
+# 루트("/") 요청 시 최신 파일(index_22.html)을 그대로 서빙 (force로 기존 index.html보다 우선)
 [[redirects]]
-from = "/"
-to = "/index_21.html"
-status = 200
-force = true
+  from = "/"
+  to = "/index_22.html"
+  status = 200
+  force = true
