@@ -1264,9 +1264,13 @@ const CAT_ALIAS = {
 };
 function sanitizeCov(v){
   let cat = String(v.category||'').trim();
+  if(CAT_ALIAS[cat]) cat = CAT_ALIAS[cat];
   if(!allCats().includes(cat)){
-    cat = CAT_ALIAS[cat] || mapCovCat(v.name);          // 별칭 → 담보명 키워드 순으로 재매핑
-    if(!allCats().includes(cat)) cat = '기타';
+    if(KNOWN_SJW[cat] && autoRegisterStdCat(cat)){ /* 알려진 신정원 구분 → 자동 등록 후 그대로 사용 */ }
+    else {
+      cat = mapCovCat(v.name);                           // 담보명 키워드로 재매핑
+      if(!allCats().includes(cat)) cat = '기타';
+    }
   }
   return { name: String(v.name||'').trim(),
            category: cat,
@@ -1490,11 +1494,50 @@ async function analyzeReport(bytes, useFilter){
 /* ================= 신정원 M보장분석 리포트 — '별첨 상품별 보험가입현황' 형식 직접 파싱 (AI 불필요) ================= */
 // 신정원 담보명 → 표준 분류 (없으면 회사 담보명 키워드 매핑으로 폴백)
 const SJW_MAP = {   // 신정원 구분이 곧 표준 분류 — 표기 차이만 보정
-  '재해사망':'상해사망', '재진단암':'항암치료',
+  '재해사망':'상해사망',
   '뇌혈관질환수술':'뇌졸중수술', '뇌출혈수술':'뇌졸중수술', '허혈성심장질환수술':'급성심근경색수술',
-  '특정질병수술':'질병종수술', '장기요양':'재가급여', '치매':'치매진단',
-  '민사소송법률비용':'기타', '보존치료':'기타', '화재벌금':'화재보험'
+  '특정질병수술':'질병종수술', '장기요양':'재가급여', '치매':'치매진단'
 };
+// ── 신정원 구분 자동 등록 ──
+// 기본틀에 없는 신정원 구분이 리포트·AI에서 나오면 알맞은 대분류에 자동 편입 (표·비교표·PPT·PDF에 바로 반영, 저장됨)
+// → 공식 전체 코드표를 몰라도 어떤 담보든 그 구분명 그대로 살아남는다. 필요 없으면 미리보기에서 숨기면 됨.
+const KNOWN_SJW = {
+  '질병후유50%↑':'후유장해',
+  '재진단암':'암', '재진단암진단':'암', '소액암진단':'암',
+  '화상진단':'기타', '깁스치료':'기타', '응급실내원':'기타',
+  '중환자실입원일당':'입원·간병', '암입원일당':'입원·간병', '간병인사용입원일당':'입원·간병',
+  '처방조제':'실손의료비',
+  '중증치매진단':'요양·치매', '경증치매진단':'요양·치매', '장기요양(1~2등급)':'요양·치매', '장기요양(1~4등급)':'요양·치매', '시설급여':'요양·치매',
+  '보존치료':'치아', '크라운치료':'치아', '임플란트':'치아', '틀니·브릿지':'치아', '신경치료':'치아', '스케일링':'치아',
+  '면허정지위로금':'운전자', '면허취소위로금':'운전자', '생계비지원':'운전자', '민사소송법률비용':'운전자',
+  '화재벌금':'기타', '화재손해':'기타', '도난손해':'기타'
+};
+function guessGroupForStd(std){
+  const s = String(std);
+  if(/사망/.test(s)) return '사망';
+  if(/후유/.test(s)) return '후유장해';
+  if(/치아|치과|보존|크라운|임플란트|틀니|브릿지|신경치료|스케일링/.test(s)) return '치아';
+  if(/치매|요양/.test(s)) return '요양·치매';
+  if(/암/.test(s)) return '암';
+  if(/뇌/.test(s)) return '뇌혈관질환';
+  if(/심장|심근/.test(s)) return '심장질환';
+  if(/수술/.test(s)) return '수술비';
+  if(/일당|간병/.test(s)) return '입원·간병';
+  if(/실손|의료|통원|처방/.test(s)) return '실손의료비';
+  if(/운전|자동차|교통|벌금|면허|변호사/.test(s)) return '운전자';
+  return '기타';
+}
+function autoRegisterStdCat(std){
+  std = String(std||'').trim();
+  if(!std || std==='기타' || std.length<2 || std.length>24 || !/[가-힣]/.test(std)) return false;
+  if(allCats().includes(std)) return true;
+  const g = KNOWN_SJW[std] || guessGroupForStd(std);
+  S.extraGroups = S.extraGroups||[]; S.extraCats = S.extraCats||{};
+  if(!effectiveGroups().some(p=>p[0]===g)) S.extraGroups.push(g);
+  S.extraCats[g] = S.extraCats[g]||[];
+  if(!S.extraCats[g].includes(std)) S.extraCats[g].push(std);
+  return true;
+}
 // '1억5,000만'·'4억9,800만'·'5,000만'·'50만'·'5천' → 만원 숫자
 function parseManAmt(s){
   s = String(s||'').replace(/,/g,'').trim();
@@ -1546,7 +1589,11 @@ function parseMPage(txt){
     const name = m[3].trim(), std = m[4].trim();
     const amt = parseManAmt(m[5]);
     if(!name || !(amt>0)) return;
-    let cat = allCats().includes(std) ? std : (SJW_MAP[std] || mapCovCat(name));
+    let cat;
+    if(allCats().includes(std)) cat = std;
+    else if(SJW_MAP[std]) cat = SJW_MAP[std];
+    else if(autoRegisterStdCat(std)) cat = std;         // 미지의 신정원 구분 → 자동 등록 후 그대로 사용
+    else cat = mapCovCat(name);
     if(!allCats().includes(cat)) cat = '기타';
     c.covs.push({ name, stdCat: std, category: cat, amt, renew: /갱신/.test(name) });
   });
