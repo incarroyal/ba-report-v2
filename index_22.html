@@ -211,6 +211,43 @@ table.pv td.grp:hover .rowacts.g{opacity:1;}
   border-radius:99px;padding:3px 10px;font-size:11.5px;font-weight:700;color:var(--c-teal-deepest);cursor:pointer;transition:.12s;}
 .hchip:hover{background:var(--c-teal-bg-3);}
 .hchip i{font-style:normal;font-size:10px;}
+/* ===== STEP2 계약 리스트 (M보장분석 스타일) ===== */
+.lsum{display:flex;gap:22px;flex-wrap:wrap;align-items:center;background:var(--c-teal-bg-1);border:1px solid var(--c-line-teal);border-radius:12px;padding:14px 20px;margin:6px 0 12px;}
+.lsum .li{display:flex;flex-direction:column;gap:2px;}
+.lsum .li b{font-size:20px;font-weight:800;color:var(--c-text);}
+.lsum .li b i{font-style:normal;font-size:13px;font-weight:700;color:var(--c-text-muted);margin-left:1px;}
+.lsum .li span{font-size:12px;font-weight:700;color:var(--c-text-muted);}
+.lsum .sep{width:1px;height:30px;background:var(--c-line-teal);}
+.clist{display:flex;flex-direction:column;gap:10px;margin-top:6px;}
+.lrow{display:flex;align-items:stretch;border:1.5px solid var(--c-line);border-radius:12px;background:#fff;transition:.12s;overflow:hidden;}
+.lrow:hover{border-color:var(--c-line-teal);box-shadow:var(--sh-card-hover);}
+.lrow.editing{border-color:var(--c-primary);box-shadow:0 0 0 3px rgba(18,169,157,.12);}
+.lrow .lmain{flex:1 1 auto;min-width:0;padding:13px 18px;cursor:pointer;}
+.lrow .lmain .ins{font-size:12px;font-weight:800;color:var(--c-text-2);letter-spacing:.2px;}
+.lrow .lmain .pnm{font-size:15px;font-weight:800;color:var(--c-text);margin:3px 0 7px;line-height:1.35;word-break:keep-all;}
+.lrow .lmain .per{font-size:12.5px;font-weight:600;color:var(--c-text-muted);}
+.lrow .lside{flex:0 0 236px;border-left:1px solid var(--c-line);background:#fafcfc;padding:11px 16px;display:flex;flex-direction:column;justify-content:center;gap:3px;cursor:pointer;}
+.lrow .lside .cyc{font-size:11.5px;font-weight:700;color:var(--c-text-muted);text-align:right;}
+.lrow .lside .prem{font-size:18px;font-weight:800;color:var(--c-text);text-align:right;}
+.lrow .lside .prem i{font-style:normal;font-size:12px;}
+.lrow .lside .kv{display:flex;justify-content:space-between;font-size:11.5px;font-weight:600;color:var(--c-text-muted);}
+.lrow .lside .kv b{font-weight:700;color:var(--c-text-2);}
+.lrow .lfoot{display:flex;flex-direction:column;align-items:stretch;justify-content:center;gap:6px;padding:10px 14px;border-left:1px solid var(--c-line);}
+@media (max-width:920px){ .lrow{flex-wrap:wrap;} .lrow .lside{flex:1 1 100%;border-left:none;border-top:1px solid var(--c-line);} .lrow .lfoot{flex:1 1 100%;flex-direction:row;border-left:none;border-top:1px solid var(--c-line);} }
+/* ===== 편집 모달 상단 헤더 (보장상세내역 스타일) ===== */
+.edhead{background:linear-gradient(135deg,#0E2C4D,#16406E);border-radius:12px;padding:16px 18px;margin-bottom:16px;color:#fff;display:flex;gap:18px;flex-wrap:wrap;align-items:center;}
+.edhead .l{flex:1 1 260px;min-width:0;}
+.edhead .l .ins{font-size:12px;font-weight:800;color:#9fc3e8;letter-spacing:.3px;}
+.edhead .l .pnm{font-size:16px;font-weight:800;line-height:1.35;margin:3px 0 7px;word-break:keep-all;}
+.edhead .l .per{font-size:12px;font-weight:600;color:#c9dcf2;}
+.edhead .l .st{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:99px;background:rgba(255,255,255,.16);margin-right:7px;}
+.edhead .r{flex:0 0 235px;}
+.edhead .r .prem{font-size:19px;font-weight:800;text-align:right;}
+.edhead .r .prem i{font-style:normal;font-size:11.5px;font-weight:700;color:#c9dcf2;margin-right:6px;}
+.edhead .bar{height:7px;background:rgba(255,255,255,.18);border-radius:99px;overflow:hidden;margin:8px 0 5px;}
+.edhead .bar i{display:block;height:100%;background:#39d6c2;border-radius:99px;}
+.edhead .kv{display:flex;justify-content:space-between;font-size:11.5px;font-weight:600;color:#c9dcf2;}
+.edhead .kv b{color:#fff;font-weight:700;}
 /* editor — 모달 팝업 */
 .modal{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:120;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 16px;}
 .modal.on{display:flex;}
@@ -377,7 +414,8 @@ table.pv td.mcell.ed .spwrap .spcancel{background:#e5e9f0;color:#5a6678;}
   <span class="step-tag">STEP 2</span>
   <h2>보유계약 확인 · 유지/리모델링 설정</h2>
   <p class="desc">상품명을 클릭하면 담보 내역을 직접 수정할 수 있습니다. 리모델링 또는 자동이체 중지로 표시한 계약은 ‘개선 후’ 합계에서 제외됩니다.</p>
-  <div class="cgrid" id="contractList"></div>
+  <div class="lsum" id="listSummary" style="display:none;"></div>
+  <div class="clist" id="contractList"></div>
   <div style="margin-top:14px;display:flex;gap:8px;">
     <button class="btn ghost sm" onclick="addManual()">+ 계약 직접 추가</button>
     <button class="btn ghost sm" onclick="showTableDebug()" title="PDF에서 추출한 표 텍스트와 파싱 결과 확인(개발용)">🔍 표 인식 진단</button>
@@ -458,6 +496,7 @@ table.pv td.mcell.ed .spwrap .spcancel{background:#e5e9f0;color:#5a6678;}
       <button class="mclose" onclick="closeEditor()">×</button>
     </div>
     <div class="mbody">
+      <div class="edhead" id="edHead" style="display:none;"></div>
       <div class="msec"><div class="t">계약 기본 정보</div></div>
       <div class="basic-box">
         <div class="inrow">
@@ -480,7 +519,7 @@ table.pv td.mcell.ed .spwrap .spcancel{background:#e5e9f0;color:#5a6678;}
       </div>
       <div class="cov-scroll">
         <table>
-          <thead><tr><th style="width:30%">표준 분류</th><th style="width:42%">담보명</th><th style="width:18%">가입금액(만원)</th><th style="width:10%"></th></tr></thead>
+          <thead><tr><th style="width:30%">보장구분 (표준 분류)</th><th style="width:42%">보장명</th><th style="width:18%">보장금액(만원)</th><th style="width:10%"></th></tr></thead>
           <tbody id="covBody"></tbody>
         </table>
       </div>
@@ -1026,6 +1065,7 @@ function mapCovCat(name){
   // 운전자/기타
   if(has('교통사고처리','형사합의')) return '교통사고처리지원금';
   if(has('변호사')) return '변호사선임비용';
+  if(has('화재벌금')) return '화재보험';   // 자동차 벌금이 아닌 화재 관련 → 화재보험으로
   if(has('벌금')&&has('대물')) return '벌금(대물)';
   if(has('벌금')) return '벌금(대인)';
   if(has('부상위로') || (has('위로금')&&has('부상'))) return '자동차사고부상위로금';   // '부상치료비'(중과실 교통사고 등)는 위로금과 다른 담보 → 제외
@@ -1430,11 +1470,122 @@ async function analyzeReport(bytes, useFilter){
   await runReportGroups(RC.groups, 2);
 }
 
+/* ================= 신정원 M보장분석 리포트 — '별첨 상품별 보험가입현황' 형식 직접 파싱 (AI 불필요) ================= */
+// 신정원 담보명 → 표준 분류 (없으면 회사 담보명 키워드 매핑으로 폴백)
+const SJW_MAP = {
+  '질병사망':'질병사망', '상해사망':'상해사망', '재해사망':'상해사망',
+  '암진단':'일반암진단비', '유사암진단':'유사암진단비', '특정암진단':'유사암진단비',
+  '재진단암':'암치료비', '암수술':'암치료비', '항암치료':'암치료비',
+  '뇌혈관질환진단':'뇌혈관질환진단비', '뇌졸중진단':'뇌졸중진단비', '뇌출혈진단':'뇌출혈진단비',
+  '뇌졸중수술':'뇌혈관치료비', '뇌혈관질환수술':'뇌혈관치료비', '뇌출혈수술':'뇌혈관치료비',
+  '허혈성심장질환진단':'허혈성심장질환진단비', '급성심근경색진단':'급성심근경색진단비',
+  '급성심근경색수술':'심장질환치료비', '허혈성심장질환수술':'심장질환치료비',
+  '질병종수술':'종수술비(1~5종)', '상해종수술':'종수술비(1~5종)',
+  '질병수술':'질병수술비', '상해수술':'상해수술비', '특정질병수술':'특정질병수술비',
+  '질병입원일당':'질병입원일당', '상해입원일당':'상해입원일당',
+  '질병입원의료':'질병입원의료비', '상해입원의료':'상해입원의료비', '질병통원':'질병통원의료비', '상해통원':'상해통원의료비',
+  '교통사고처리지원금(형사합의포함)':'교통사고처리지원금', '변호사선임비용':'변호사선임비용',
+  '자동차부상치료비':'자동차사고부상위로금', '일상생활배상':'일상생활배상책임'
+};
+// '1억5,000만'·'4억9,800만'·'5,000만'·'50만'·'5천' → 만원 숫자
+function parseManAmt(s){
+  s = String(s||'').replace(/,/g,'').trim();
+  let v = 0;
+  const eok = s.match(/(\d+)\s*억/); if(eok) v += (+eok[1])*10000;
+  const man = s.match(/(\d+)\s*만/); if(man) v += +man[1];
+  const chun = s.match(/(\d+)\s*천(?!만)/); if(chun) v += Math.max(1, Math.round((+chun[1])/10));
+  if(!eok && !man && !chun && /^\d+$/.test(s)) v = +s;
+  return v;
+}
+// 별첨 한 페이지 → 계약 1건 {c, matu}
+function parseMPage(txt){
+  txt = String(txt||'').replace(/\s+/g,' ');
+  const h = txt.match(/별첨\s*상품별\s*보험가입현황\s*(\d+)\s+(\S+)\s+(.+?)\s*계약자\/피보험자/);
+  if(!h) return null;
+  const c = { id: uid(), src:'report', status:'유지', insurer: h[2], productName: h[3].trim(),
+              monthlyPremium:0, payProgress:'', payTerm:'', period:'', csPhone:'', special:false, covs:[], _ord:+h[1] };
+  let matu = '';
+  const pm = txt.match(/납입주기\/납입기간\/만기\s+([^\/ ]+)\/([^\/ ]+)\/(종신|[^ ]+(?:\s*만기)?)/);
+  if(pm){
+    matu = pm[3].replace(/\s+/g,'');
+    const cyc = pm[1]==='미표시' ? '' : pm[1];
+    const yrs = (pm[2] && pm[2]!=='0년') ? pm[2] : '';
+    c.payTerm = [cyc, yrs].filter(Boolean).join('/');
+  }
+  const per = txt.match(/보험기간\s+([\d.]+)\s*~\s*([\d.]+)/);
+  if(per) c.period = per[1] + ' ~ ' + (per[2]==='9999.12.31' ? '' : per[2]);
+  const prm = txt.match(/월\s*보험료\s+([\d,]+)\s*원/);
+  if(prm) c.monthlyPremium = +prm[1].replace(/,/g,'');
+  if(/일시납/.test(c.payTerm)) c.monthlyPremium = 0;   // 일시납 총액이 '월 보험료' 칸에 찍히는 경우 → 월 합계 왜곡 방지
+  // 매월납이면 계약일 기준 납입회차 추정 → 목록·상세의 납입률/납입보험료 표시에 사용
+  const yv = (String(c.payTerm).match(/(\d+)\s*년/)||[])[1];
+  if(/매월납|월납/.test(c.payTerm) && yv && per){
+    const sm = per[1].match(/(\d{4})\.(\d{1,2})/);
+    if(sm){
+      const now = new Date();
+      const tot = (+yv)*12;
+      let n = (now.getFullYear()-(+sm[1]))*12 + (now.getMonth()+1-(+sm[2])) + 1;
+      n = Math.max(0, Math.min(tot, n));
+      c.payProgress = n + '/' + tot;
+    }
+  }
+  // 담보 행: "N 정액|실손 회사담보명 신정원담보명 금액" — 행 시작 번호로 분할
+  const body = (txt.split(/신정원\s*담보명\s*가입금액/)[1]) || txt;
+  body.split(/\s(?=\d{1,2}\s+(?:정액|실손)\s)/).forEach(sg=>{
+    sg = sg.replace(/(?:\s+\d{1,2}){2,}\s*(?:\*.*)?$/,'').trim();   // 뒤에 붙은 빈 행 번호들(6 7 8 … 30 *)과 각주 제거
+    const m = sg.match(/^(\d{1,2})\s+(정액|실손)\s+(.+?)\s+(\S+)\s+((?:\d+억\s*)?[\d,]*\s*(?:만|천)?)$/);
+    if(!m) return;
+    const name = m[3].trim(), std = m[4].trim();
+    const amt = parseManAmt(m[5]);
+    if(!name || !(amt>0)) return;
+    const nameCat = mapCovCat(name);
+    let cat = SJW_MAP[std] || nameCat;
+    if(std==='벌금비용') cat = /대물/.test(name) ? '벌금(대물)' : '벌금(대인)';
+    if(!allCats().includes(cat)) cat = '기타';
+    c.covs.push({ name, stdCat: std, category: cat, amt, renew: /갱신/.test(name) });
+  });
+  return { c, matu };
+}
+// M보장분석 전체 파싱 — 성공 시 true (별첨 페이지가 하나도 없으면 false → 기존 파이프라인으로)
+async function tryParseMReport(bytes){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  const doc = await pdfjsLib.getDocument({data: bytes,
+    cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/', cMapPacked: true}).promise;
+  const found = [];
+  for(let p=1; p<=doc.numPages; p++){
+    const tc = await (await doc.getPage(p)).getTextContent();
+    const txt = tc.items.map(i=>i.str).join(' ');
+    if(!/별첨\s*상품별\s*보험가입현황/.test(txt.replace(/\s+/g,' '))) continue;
+    const r = parseMPage(txt);
+    if(r) found.push(r);
+    prog('#progReport', 0.1 + 0.8*(p/doc.numPages), `신정원 보장분석 인식 중... (${p}/${doc.numPages}p, 계약 ${found.length}건)`);
+  }
+  if(!found.length) return false;
+  S.contracts = S.contracts.filter(x=>x.src!=='report');   // 재업로드 대응 (제안/수동은 유지)
+  found.sort((a,b)=>a.c._ord-b.c._ord);
+  S.matOv = S.matOv || {};
+  found.forEach(({c, matu})=>{
+    if(!c.covs.length && !c.monthlyPremium) c.status = '증권확인';   // 조회 정보가 비면 원본 확인 권고
+    if(guessSpecial(c.productName)) c.special = true;
+    S.contracts.push(c);
+    if(matu && !/9999/.test(matu)) S.matOv[c.id] = matu;
+  });
+  const nCov = found.reduce((s,r)=>s+r.c.covs.length, 0);
+  prog('#progReport', 1, `완료 — 신정원 M보장분석에서 계약 ${found.length}건 · 담보 ${nCov}개를 직접 추출했습니다 (AI 호출 없음).`);
+  refreshAll(); persist();
+  return true;
+}
+
 async function handleReport(file){
   if(file.size > 30*1024*1024){ alert('30MB 이하 PDF만 지원합니다.'); return; }
   try{
     const bytes = await fileToBytes(file);
     RC = { bytes, srcDoc:null, groups:[], failed:[], expected:0, filtered:false, payMap:null, tableMap:null, covMap:null };
+    // 신정원 M보장분석(별첨 상품별 보험가입현황) 형식이면 AI 없이 즉시 파싱
+    prog('#progReport', 0.05, '리포트 형식 확인 중...');
+    try{
+      if(await tryParseMReport(new Uint8Array(bytes).slice())) return;
+    }catch(e){ /* 형식 감지 실패 시 기존 파이프라인으로 */ }
     await analyzeReport(bytes, true);
   }catch(e){
     prog('#progReport', 1, '오류: ' + e.message);
@@ -1652,25 +1803,51 @@ async function handleProposals(files){
 }
 
 /* ================= 계약 목록 / 에디터 ================= */
+// 납입 진행 요약(횟수·납입률·기납입) — payProgress "N/M" 기반
+function payStat(c){
+  const pp = String(c.payProgress||'').match(/(\d+)\s*\/\s*(\d+)/);
+  if(!pp) return null;
+  const paid = +pp[1], tot = +pp[2];
+  if(!tot) return null;
+  return { paid, tot, rate: Math.min(100, Math.round(paid/tot*100)),
+           paidAmt: (+c.monthlyPremium||0) * paid, planAmt: (+c.monthlyPremium||0) * tot };
+}
+function renderListSummary(){
+  const el = $('#listSummary'); if(!el) return;
+  if(!S.contracts.length){ el.style.display='none'; return; }
+  const cur = curContracts(), drops = dropContracts(), props = S.contracts.filter(c=>c.status==='제안');
+  el.style.display='flex';
+  el.innerHTML = `
+    <div class="li"><b>${cur.length}<i>건</i></b><span>보유계약</span></div><div class="sep"></div>
+    <div class="li"><b>${sumPrem(cur).toLocaleString()}<i>원</i></b><span>월 보험료 합계</span></div><div class="sep"></div>
+    <div class="li"><b>${drops.length}<i>건</i></b><span>리모델링·이체중지</span></div><div class="sep"></div>
+    <div class="li"><b>${props.length}<i>건</i></b><span>신규 제안</span></div>`;
+}
 function renderContracts(){
+  renderListSummary();
   const wrap = $('#contractList'); wrap.innerHTML = '';
   S.contracts.forEach(c=>{
-    const d = document.createElement('div');
-    d.className = 'citem' + (c.id===editingId?' editing':'');
     const isProp = c.status==='제안';
+    const st = payStat(c);
+    const [ps, pe] = splitPeriod(c.period);
+    const d = document.createElement('div');
+    d.className = 'lrow' + (c.id===editingId?' editing':'');
     d.innerHTML = `
-      <div class="ctop" onclick="openEditor('${c.id}')" title="클릭하면 상세 편집 창이 열립니다">
-        <div class="nm">${esc(c.insurer)} · ${esc(stripMu(c.productName))} ${c.special?'<span class="badge sp">분류외</span>':''}</div>
-        <div class="mt">
-          <span>월 ${fmtWon(c.monthlyPremium)}${isRenew(c)?' +@':''}</span>
-          ${(c.payProgress||c.payTerm)?`<span>납입 ${esc([payProgressDisp(c), (c.payTerm||'')+(isRenew(c)?' 갱신형':'')].filter(x=>x&&x.trim()).join(' · '))}</span>`:''}
-        </div>
-        ${DROP_ST.includes(c.status)?`<div class="csline">☎ 보험사 고객센터: ${esc(c.csPhone||'번호 입력 필요 (카드 클릭)')}</div>`:''}
+      <div class="lmain" onclick="openEditor('${c.id}')" title="클릭하면 보장상세·편집 창이 열립니다">
+        <div class="ins">${esc(c.insurer||'보험사 미상')}</div>
+        <div class="pnm">${esc(stripMu(c.productName))} ${c.special?'<span class="badge sp">분류외</span>':''}${isProp?' <span class="badge prop">신규 제안</span>':''}${isProp&&(c.covs||[]).filter(v=>+v.amt>0).length<5?' <span class="badge sp" title="AI가 담보를 충분히 읽지 못했을 수 있습니다. 클릭해 확인하세요.">⚠ 담보 확인 필요</span>':''}</div>
+        <div class="per">${ps?esc(ps)+' ~ '+esc(pe||'종신'):'계약기간 미상'}</div>
+        ${DROP_ST.includes(c.status)?`<div class="csline">☎ 보험사 고객센터: ${esc(c.csPhone||'번호 입력 필요')}</div>`:''}
       </div>
-      <div class="foot">
-        ${isProp
-          ? `<span class="badge prop">신규 제안</span>${(c.covs||[]).filter(v=>+v.amt>0).length<5?' <span class="badge sp" title="AI가 담보를 충분히 읽지 못했을 수 있습니다. 상품명을 클릭해 담보를 확인·보완하세요.">⚠ 담보 확인 필요</span>':''}`
-          : `<span class="stchip">
+      <div class="lside" onclick="openEditor('${c.id}')">
+        <div class="cyc">${esc((c.payTerm||'').trim()||'납입정보 없음')}${isRenew(c)?' · 갱신형':''}</div>
+        <div class="prem">${(+c.monthlyPremium)? (+c.monthlyPremium).toLocaleString()+'<i>원</i>'+(isRenew(c)?'<i> +@</i>':'') : '<span style="font-size:13px;color:var(--c-text-faint);font-weight:700;">미표시</span>'}</div>
+        ${st?`<div class="kv"><span>납입횟수</span><b>약 ${st.paid}/${st.tot}회</b></div>
+        <div class="kv"><span>납입률</span><b>${st.rate}%</b></div>
+        ${st.paidAmt?`<div class="kv"><span>납입보험료</span><b>${st.paidAmt.toLocaleString()}원</b></div>`:''}`:''}
+      </div>
+      <div class="lfoot">
+        ${isProp ? '' : `<span class="stchip">
                <button class="${c.status==='유지'?'on keep':''}" onclick="setStatus('${c.id}','유지')">유지</button>
                <button class="${c.status==='리모델링'?'on drop':''}" onclick="setStatus('${c.id}','리모델링')">리모델링</button>
                <button class="${c.status==='이체중지'?'on pause':''}" onclick="setStatus('${c.id}','이체중지')" title="자동이체 중지 — 납입을 멈추고 정리 예정인 계약">이체중지</button>
@@ -1721,7 +1898,28 @@ function openEditor(id){
   $('#edStart').value = ps; $('#edEnd').value = maturityAge(c); $('#edEnd').readOnly = true; $('#edEnd').dataset.raw = pe;
   $('#edPay').value = c.payProgress||''; $('#edPayTerm').value = c.payTerm||'';
   $('#edCs').value = c.csPhone||''; $('#edSpecial').checked = !!c.special;
+  renderEdHead(c);
   renderCovRows(c); renderDeletedCovBar(); renderContracts();
+}
+// 모달 상단 요약 헤더 (M보장분석 '보장상세내역' 스타일)
+function renderEdHead(c){
+  const el = $('#edHead'); if(!el) return;
+  const st = payStat(c);
+  const [ps, pe] = splitPeriod(c.period);
+  el.style.display = 'flex';
+  el.innerHTML = `
+    <div class="l">
+      <div class="ins">${esc(c.insurer||'보험사 미상')}</div>
+      <div class="pnm">${esc(stripMu(c.productName))}</div>
+      <div class="per"><span class="st">${esc(stLabel(c.status))}</span>${ps?esc(ps)+' ~ '+esc(pe||'종신'):'계약기간 미상'}</div>
+    </div>
+    <div class="r">
+      <div class="prem"><i>${esc((c.payTerm||'').trim())}</i>${(+c.monthlyPremium)? (+c.monthlyPremium).toLocaleString()+'원'+(isRenew(c)?' +@':'') : '미표시'}</div>
+      ${st?`<div class="bar"><i style="width:${st.rate}%"></i></div>
+      <div class="kv"><span>납입률 <b>${st.rate}%</b></span><b>약 ${st.paid} / ${st.tot}회</b></div>
+      ${st.paidAmt?`<div class="kv"><span>납입완료</span><b>${st.paidAmt.toLocaleString()}원</b></div>`:''}
+      ${st.planAmt?`<div class="kv"><span>납입예정</span><b>${st.planAmt.toLocaleString()}원</b></div>`:''}`:''}
+    </div>`;
 }
 function renderCovRows(c){
   const tb = $('#covBody'); tb.innerHTML = '';
@@ -1736,7 +1934,7 @@ function renderCovRows(c){
     tr.dataset.idx = i;
     tr.innerHTML = `
       <td><span class="drag-handle" title="드래그하여 순서 변경">⠿</span><select onchange="updCov(${i},'category',this.value)" style="width:calc(100% - 22px);">${allCats().map(k=>`<option ${k===v.category?'selected':''}>${k}</option>`).join('')}</select></td>
-      <td><input type="text" value="${esc(v.name)}" onchange="updCov(${i},'name',this.value)" style="width:100%;"></td>
+      <td><input type="text" value="${esc(v.name)}" onchange="updCov(${i},'name',this.value)" style="width:100%;">${v.stdCat?`<div style="font-size:10.5px;font-weight:700;color:var(--c-text-faint);margin-top:2px;">신정원 구분: ${esc(v.stdCat)}</div>`:''}</td>
       <td><input type="number" value="${v.amt}" onchange="updCov(${i},'amt',this.value)"></td>
       <td style="text-align:center;"><button class="delbtn" onclick="delCov(${i})">✕</button></td>`;
     // 드래그: 핸들에서만 시작
