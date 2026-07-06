@@ -480,7 +480,7 @@ table.pv td.mcell.ed .spwrap .spcancel{background:#e5e9f0;color:#5a6678;}
       </div>
       <div class="cov-scroll">
         <table>
-          <thead><tr><th style="width:42%">담보명</th><th style="width:30%">표준 분류</th><th style="width:18%">가입금액(만원)</th><th style="width:10%"></th></tr></thead>
+          <thead><tr><th style="width:30%">표준 분류</th><th style="width:42%">담보명</th><th style="width:18%">가입금액(만원)</th><th style="width:10%"></th></tr></thead>
           <tbody id="covBody"></tbody>
         </table>
       </div>
@@ -1735,8 +1735,8 @@ function renderCovRows(c){
     tr.draggable = false;          // 기본 off — input 편집 보호, 핸들로만 드래그
     tr.dataset.idx = i;
     tr.innerHTML = `
-      <td><span class="drag-handle" title="드래그하여 순서 변경">⠿</span><input type="text" value="${esc(v.name)}" onchange="updCov(${i},'name',this.value)" style="width:calc(100% - 22px);"></td>
-      <td><select onchange="updCov(${i},'category',this.value)">${allCats().map(k=>`<option ${k===v.category?'selected':''}>${k}</option>`).join('')}</select></td>
+      <td><span class="drag-handle" title="드래그하여 순서 변경">⠿</span><select onchange="updCov(${i},'category',this.value)" style="width:calc(100% - 22px);">${allCats().map(k=>`<option ${k===v.category?'selected':''}>${k}</option>`).join('')}</select></td>
+      <td><input type="text" value="${esc(v.name)}" onchange="updCov(${i},'name',this.value)" style="width:100%;"></td>
       <td><input type="number" value="${v.amt}" onchange="updCov(${i},'amt',this.value)"></td>
       <td style="text-align:center;"><button class="delbtn" onclick="delCov(${i})">✕</button></td>`;
     // 드래그: 핸들에서만 시작
