@@ -1002,7 +1002,7 @@ function mapCovCat(name){
   if(has('뇌혈관')) return '뇌혈관질환진단비';
   // 심장: 수술·치료 → 심장질환치료비
   if(has('급성심근경색')) return '급성심근경색진단비';
-  if(has('허혈성심장')) return '허혈성심장질환진단비';
+  if(has('허혈성심장','허혈심장')) return '허혈성심장질환진단비';
   if(has('심장')&&(has('수술')||has('치료'))) return '심장질환치료비';
   // 일반 수술비 — 질병/상해 수술만. 5대장기·조혈모세포 등 특수수술은 기본 틀에서 제외(기타)
   if(has('상해수술')) return '상해수술비';
@@ -1012,6 +1012,13 @@ function mapCovCat(name){
   if(has('간병')) return '질병간병인일당';
   if(has('입원일당')&&has('상해','재해','교통')) return '상해입원일당';
   if(has('입원일당')||has('입원급여금')) return '질병입원일당';
+  // 실손: 급여/비급여·4세대 표기 모두 입원의료비 계열로 (한도 표시 목적)
+  if(has('실손','실비')){
+    if(has('상해')&&has('통원')) return '상해통원의료비';
+    if(has('상해')) return '상해입원의료비';
+    if(has('통원')) return '질병통원의료비';
+    return '질병입원의료비';
+  }
   if(has('상해입원의료비')||(has('상해','재해')&&has('입원의료비'))) return '상해입원의료비';
   if(has('입원의료비')) return '질병입원의료비';
   if(has('상해')&&has('통원')) return '상해통원의료비';
@@ -1454,7 +1461,7 @@ function proposalMeta(txt){
   if(!nm) nm = txtNS.match(/(?:가입안내서|보험상품명|상품명)([가-힣A-Za-z][가-힣A-Za-z0-9:&·()\-]{1,33}?(?<!피)보험(?:\(갱신형\))?)/);
   if(nm){ let pn=nm[1].replace(/\s+/g,' ').trim();
     pn = pn.split(/\s*(?:계약자|피보험|증권번호|가입금액|보험기간|보험종류|납입주기|순번|담보명)\s*/)[0].trim();
-    const bad = /으로|또는|명칭|기준|경우|이며|됩니다|있습니다|에서|에는|에\s대한|^및|^특약|^선택특약|^주계약\s*및|^[^가-힣A-Za-z(]/.test(pn);
+    const bad = /으로|또는|명칭|기준|경우|이며|됩니다|있습니다|에서|에는|에\s대한|^및|^특약|^선택특약|^주계약\s*및|^보험료|보험료가|보장을\s*위한|사용금액|안내서|^[^가-힣A-Za-z(]/.test(pn);
     if(!bad && /보험|공제|플랜|연금|드림|케어|let/i.test(pn) && pn.replace(/[()\s]/g,'').length>=4) r.productName = pn;
   }
   // 보장설계 표 영역만 우선 사용 (갱신형 안내문의 5년/10년만기 등 잡음 배제)
@@ -1466,8 +1473,8 @@ function proposalMeta(txt){
   // 만기/납입 후보를 두 형식 모두에서 수집해 통합 (① 'N세만기/종신' ② 'N년/N세' 납기/만기)
   const collect = src => {
     const mats=[], pays=[];
-    (src.match(/\d{1,3}\s*세\s*만기|종\s*신|\d{1,3}\s*년\s*만기/g)||[]).forEach(x=>mats.push(x.replace(/\s+/g,'')));
-    (src.match(/\d{1,3}\s*년\s*납|\d{1,3}\s*세\s*납|전기\s*납|일시\s*납/g)||[]).forEach(x=>pays.push(x.replace(/\s+/g,'')));
+    (src.match(/\d{1,3}\s*세\s*만기|종\s*신|\d{1,3}\s*년\s*만기/g)||[]).forEach(x=>{ const t2=x.replace(/\s+/g,''); if(!/^0+[세년]/.test(t2)) mats.push(t2); });   // '0세만기' 같은 서식 견본 값 제외
+    (src.match(/\d{1,3}\s*년\s*납|\d{1,3}\s*세\s*납|전기\s*납|일시\s*납/g)||[]).forEach(x=>{ const t2=x.replace(/\s+/g,''); if(!/^0+[세년]/.test(t2)) pays.push(t2); });
     (src.match(/\d{1,3}\s*년\s*\/\s*\d{1,3}\s*세/g)||[]).forEach(x=>{ const mm2=x.match(/(\d{1,3})\s*년\s*\/\s*(\d{1,3})\s*세/); if(mm2){ pays.push(mm2[1]+'년납'); mats.push(mm2[2]+'세만기'); } });
     return {mats, pays};
   };
@@ -1480,18 +1487,26 @@ function proposalMeta(txt){
   // 납입주기
   const cyc = txt.match(/납입\s*주기\s*[:：]?\s*(월납|연납|일시납|분기납|반기납|월\s*납)/);
   if(cyc) r.cycle = cyc[1].replace(/\s+/g,'');
-  // 합계보험료(실납입 우선) — '합계보험료'·'보험료 합계' 양쪽 순서 모두 인식
-  let pm = txt.match(/(?:실납입\s*보험료|합계\s*보험료|보험료\s*합계|월\s*납입?\s*보험료)\s*([\d,]+)\s*원/);
-  if(!pm) pm = txtNS.match(/(?:실납입보험료|합계보험료|보험료합계|월납입보험료|월보험료)([\d,]+)원/);   // 글자 띄움 PDF 폴백
-  if(pm) r.prem = +pm[1].replace(/,/g,'');
+  // 합계보험료 — 라벨 붙은 모든 금액 중 최댓값 사용 (특약 단건 보험료 오인 방지 · ':' 표기 · 글자 띄움 PDF 대응)
+  const prems = [];
+  for(const g2 of txt.matchAll(/(?:실납입\s*보험료|합계\s*보험료|보험료\s*합계|총\s*보험료|월\s*납입?\s*보험료|월\s*보험료)\s*[:：]?\s*([\d,]+)\s*원/g)) prems.push(+g2[1].replace(/,/g,''));
+  for(const g2 of txtNS.matchAll(/(?:실납입보험료|합계보험료|보험료합계|총보험료|월납입보험료|월보험료)[:：]?([\d,]+)원/g)) prems.push(+g2[1].replace(/,/g,''));
+  if(prems.length) r.prem = Math.max(...prems);
   return r;
 }
 
 /* ----- 제안서 담보를 텍스트에서 직접 추출 (만기납기·날짜 토큰으로 행 분리 · 본문 잡음 제거) ----- */
 function buildProposalCovs(txt){
   txt = String(txt||'').replace(/\s+/g,' ');
+  // 한글이 한 글자씩 전부 벌어진 PDF(미래에셋·카디프 등)는 행 구조 복원이 불가능 — 텍스트 담보 추출을 포기하고 AI에 전담
+  if((txt.match(/(?:[가-힣] ){5}[가-힣]/g)||[]).length > txt.length/1000*8) return [];
   const h = txt.match(/(?:가입담보|담보\s*및\s*보장|가입금액\s*\(?\s*만)[^]*$/);
   let region = h ? h[0] : txt;
+  // 글자 사이가 벌어진 PDF(한화손보 등) 복원: '3 , 000'→'3,000' · '37,400 원'→'37,400원' · '1 - 5 종'→'1-5종' · '1 회당'→'1회당'
+  region = region.replace(/(\d)\s*,\s*(\d)/g, '$1,$2')
+                 .replace(/([0-9][0-9,]*)\s+원(?=[\s)]|$)/g, '$1원')
+                 .replace(/(\d)\s*-\s*(\d)/g, '$1-$2')
+                 .replace(/(\d)\s+([%종회급대세년])/g, '$1$2');
   // 금액 단위 감지: 표 머리글이 '가입금액(원)'이면 원 단위 → 만원 환산
   const wonUnit = /가입\s*금액\s*[(\[（]\s*원/.test(txt) && !/가입\s*금액\s*[(\[（]?\s*만/.test(txt);
   // 한글 단위 금액을 만원 숫자로 정규화 — '2천만원'이 2로 오독되는 것 방지 (DB손보 등)
@@ -1500,23 +1515,33 @@ function buildProposalCovs(txt){
     .replace(/([0-9]+)\s*억\s*원/g, (s,a)=> String((+a)*10000))
     .replace(/([0-9]+)\s*천\s*([0-9]+)\s*백\s*만\s*원?/g, (s,a,b)=> String((+a)*1000+(+b)*100))
     .replace(/([0-9]+)\s*천\s*만\s*원/g, (s,a)=> String((+a)*1000))
+    .replace(/([0-9]+)\s*백\s*([0-9]+)\s*십?\s*만\s*원?/g, (s,a,b)=> String((+a)*100+(+b)*(String(s).includes('십')?10:1)))
     .replace(/([0-9]+)\s*백\s*만\s*원/g, (s,a)=> String((+a)*100))
     .replace(/([0-9][0-9,]*)\s*만\s*원/g, (s,a)=> a.replace(/,/g,''));
-  // 행 구분자: 만기/납기 토큰 + 날짜범위형(YYYY.MM.DD~YYYY.MM.DD, 담보내역서 표) 모두 지원
-  const DELIM = /(\d{1,3}세만기\s*\d{1,3}년납|종신\s*\d{1,3}년납|\d{1,3}세\s*만기|\d{1,3}년\s*만기\s*\d{1,3}년납|\d{1,3}년\s*\/\s*\d{1,3}세|전기납\s*\d*|\d{1,3}년납|\d{4}[.\-\/]\d{1,2}[.\-\/]\d{1,2}\s*~\s*\d{4}[.\-\/]\d{1,2}[.\-\/]\d{1,2})/g;
+  // 행 구분자: 만기/납기 토큰(글자 벌어짐 허용) + 갱신형 토큰(N년갱신·(최대100세)·(갱신종료:N세)) + 날짜범위형(YYYY.MM.DD~) 모두 지원
+  const DELIM = /(\d{1,3}\s*세\s*만\s*기\s*(?:\/\s*)?\d{1,3}\s*년\s*납|종\s*신\s*\d{1,3}\s*년\s*납|\d{1,3}\s*년\s*만\s*기\s*(?:\/\s*)?\d{1,3}\s*년\s*납|\d{1,3}\s*세\s*만\s*기|\d{1,3}\s*년\s*\/\s*\d{1,3}\s*세|전기납\s*\d*|\d{1,3}\s*년\s*납|\d{1,3}\s*년\s*(?:만\s*기\s*)?갱\s*신(?:\s*\(\s*최대\s*(?:\d{1,3}\s*[세년]|종신)\s*\))?|\(\s*최대\s*(?:\d{1,3}\s*[세년]|종신)\s*\)|\(\s*갱신종료\s*:?\s*\d{1,3}\s*세\s*\)|\d{4}[.\-\/]\d{1,2}[.\-\/]\d{1,2}\s*~\s*\d{4}[.\-\/]\d{1,2}[.\-\/]\d{1,2})/g;
   const rows = []; let last=0, m; DELIM.lastIndex=0;
   while((m = DELIM.exec(region))){ rows.push(region.slice(last, m.index)); last = DELIM.lastIndex; }
-  const PROSE = /보험기간\s*중|진단확정|장해지급률|피보험자가|특별약관|약관상|보상하지|미만인\s*경우|이상인\s*경우|가입금액의|지급합니다|지급함|사용한\s*날|내원하여|입원하여|받은\s*경우|발생한\s*경우|되었을\s*때|로\s*인하여|경우에는|에\s*대하여|월납\s*\||자동이체|준법감시|설계번호/;
-  const JUNK = /납입지원|납입면제|보험료|소계|합계|보장\s*내용|페이지|준법|설계번호|가입금액|요약|피\s*보\s*험\s*자|계\s*약\s*자\s|담당자|주피|종피|생년월일|판매\s*플랜|사업단|설계사|증권번호|직\s*업\s|홈페이지|콜센터/;
+  const PROSE = /보험기간\s*중|진단확정|장해지급률|피보험자가|특별약관|약관상|보상하지|미만인\s*경우|이상인\s*경우|가입금액의|지급합니다|지급함|사용한\s*날|내원하여|입원하여|받은\s*경우|발생한\s*경우|되었을\s*때|로\s*인하여|경우에는|에\s*대하여|월납\s*\||자동이체|준법감시|설계번호|보장개시일|사용금액|기준으로/;
+  const JUNK = /납입지원|납입면제|납면|보험료|소계|합계|보장\s*내용|페이지|준법|설계번호|가입금액|요약|피\s*보\s*험\s*자|계\s*약\s*자\s|담당자|주피|종피|생년월일|판매\s*플랜|사업단|설계사|증권번호|직\s*업\s|홈페이지|콜센터|예약개시|태아플랜|보험금을\s*지급|지급하지\s*않|보통약관|약관조회|QR|상해급수|초회보험료|가입나이|납입주기|공시이율|보증이율|환급률|기타할인|선납/;
   const covs = [], seen = new Set();
   rows.forEach(seg=>{
     seg = seg.trim(); if(!seg || seg.length>300) return;   // 비정상적으로 긴 세그먼트만 제외 (본문은 담보명 PROSE 필터로 거름)
-    const mm = seg.match(/((?:[0-9]{1,3}\s*%\s*)?[가-힣A-Za-z(\[Ⅰ-ⅿ][^]*?)\s+([0-9][0-9,]*)\b/);
+    // 행 앞의 '나이+초회보험료'(ABL 등: "59세 1,590")와 구분 토큰(주계약/특약) 제거
+    seg = seg.replace(/^\d{1,3}\s*세\s+[\d,]+\s+/,'').replace(/^(?:주계약|의무특약|선택특약|특약)\s+/,'');
+    // 금액 뒤에는 공백·괄호닫힘·구두점만 허용 — '3년만기갱신'의 3, '1회당'의 1 같은 오인 방지
+    const mm = seg.match(/((?:[0-9]{1,3}\s*%\s*)?[가-힣A-Za-z(\[Ⅰ-ⅿ][^]*?)\s+([0-9][0-9,]*)(?=[\s).,;]|$)/);
     if(!mm) return;
     let name = mm[1].replace(/\s+/g,' ').trim();
-    // 페이지 머리글 잡음 제거 ('선택계약 가입제안서 담보 및 보장 …' 등)
-    name = name.replace(/^(?:(?:선\s*택\s*계\s*약|필\s*수\s*계\s*약|선택\s*계약|필수\s*계약|가입제안서|담보\s*및\s*보장|No\.?)\s*)+/,'').trim();
+    // 페이지 머리글 잡음 제거 ('선택계약 가입제안서 담보 및 보장 …' 등) + 금액단위·역할 토큰 잔여물 제거
+    name = name.replace(/^(?:(?:선\s*택\s*계\s*약|필\s*수\s*계\s*약|선택\s*계약|필수\s*계약|가입제안서|담보\s*및\s*보장|No\.?)\s*)+/,'')
+               .replace(/^.*?[\d,]+원\s+/,'')   // 행 앞에 남은 보험료 잔여물("4,741원 [2] …") 제거
+               .replace(/^(?:원|만)\s+/,'').replace(/\s+(?:고객|피보험자|주피|종피)$/,'').trim();
+    if(!/[가-힣]{3,}/.test(name.replace(/\s/g,''))) return;   // 한글 실체가 없는 이름(서식 조각) 제외
     let amt = parseInt(mm[2].replace(/,/g,''));
+    // 신한 등 '가입금액 + 대표지급금액' 2단 표기: 특약코드(C1234567) 뒤 두 값 중 실질 보장인 대표지급금액(두 번째)을 사용
+    const dual = seg.match(/C\d{6,}\s+([0-9][0-9,]*)\s+([0-9][0-9,]*)/);
+    if(dual) amt = parseInt(dual[2].replace(/,/g,''));
     if(wonUnit && amt>=10000) amt = Math.round(amt/10000);                 // 원 단위 표 → 만원
     else if(!wonUnit && amt>=1000000 && amt%10000===0) amt = amt/10000;    // 원 단위 금액 혼입(예: 30,000,000) 자동 환산
     if(!name || !(amt>0) || amt>=100000 || (amt>=2018&&amt<=2030) || name.length<4) return;
@@ -1592,11 +1617,11 @@ async function handleProposals(files){
       }
       const m = mergeProposalParts(parts, f.name);
       // 텍스트 추출 담보와 AI 담보 병합:
-      // ① 텍스트가 충분(8개↑)하면 텍스트 기준 — 단, 텍스트가 놓친 '분류'만 AI에서 보충 (금액 폭증 방지 유지)
+      // ① 텍스트가 충분(12개↑)하면 텍스트 기준 — 단, 텍스트가 놓친 '분류'만 AI에서 보충 (금액 폭증 방지 유지)
       // ② 텍스트가 부족하면 AI 기준 + 텍스트에만 있는 담보 추가 (스캔 실패·표 형식 상이 대응)
       const scTxt = propCovs.map(sanitizeCov).filter(v=>v.amt>0);
       const nkey = v => String(v.name||'').replace(/\s/g,'')+'|'+v.amt;
-      if(scTxt.length >= 8){
+      if(scTxt.length >= 12){
         const catHave = new Set(scTxt.map(v=>v.category));
         const extra = (m.covs||[]).filter(v=> v.amt>0 && v.category && v.category!=='기타' && !catHave.has(v.category));
         m.covs = scTxt.concat(extra);
@@ -1606,7 +1631,7 @@ async function handleProposals(files){
       }
       // 텍스트 추출 메타로 보완/우선 적용 (AI가 못 읽은 보험기간·납입기간·상품명·보험료)
       if(propMeta.productName) m.productName = propMeta.productName;
-      if(propMeta.prem) m.monthlyPremium = propMeta.prem;
+      if(propMeta.prem) m.monthlyPremium = Math.max(+m.monthlyPremium||0, propMeta.prem);   // 텍스트 라벨이 특약 단건 보험료를 잡아도 AI 합계를 깎지 않도록
       if(propMeta.payTerm) m.payTerm = propMeta.cycle ? `${propMeta.cycle}/${propMeta.payTerm.replace(/납$/,'')}` : propMeta.payTerm;
       if(!m.covs.length && !m.monthlyPremium){
         prog('#progProp', base+span, `'${f.name}' — 담보를 인식하지 못했습니다. 계약 목록에서 직접 입력해 주세요.`);
