@@ -6,12 +6,14 @@
 <title>보장분석 리포트메이커 v2 — ROYAL</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <style>
-@font-face{font-family:'NanumSquareNeo';font-weight:400;
-  src:url('https://cdn.jsdelivr.net/gh/moonspam/NanumSquareNeo@master/NanumSquareNeoTTF-bRg.woff2') format('woff2');font-display:swap;}
-@font-face{font-family:'NanumSquareNeo';font-weight:700;
-  src:url('https://cdn.jsdelivr.net/gh/moonspam/NanumSquareNeo@master/NanumSquareNeoTTF-cBd.woff2') format('woff2');font-display:swap;}
-@font-face{font-family:'NanumSquareNeo';font-weight:800;
-  src:url('https://cdn.jsdelivr.net/gh/moonspam/NanumSquareNeo@master/NanumSquareNeoTTF-dEb.woff2') format('woff2');font-display:swap;}
+@font-face{font-family:'Pretendard';font-weight:400;
+  src:url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/woff2/Pretendard-Regular.woff2') format('woff2');font-display:swap;}
+@font-face{font-family:'Pretendard';font-weight:600;
+  src:url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/woff2/Pretendard-SemiBold.woff2') format('woff2');font-display:swap;}
+@font-face{font-family:'Pretendard';font-weight:700;
+  src:url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/woff2/Pretendard-Bold.woff2') format('woff2');font-display:swap;}
+@font-face{font-family:'Pretendard';font-weight:800;
+  src:url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/woff2/Pretendard-ExtraBold.woff2') format('woff2');font-display:swap;}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -34,7 +36,7 @@
   --sh-btn:0 4px 14px rgba(18,169,157,.35);
 }
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'NanumSquareNeo','Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif;background:var(--grad-bg);background-attachment:fixed;
+body{font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif;background:var(--grad-bg);background-attachment:fixed;
   color:var(--c-text);font-size:14px;line-height:1.6;min-height:100vh;-webkit-font-smoothing:antialiased;}
 .wrap{max-width:1180px;margin:0 auto;padding:32px 24px 100px;}
 header.app{display:flex;align-items:baseline;gap:12px;margin-bottom:8px;flex-wrap:wrap;}
@@ -109,7 +111,7 @@ input:focus,select:focus{outline:none;border-color:var(--c-primary);box-shadow:0
   /* ===== 시트 (A4 세로 210×297mm) ===== */
   .psheet{page-break-after:always;position:relative;width:210mm;height:296.6mm;overflow:hidden;
     padding:13mm 13mm 12mm;box-sizing:border-box;background:#fff;
-    font-family:'Pretendard','NanumSquareNeo','Malgun Gothic',sans-serif;color:#1A2433;
+    font-family:'Pretendard','Malgun Gothic',sans-serif;color:#1A2433;
     -webkit-print-color-adjust:exact;print-color-adjust:exact;}
   .psheet:last-child{page-break-after:auto;}
   .psheet *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
@@ -479,13 +481,13 @@ table.pv td.mcell.ed .spwrap .spcancel{background:#e5e9f0;color:#5a6678;}
   <p class="desc">PPT와 PDF 모두 A4 세로, 같은 구성으로 출력됩니다: 표지 → 계약별 보장 상세(3건/페이지) → 분류 외 보험 → 신규 제안 → 컨설팅 전후 비교 → 상담 메모. 표가 넘치면 페이지가 자동으로 나뉩니다.</p>
   <div class="inrow" style="margin-bottom:14px;">
     <div><label>PPT 폰트 (PPT를 여는 PC에 설치된 폰트명)</label>
-      <input type="text" id="pptFont" value="나눔스퀘어 네오" style="width:220px;"></div>
+      <input type="text" id="pptFont" value="Pretendard" style="width:220px;"></div>
   </div>
   <div style="display:flex;gap:10px;flex-wrap:wrap;">
     <button class="btn primary" onclick="exportPPT()">📊 PPT 다운로드</button>
     <button class="btn ghost" onclick="exportPDF()">🖨 인쇄 · PDF로 저장</button>
   </div>
-  <div class="note" style="margin-top:14px;">PPT는 파일에 폰트가 포함되지 않아 <b>여는 PC에 나눔스퀘어 네오 설치가 필요</b>합니다(미설치 시 자동 대체). PDF는 인쇄 대화상자에서 "PDF로 저장"을 선택하면 폰트가 그대로 적용된 A4 세로 문서로 저장됩니다.</div>
+  <div class="note" style="margin-top:14px;">PPT는 파일에 폰트가 포함되지 않아 <b>여는 PC에 Pretendard 설치가 필요</b>합니다(미설치 시 자동 대체). PDF는 인쇄 대화상자에서 "PDF로 저장"을 선택하면 폰트가 그대로 적용된 A4 세로 문서로 저장됩니다.</div>
 </div>
 
 </div>
@@ -561,20 +563,18 @@ table.pv td.mcell.ed .spwrap .spcancel{background:#e5e9f0;color:#5a6678;}
 
 <script>
 /* ================= 표준 분류 체계 (서버 ai-parse.mjs CATEGORIES와 동기화) ================= */
-// 표준 분류 = M보장분석 PDF의 '신정원 담보명' 원문 그대로 (2026.07 — 재매핑·이름변경 없음)
-// 두 M보장분석(조혁·전성재)에서 실측된 37개 구분을 원문 그대로 행으로 사용, 새 구분은 자동 등록으로 그룹째 생성됨
+// 표준 분류 기본 세팅 — 사용자 확정 구성·순서 (2026.07.18) : 초기화·새로 시작 시에도 항상 이 구성으로 시작
+// 신정원 담보명은 CAT_ALIAS로 이 기본틀에 매핑되며, 편집기에는 원문(stdCat)이 함께 표시됨
 const GROUPS = [
-  ['사망',       ['질병사망','상해사망']],
-  ['후유장해',   ['질병후유3%↑','질병후유80%↑','상해후유3%↑','상해후유50%↑','상해후유80%↑']],
-  ['실손의료비', ['질병입원의료','질병통원','상해입원의료','상해통원']],
-  ['암',         ['암진단','유사암진단','특정암진단','고액암진단','암수술','암주요치료비','고액항암치료비(표적)','중입자방사선치료비']],
-  ['뇌혈관질환', ['뇌혈관질환진단','뇌출혈진단','뇌졸중진단','뇌산정특례대상진단비','뇌졸중수술']],
-  ['심장질환',   ['허혈성심장질환진단','급성심근경색진단','심장산정특례대상진단비','급성심근경색수술']],
-  ['수술비',     ['상해수술','질병종수술','상해종수술']],
-  ['입원·간병',  ['질병입원일당','상해입원일당']],
-  ['운전자',     ['교통사고처리지원금(형사합의포함)','변호사선임비용','벌금비용','자동차부상치료비','민사소송법률비용']],
-  ['치아',       ['보존치료']],
-  ['기타',       ['일상생활배상','골절진단','화상진단','화재벌금','2대질환주요치료비']]
+  ['사망',       ['일반사망','질병사망','상해사망']],
+  ['후유장해',   ['질병후유장해 3%이상','상해후유장해 3%이상']],
+  ['암',         ['일반암진단','유사암진단','암치료비']],
+  ['뇌질환',     ['뇌혈관진단','뇌졸중진단','뇌출혈진단','뇌질환치료비']],
+  ['심장질환',   ['허혈성진단','급성심근경색진단','심장질환치료비']],
+  ['수술비',     ['상해수술비','상해종수술비','질병수술비','질병종수술비','N대수술비']],
+  ['입원·간병',  ['상해입원일당','상해간병인입원일당','질병입원일당','질병간병인입원일당']],
+  ['기타',       ['일상생활배상책임']],
+  ['실손의료비', ['질병입원','질병통원','상해입원','상해통원']]
 ];
 // 기본 GROUPS + 사용자가 추가한 대분류(extraGroups)/중분류(extraCats) 병합
 function effectiveGroups(){
@@ -648,11 +648,14 @@ function migrateState(st){
   //  · M보장분석 계약(src=report): 저장된 '신정원 담보명'(stdCat) 원문 그대로
   //  · 제안서 계약(src=proposal): 담보명을 신정원 관행으로 재매핑 (교통상해입원일당→기타 등)
   //  · 수동 입력 계약: 건드리지 않음
-  if(st.migV !== 26){
+  if(st.migV !== 27){
     (st.contracts||[]).forEach(c=>{
       (c.covs||[]).forEach(v=>{
         if(!v || !v.name) return;
-        if(c.src==='report' && v.stdCat) v.category = String(v.stdCat).trim();
+        if(c.src==='report' && v.stdCat){
+          const s = String(v.stdCat).trim();
+          v.category = s==='기타' ? '기타' : (CAT_ALIAS[s]!==undefined ? CAT_ALIAS[s] : s);
+        }
         else if(c.src==='proposal') v.category = mapCovCat(v.name);
       });
     });
@@ -668,7 +671,7 @@ function migrateState(st){
       if(!GROUPS.some(p=>p[0]===g) && !st.extraGroups.includes(g)) st.extraGroups.push(g);
       (st.extraCats[g] = st.extraCats[g]||[]).push(cat);
     }));
-    st.migV = 26;
+    st.migV = 27;
   }
   // 사용자가 기본틀에서 제외한 구분이 과거 자동 등록으로 남아있으면 정리
   if(st.extraCats) Object.keys(st.extraCats).forEach(g=>{
@@ -785,8 +788,8 @@ function fmtMan(v){
 function repCovs(c, cat){
   const covs = (c.covs||[]).filter(v=>v.category===cat && +v.amt>0);
   if(!covs.length) return [];
-  if(cat==='자동차부상치료비'){ const k=covs.find(v=>/14\s*급/.test(v.name||'')); return [k || covs.reduce((a,b)=>(+a.amt<=+b.amt?a:b))]; }
-  if(cat==='질병종수술'||cat==='상해종수술'){ const ks=covs.filter(v=>/5\s*종/.test(String(v.name||'').replace(/1\s*[~-]\s*5\s*종/g,''))); return [ks.length?ks.reduce((a,b)=>(+a.amt>=+b.amt?a:b)):covs.reduce((a,b)=>(+a.amt>=+b.amt?a:b))]; }   // 5종(최고종) 기준 1건, 5종 표기 없으면 최대 금액
+  if(cat==='N대수술비') return [covs.reduce((a,b)=>(+a.amt>=+b.amt?a:b))];   // N대수술은 최대 금액 1건 대표
+  if(cat==='질병종수술비'||cat==='상해종수술비'){ const ks=covs.filter(v=>/5\s*종/.test(String(v.name||'').replace(/1\s*[~-]\s*5\s*종/g,''))); return [ks.length?ks.reduce((a,b)=>(+a.amt>=+b.amt?a:b)):covs.reduce((a,b)=>(+a.amt>=+b.amt?a:b))]; }   // 5종(최고종) 기준 1건, 5종 표기 없으면 최대 금액
   // 같은 기본명(괄호 제거)이 3건 이상이면 부위·지급사유별 세부분할로 보고 최대 금액 1건만 대표로
   if(covs.length>=3){
     const byBase = {};
@@ -932,9 +935,9 @@ function maturityAge(c){
 const isHiddenCat = cat => (S.hiddenCats||[]).includes(cat);
 const visCats = items => items.filter(cat=>!isHiddenCat(cat));
 // 기본 표시 라벨 (사용자 지정 라벨이 없을 때) — 특정질병수술비는 항상 'N대수술비'로 보이게
-const CAT_DISPLAY = { '질병종수술':'질병종수술(5종기준)', '상해종수술':'상해종수술(5종기준)' };
+const CAT_DISPLAY = { '암치료비':'치료비', '뇌질환치료비':'치료비', '심장질환치료비':'치료비' };   // 그룹 안에서는 '치료비'로 표시
 // 정액형/실손형 구분 — M보장분석의 '구분' 칸 값 우선, 없으면(제안서·수동) 분류·담보명으로 추론
-const LOSS_CATS = new Set(['질병입원의료','질병통원','상해입원의료','상해통원','일상생활배상','교통사고처리지원금(형사합의포함)','변호사선임비용','벌금비용','화재벌금','민사소송법률비용']);
+const LOSS_CATS = new Set(['질병입원','질병통원','상해입원','상해통원','일상생활배상책임']);
 function covKind(v){
   if(v && (v.kind==='정액' || v.kind==='실손')) return v.kind;
   if(v && LOSS_CATS.has(v.category)) return '실손';
@@ -1097,81 +1100,67 @@ async function buildContractTable(bytes){
 // 담보명 → 표준 카테고리 키워드 매핑 (서버 MAPPING_RULES와 동일 취지)
 function mapCovCat(name){
   const n=String(name||'').replace(/\s/g,''); const has=(...ks)=>ks.some(k=>n.includes(k));
-  // ── 신정원 원문 구분으로 매핑 (제안서 등 신정원 칸이 없는 데이터 전용 · M보장분석 배정 관행 준수) ──
-  // 사망 — M보장분석 관행: 일반사망→질병사망, 재해→상해사망, 교통/운전 사망은 기타
+  // ── 기본틀(사용자 확정 구성) 기준 매핑 — 제안서 등 신정원 칸이 없는 데이터 전용 ──
+  // 사망
   if(has('사망')){
-    if(has('교통','운전')) return '기타';
-    return has('상해','재해') ? '상해사망' : '질병사망';
+    if(has('교통','운전')) return '기타';   // 교통/운전 사망은 기본틀 비표시 (신정원 관행)
+    if(has('상해','재해')) return '상해사망';
+    if(has('질병')) return '질병사망';
+    return '일반사망';   // 종신·정기 주계약 사망
   }
-  // 후유장해 — 교통 계열은 기타(M보장분석 관행), 80%/50%는 해당 원문 구분으로
+  // 후유장해 — 교통 계열·80%/50% 전용은 기본틀 비표시
   if(has('후유장해','고도장해')){
     if(has('교통','운전')) return '기타';
-    const inj = has('상해','재해');
-    if(has('80%') && !has('미만')) return inj ? '상해후유80%↑' : '질병후유80%↑';
-    if(has('50%') && !has('미만')) return inj ? '상해후유50%↑' : '질병후유50%↑';
-    return inj ? '상해후유3%↑' : '질병후유3%↑';
+    if((has('80%')||has('50%')) && !has('미만')) return '기타';
+    return has('상해','재해') ? '상해후유장해 3%이상' : '질병후유장해 3%이상';
   }
-  // 암 — 중입자·암주요치료는 별도 구분, 표적·세기조절·양성자는 고액항암치료비(표적), 그 외 치료류는 기타
-  if(has('중입자')) return '중입자방사선치료비';
-  if(has('표적','세기조절','양성자')) return '고액항암치료비(표적)';
-  if(has('항암')) return '기타';
-  if(has('암') && has('수술') && !has('진단')) return '암수술';
-  if(has('암') && has('주요치료')) return '암주요치료비';
-  if(has('암') && has('치료비','치료시','입원일당','통원') && !has('진단비','진단금')) return '기타';
-  if(has('유사암제외','유사암제외형')) return '암진단';
+  // 암 — 진단은 일반암/유사암, 수술·항암·표적·중입자 등 치료류는 전부 암치료비
+  if(has('중입자','표적','세기조절','양성자','항암')) return '암치료비';
+  if(has('암') && has('수술') && !has('진단')) return '암치료비';
+  if(has('암') && has('주요치료','치료비','치료시')) return '암치료비';
+  if(has('유사암제외','유사암제외형')) return '일반암진단';
   if(has('소액암','유사암','제자리암','경계성','갑상선암','기타피부암')) return '유사암진단';
-  if(has('남녀특정암','특정암','부위별암')) return '특정암진단';
-  if(has('암진단')&&!has('소액','유사')) return '암진단';
+  if(has('남녀특정암','특정암','부위별암')) return '일반암진단';
+  if(has('암진단')&&!has('소액','유사')) return '일반암진단';
   if(has('암')) return '기타';
-  // 골절·화상 (M보장분석: 골절진단·화상진단만 구분, 수술류는 기타)
-  if(has('골절')) return has('진단') ? '골절진단' : '기타';
-  if(has('화상')) return has('진단') ? '화상진단' : '기타';
-  // N대질병·특정질병·종수술 → 질병종수술 (뇌·심장보다 먼저 — '82대질병수술비(뇌혈관질환)' 오분류 방지)
-  if(has('대질병수술','특정질병수술','대질병')) return '질병종수술';
-  if(has('종수술','종질병수술','1~5종','3종','5종','7종')) return has('상해','재해')?'상해종수술':'질병종수술';
-  // 뇌혈관 (뇌출혈은 뇌졸중 계열 · 외상성 뇌손상/뇌출혈은 기타)
+  // 골절·화상·치아 — 기본틀 비표시
+  if(has('골절','화상','치아','치석','임플란트','크라운')) return '기타';
+  // N대질병·특정질병·종수술 (뇌·심장보다 먼저 — '82대질병수술비(뇌혈관질환)' 오분류 방지)
+  if(has('대질병수술','특정질병수술','대질병')) return 'N대수술비';
+  if(has('종수술','종질병수술','1~5종','3종','5종','7종')) return has('상해','재해')?'상해종수술비':'질병종수술비';
+  // 뇌질환 (외상성 뇌손상/뇌출혈은 기타)
   if(has('외상성')) return '기타';
-  if(has('뇌출혈')) return has('수술')?'뇌졸중수술':'뇌출혈진단';
-  if(has('뇌졸중')) return has('수술')?'뇌졸중수술':'뇌졸중진단';
-  if(has('뇌혈관')&&(has('수술')||has('치료'))) return '뇌졸중수술';
-  if(has('뇌혈관')) return '뇌혈관질환진단';
-  // 심장
-  if(has('급성심근경색')) return has('수술')?'급성심근경색수술':'급성심근경색진단';
-  if(has('허혈성심장','허혈심장')) return has('수술')?'급성심근경색수술':'허혈성심장질환진단';
-  if(has('심장')&&(has('수술')||has('치료'))) return '급성심근경색수술';
+  if(has('뇌출혈')) return has('수술','치료') ? '뇌질환치료비' : '뇌출혈진단';
+  if(has('뇌졸중')) return has('수술','치료') ? '뇌질환치료비' : '뇌졸중진단';
+  if(has('뇌혈관','뇌')&&has('수술','치료')) return '뇌질환치료비';
+  if(has('뇌혈관')) return '뇌혈관진단';
+  // 심장질환
+  if(has('급성심근경색')) return has('수술','치료') ? '심장질환치료비' : '급성심근경색진단';
+  if(has('허혈성심장','허혈심장','허혈성')) return has('수술','치료') ? '심장질환치료비' : '허혈성진단';
+  if(has('심장')&&has('수술','치료')) return '심장질환치료비';
   // 일반 수술
-  if(has('상해수술','재해수술')) return '상해수술';
-  if(has('질병수술')) return '질병수술';
-  // 입원·간병 — M보장분석 관행: 교통(운전) 계열 입원일당은 기타
-  if(has('간병')) return '간병인일당(사용입원일당)';
+  if(has('상해수술','재해수술')) return '상해수술비';
+  if(has('질병수술')) return '질병수술비';
+  // 입원·간병 (교통/운전 계열 입원일당은 기본틀 비표시)
+  if(has('간병')) return has('상해','재해') ? '상해간병인입원일당' : '질병간병인입원일당';
   if(has('입원일당')&&has('교통','운전')) return '기타';
   if(has('입원일당')&&has('상해','재해')) return '상해입원일당';
   if(has('입원일당')||has('입원급여금')) return '질병입원일당';
-  // 실손
+  // 실손의료비
   if(has('실손','실비')){
     if(has('상해')&&has('통원')) return '상해통원';
-    if(has('상해')) return '상해입원의료';
+    if(has('상해')) return '상해입원';
     if(has('통원')) return '질병통원';
-    return '질병입원의료';
+    return '질병입원';
   }
-  if(has('상해입원의료비')||(has('상해','재해')&&has('입원의료비'))) return '상해입원의료';
-  if(has('입원의료비')) return '질병입원의료';
+  if(has('상해입원의료비')||(has('상해','재해')&&has('입원의료비'))) return '상해입원';
+  if(has('입원의료비')) return '질병입원';
   if(has('상해')&&has('통원')) return '상해통원';
   if(has('통원')) return '질병통원';
-  // 운전자·배상 — M보장분석 관행: 벌금(대물)·부분급수 부상치료는 기타
-  if(has('교통사고처리','형사합의')) return '교통사고처리지원금(형사합의포함)';
-  if(has('변호사')) return '변호사선임비용';
-  if(has('화재')&&has('벌금')) return '화재벌금';
-  if(has('화재')) return '기타';
-  if(has('벌금')) return has('대물') ? '기타' : '벌금비용';
-  if(has('부상위로','부상치료','사고부상')){
-    if(has('가족','동승','한방','중증','성형')) return '기타';
-    if(/1\s*[~-]\s*14|14\s*급/.test(n)) return '자동차부상치료비';
-    if(/[1-9]\s*[~-]\s*\d{1,2}\s*급/.test(n)) return '기타';   // (1~5급)·(6-11급) 등 부분급수
-    return '자동차부상치료비';
-  }
-  if(has('일상생활배상','생활배상','가족생활배상')) return '일상생활배상';
-  // 요양·치매·치아
+  // 배상책임 (운전자 담보는 기본틀 비표시 — 분류외 카드에서 표시)
+  if(has('일상생활배상','생활배상','가족생활배상')) return '일상생활배상책임';
+  if(has('교통사고처리','형사합의','변호사','벌금','부상위로','부상치료','사고부상','면허','자동차')) return '기타';
+  // 요양·치매 (담보가 있으면 자동 등록으로 그룹 생성)
   if(has('레켐비','레카네맙')) return '기타';
   if(has('치매')&&has('진단')) return '치매진단';
   if(has('재가급여','장기요양')) return '재가급여';
@@ -1210,7 +1199,7 @@ async function buildAnnexCovs(bytes){
     }
     // 종수술(질병·상해 각각)은 5종기준 1건만 취합 (5종 표기 우선, 없으면 최대금액)
     Object.keys(out).forEach(prem=>{
-      ['질병종수술','상해종수술'].forEach(jc=>{
+      ['질병종수술비','상해종수술비'].forEach(jc=>{
         const jong = out[prem].filter(v=>v.category===jc);
         if(jong.length>1){
           const ks = jong.filter(v=>/5\s*종/.test(String(v.name).replace(/1\s*[~-]\s*5\s*종/g,'')));
@@ -1339,24 +1328,39 @@ async function pool(tasks, limit, onDone){
 }
 
 // 구(자체) 표준분류·구버전 분류 → 현행 기본틀 별칭 (기존 저장 데이터 자동 변환)
-const CAT_ALIAS = {   // 레거시(구버전 기본틀)·회사식 표기 → 신정원 원문 구분
-  '일반암진단비':'암진단', '유사암진단비':'유사암진단', '암치료비':'기타',
-  '항암치료':'기타', '재진단암':'기타', '재진단암진단':'기타',
-  '뇌혈관질환진단비':'뇌혈관질환진단', '뇌졸중진단비':'뇌졸중진단', '뇌출혈진단비':'뇌출혈진단', '뇌혈관치료비':'뇌졸중수술',
-  '허혈성심장질환진단비':'허혈성심장질환진단', '급성심근경색진단비':'급성심근경색진단', '심장질환치료비':'급성심근경색수술',
-  '질병수술비':'질병수술', '상해수술비':'상해수술', '종수술비(1~5종)':'질병종수술', '특정질병수술비':'질병종수술', 'N대수술':'질병종수술',
-  '간병인사용지원':'간병인일당(사용입원일당)', '간병인사용입원일당':'간병인일당(사용입원일당)',
-  '질병간병인일당':'간병인일당(사용입원일당)', '상해간병인일당':'간병인일당(사용입원일당)',
-  '질병입원':'질병입원의료', '상해입원':'상해입원의료',
-  '질병입원의료비':'질병입원의료', '질병통원의료비':'질병통원', '상해입원의료비':'상해입원의료', '상해통원의료비':'상해통원',
-  '교통사고처리지원금':'교통사고처리지원금(형사합의포함)',
-  '벌금(대인)':'벌금비용', '벌금(대물)':'기타', '벌금':'벌금비용',
-  '자동차사고부상위로금':'자동차부상치료비', '일상생활배상책임':'일상생활배상',
-  '일반사망':'질병사망',
-  '장기요양자금':'재가급여', '치매진단비':'치매진단',
-  '전이암진단비':'기타', '암수술비':'암수술', '고액암치료비':'기타', '암입원·통원·기타':'기타', '레켐비치료비':'기타',
-  '뇌혈관질환수술비':'뇌졸중수술', '뇌혈관수술비':'뇌졸중수술', '심장질환수술비':'급성심근경색수술', '심장수술비':'급성심근경색수술',
-  '화재보험':'기타'
+const CAT_ALIAS = {   // 신정원 구분·옛 분류 → 현행 기본틀 (M리포트 매핑 + 저장 데이터 마이그레이션 + AI 보정)
+  // 후유장해 (80%·50% 전용은 기본틀 비표시)
+  '질병후유3%↑':'질병후유장해 3%이상', '상해후유3%↑':'상해후유장해 3%이상',
+  '질병후유80%↑':'기타', '질병후유50%↑':'기타', '상해후유50%↑':'기타', '상해후유80%↑':'기타',
+  // 암 — 진단은 일반암/유사암, 치료·수술류는 암치료비로
+  '암진단':'일반암진단', '일반암진단비':'일반암진단', '특정암진단':'일반암진단', '고액암진단':'일반암진단',
+  '유사암진단비':'유사암진단',
+  '암수술':'암치료비', '암수술비':'암치료비', '암주요치료비':'암치료비', '고액항암치료비(표적)':'암치료비', '중입자방사선치료비':'암치료비', '항암치료':'암치료비',
+  '재진단암':'기타', '재진단암진단':'기타', '전이암진단비':'일반암진단', '고액암치료비':'암치료비', '암입원·통원·기타':'기타', '레켐비치료비':'기타',
+  // 뇌질환
+  '뇌혈관질환진단':'뇌혈관진단', '뇌혈관질환진단비':'뇌혈관진단', '뇌산정특례대상진단비':'뇌혈관진단',
+  '뇌졸중진단비':'뇌졸중진단', '뇌출혈진단비':'뇌출혈진단',
+  '뇌졸중수술':'뇌질환치료비', '뇌혈관질환수술비':'뇌질환치료비', '뇌혈관수술비':'뇌질환치료비', '뇌혈관치료비':'뇌질환치료비',
+  // 심장질환
+  '허혈성심장질환진단':'허혈성진단', '허혈성심장질환진단비':'허혈성진단', '심장산정특례대상진단비':'허혈성진단',
+  '급성심근경색진단비':'급성심근경색진단',
+  '급성심근경색수술':'심장질환치료비', '심장질환수술비':'심장질환치료비', '심장수술비':'심장질환치료비',
+  // 수술비
+  '상해수술':'상해수술비', '질병수술':'질병수술비', '상해종수술':'상해종수술비', '질병종수술':'질병종수술비',
+  '종수술비(1~5종)':'질병종수술비', '특정질병수술':'N대수술비', '특정질병수술비':'N대수술비', 'N대수술':'N대수술비',
+  // 입원·간병
+  '간병인일당(사용입원일당)':'질병간병인입원일당', '간병인일당':'질병간병인입원일당', '간병인사용입원일당':'질병간병인입원일당',
+  '간병인사용지원':'질병간병인입원일당', '질병간병인일당':'질병간병인입원일당', '상해간병인일당':'상해간병인입원일당',
+  // 실손의료비
+  '질병입원의료':'질병입원', '상해입원의료':'상해입원',
+  '질병입원의료비':'질병입원', '질병통원의료비':'질병통원', '상해입원의료비':'상해입원', '상해통원의료비':'상해통원',
+  // 배상·기타 (운전자·치아 구분은 기본틀 비표시 — 분류외 카드에서 표시)
+  '일상생활배상':'일상생활배상책임',
+  '교통사고처리지원금(형사합의포함)':'기타', '교통사고처리지원금':'기타', '변호사선임비용':'기타',
+  '벌금비용':'기타', '벌금(대인)':'기타', '벌금(대물)':'기타', '벌금':'기타',
+  '자동차부상치료비':'기타', '자동차사고부상위로금':'기타', '민사소송법률비용':'기타', '화재벌금':'기타', '화재보험':'기타',
+  '골절진단':'기타', '화상진단':'기타', '보존치료':'기타', '2대질환주요치료비':'기타',
+  '장기요양자금':'재가급여', '치매진단비':'치매진단'
 };
 function sanitizeCov(v){
   let cat = String(v.category||'').trim();
@@ -1600,28 +1604,22 @@ const DENY_SJW = new Set([]);   // 신정원 원문 그대로 정책 — 제외 
 // 기본틀에 없는 신정원 구분이 리포트·AI에서 나오면 알맞은 대분류에 자동 편입 (표·비교표·PPT·PDF에 바로 반영, 저장됨)
 // → 공식 전체 코드표를 몰라도 어떤 담보든 그 구분명 그대로 살아남는다. 필요 없으면 미리보기에서 숨기면 됨.
 const KNOWN_SJW = {
-  '중환자실입원일당':'입원·간병', '암입원일당':'입원·간병', '간병인일당(사용입원일당)':'입원·간병', '간병인일당':'입원·간병',
+  '중환자실입원일당':'입원·간병', '암입원일당':'입원·간병',
   '처방조제':'실손의료비',
-  '질병수술':'수술비', '특정질병수술':'수술비',
-  '일반사망':'사망', '질병후유50%↑':'후유장해',
   '재가급여':'요양·치매', '복지용구':'요양·치매', '데이케어센터':'요양·치매', '치매진단':'요양·치매',
-  '장기요양(1~2등급)':'요양·치매', '장기요양(1~4등급)':'요양·치매', '시설급여':'요양·치매',
-  '보존치료':'치아', '크라운치료':'치아', '임플란트':'치아', '틀니·브릿지':'치아', '신경치료':'치아', '스케일링':'치아',
-  '면허정지위로금':'운전자', '면허취소위로금':'운전자', '생계비지원':'운전자', '민사소송법률비용':'운전자'
+  '장기요양(1~2등급)':'요양·치매', '장기요양(1~4등급)':'요양·치매', '시설급여':'요양·치매'
 };
 function guessGroupForStd(std){
   const s = String(std);
   if(/사망/.test(s)) return '사망';
   if(/후유/.test(s)) return '후유장해';
-  if(/치아|치과|보존|크라운|임플란트|틀니|브릿지|신경치료|스케일링/.test(s)) return '치아';
   if(/치매|요양/.test(s)) return '요양·치매';
   if(/암/.test(s)) return '암';
-  if(/뇌/.test(s)) return '뇌혈관질환';
+  if(/뇌/.test(s)) return '뇌질환';
   if(/심장|심근/.test(s)) return '심장질환';
   if(/수술/.test(s)) return '수술비';
   if(/일당|간병/.test(s)) return '입원·간병';
   if(/실손|의료|통원|처방/.test(s)) return '실손의료비';
-  if(/운전|자동차|교통|벌금|면허|변호사/.test(s)) return '운전자';
   return '기타';
 }
 function autoRegisterStdCat(std){
@@ -1699,16 +1697,17 @@ function parseMPage(txt){
     // 회사담보명+신정원명이 전부 한 덩어리로 붙은 행: 금액이 신정원명 자리에 온 경우 복구
     if(!(amt>0) && /^(?:\d+억)?[\d,]*(?:만|천)?$/.test(std) && /[가-힣]/.test(name)){ amt = parseManAmt(std); std = name; name = ''; }
     if(!(amt>0)) return;
-    // ── 보장구분 = PDF '신정원 담보명' 칸 원문 그대로 (M보장분석과 100% 동일 · 재매핑 없음) ──
+    // ── 보장구분 = PDF '신정원 담보명'을 기본틀로 매핑 (기타는 기타 그대로 · 담보명 키워드 재분류 금지) ──
     let cat;
-    if(std==='기타') cat = '기타';                       // M보장분석이 기타로 둔 행은 그대로 기타 (담보명 키워드 재분류 금지)
+    if(std==='기타') cat = '기타';
+    else if(CAT_ALIAS[std] !== undefined) cat = CAT_ALIAS[std];
     else if(allCats().includes(std)) cat = std;
-    else if(std.length<=24 && autoRegisterStdCat(std)) cat = std;   // 미지의 신정원 구분 → 자동 등록 후 원문 그대로 사용
+    else if(std.length<=24 && autoRegisterStdCat(std)) cat = std;   // 미지의 신정원 구분 → 자동 등록
     else {
       // 회사담보명과 신정원명이 붙어버린 행("…자가용운전자용)기타") → 알려진 구분이 꼬리에 붙었으면 분리
-      const vocab = allCats().concat(['기타']).sort((a,b)=>b.length-a.length);
+      const vocab = Object.keys(CAT_ALIAS).concat(allCats()).concat(['기타']).sort((a,b)=>b.length-a.length);
       const tail = vocab.find(v=>std.length>v.length && std.endsWith(v));
-      if(tail){ name = (name+' '+std.slice(0, std.length-tail.length)).trim(); std = tail; cat = tail; }
+      if(tail){ name = (name+' '+std.slice(0, std.length-tail.length)).trim(); std = tail; cat = tail==='기타' ? '기타' : (CAT_ALIAS[tail]!==undefined ? CAT_ALIAS[tail] : tail); }
       else cat = '기타';
     }
     if(!name) name = std;
@@ -2801,7 +2800,7 @@ const C = { NAVY:'0D3B66', NAVYBOX:'16406E', BLUE:'1565C0', MIDNAVY:'2F5D96',
   ORANGE:'C0392B', PURPLE:'1565C0', MUT:'5B6675' };
 const ST_FILL = {'유지':C.NAVY, '리모델링':C.ORG, '이체중지':C.RED, '증권확인':C.AMBER, '제안':C.BLUE};
 const ST_HEX  = {'유지':'#0D3B66', '리모델링':'#D9730D', '이체중지':'#C0392B', '증권확인':'#B8860B', '제안':'#1565C0'};
-let FONT = '나눔스퀘어 네오';
+let FONT = 'Pretendard';
 
 /* ----- 한 페이지 맞춤 헬퍼 ----- */
 const fitH = (n, avail, maxH=0.3, minH=0.13) => Math.max(minH, Math.min(maxH, avail/Math.max(1,n)));
@@ -3018,7 +3017,7 @@ function buildDiagnosis(){
   const dupCats = allCats().filter(cat => cur.filter(c=>catAmt(c,cat)>0).length >= 2);
   if(dupCats.length) out.push({tag:'중복', color:C.NAVY,
     title:'중복 가입 보장 확인', desc:`${dupCats.slice(0,3).map(catLabel).join(', ')} 등 ${dupCats.length}개 항목이 둘 이상 계약에 중복됩니다. 정리 시 보험료 절감이 가능합니다.`});
-  const KEY = ['암진단','뇌혈관질환진단','허혈성심장질환진단','질병수술','질병사망'];
+  const KEY = ['일반암진단','뇌혈관진단','허혈성진단','질병수술비','질병사망'];
   const gaps = KEY.filter(cat => aft.reduce((s,c)=>s+catAmt(c,cat),0) === 0);
   if(gaps.length) out.push({tag:'부족', color:C.RED,
     title:'보장 공백 영역', desc:`${gaps.map(catLabel).join(', ')} 보장이 부족하거나 없습니다. 우선 보완을 검토하시길 권장합니다.`});
@@ -3556,7 +3555,7 @@ function addMemoP(p){
 /* ----- PPT 내보내기 (A4 세로 · PDF와 동일 구성) ----- */
 function exportPPT(){
   try{
-    FONT = ($('#pptFont').value||'').trim() || '나눔스퀘어 네오';
+    FONT = ($('#pptFont').value||'').trim() || 'Pretendard';
     const cust = $('#custName').value.trim() || '고객';
     const pn = $('#plannerName').value.trim(), pp = $('#plannerPhone').value.trim();
     const today = new Date();
