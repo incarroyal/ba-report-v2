@@ -283,6 +283,10 @@ table.pv td.grp:hover .rowacts.g{opacity:1;}
 #covBody tr.dragging{opacity:.45;}
 #covBody tr.drop-into{box-shadow:inset 0 2px 0 var(--c-primary);}
 .mfoot{display:flex;gap:8px;justify-content:flex-end;padding:14px 22px;border-top:1px solid var(--c-line);background:#fafdfc;}
+.covtabs{display:flex;margin-top:10px;border:1px solid var(--c-line);border-radius:9px;overflow:hidden;width:fit-content;}
+.covtabs .ct{padding:9px 22px;background:#fff;border:none;border-right:1px solid var(--c-line);font-weight:800;font-size:12.5px;color:var(--c-text-muted);cursor:pointer;font-family:inherit;}
+.covtabs .ct:last-child{border-right:none;}
+.covtabs .ct.on{background:#222;color:#fff;}
 #editor table{width:100%;border-collapse:collapse;margin-top:10px;}
 #editor th{background:var(--c-teal-bg-2);font-size:12px;color:var(--c-teal-deepest);padding:7px 8px;text-align:left;border:1px solid var(--c-line);}
 #editor td{border:1px solid var(--c-line);padding:4px 6px;}
@@ -517,6 +521,11 @@ table.pv td.mcell.ed .spwrap .spcancel{background:#e5e9f0;color:#5a6678;}
         <div class="t">담보 내역 <span class="cnt" id="covCount">0개</span></div>
         <button class="btn ghost sm" onclick="addCovRow()">+ 담보 추가</button>
       </div>
+      <div class="covtabs" id="covTabs">
+        <button class="ct on" data-k="all" onclick="setCovTab('all')">전체</button>
+        <button class="ct" data-k="정액" onclick="setCovTab('정액')">정액형 보장</button>
+        <button class="ct" data-k="실손" onclick="setCovTab('실손')">실손형 보장</button>
+      </div>
       <div class="cov-scroll">
         <table>
           <thead><tr><th style="width:30%">보장구분 (표준 분류)</th><th style="width:42%">보장명</th><th style="width:18%">보장금액(만원)</th><th style="width:10%"></th></tr></thead>
@@ -606,6 +615,7 @@ const isCustomCat = cat => Object.values(S.extraCats||{}).some(arr=>arr.includes
 let S = { contracts: [], hiddenCats: [], catLabels: {}, groupLabels: {}, cmpAmt: {}, cellAmt: {}, extraGroups: [], extraCats: {}, futureOv: {}, matOv: {}, hiddenInfoRows: [], infoTot: {}, groupOrder: [], catOrder: {} };   // {id, src, status:'유지'|'리모델링'|'이체중지'|'증권확인'|'제안', insurer, productName, monthlyPremium, payProgress, period, covs:[{name,category,amt}]}
 let editingId = null;
 let edSnap = null, edSnapMat, edSnapFut;   // 편집 시작 시점 스냅샷 — '닫기(저장 안 함)'용
+let edCovTab = 'all';                      // 담보 내역 탭: all | 정액 | 실손
 let deletedCovs = [];   // 모달 세션 동안 삭제한 담보 임시 보관 (복원용, 저장 안 됨)
 let covBaseline = [];   // 담보 정상 순서 기준 (객체 참조) — 복원 위치 계산용
 const $ = s => document.querySelector(s);
@@ -682,9 +692,10 @@ function migrateState(st){
 }
 
 let undoStack = [];          // 실행취소 스택 (이전 상태 JSON 보관)
+let redoStack = [];          // 재실행 스택 (Ctrl+Y / Ctrl+Shift+Z)
 let undoBusy = false;        // 복원 중에는 스냅샷 푸시 안 함
 let lastPushedS = null;
-const UNDO_MAX = 80;
+const UNDO_MAX = 120;
 function persist(){
   const meta = {cust:$('#custName').value, pn:$('#plannerName').value, pp:$('#plannerPhone').value};
   try{
@@ -696,32 +707,54 @@ function persist(){
         if(prevSpart && prevSpart!==curSpart && prevSpart!==lastPushedS){   // 실제 변화가 있을 때만, 중복 제외
           undoStack.push(prev); lastPushedS = prevSpart;
           if(undoStack.length>UNDO_MAX) undoStack.shift();
+          redoStack.length = 0;   // 새 변경이 생기면 재실행 히스토리는 초기화
         }
       }
     }
     localStorage.setItem(LSKEY, JSON.stringify({S, meta, t: Date.now()}));
   }catch(e){}
 }
-function undo(){
-  if(!undoStack.length){ return; }
-  const prev = undoStack.pop(); lastPushedS = null;
+function applySnap(str){
   undoBusy = true;
   try{
-    const obj = JSON.parse(prev);
+    const obj = JSON.parse(str);
     S = migrateState(obj.S);
     if(obj.meta){ if($('#custName'))$('#custName').value=obj.meta.cust||''; if($('#plannerName'))$('#plannerName').value=obj.meta.pn||''; if($('#plannerPhone'))$('#plannerPhone').value=obj.meta.pp||''; }
-    localStorage.setItem(LSKEY, prev);
+    localStorage.setItem(LSKEY, str);
   }catch(e){}
   undoBusy = false;
   mEdit=null; mCmpEdit=null; mEditInfo=null; mEditInfoTot=null;
+  // 편집 모달이 열려 있으면 되돌린 상태로 다시 바인딩 (계약이 사라졌으면 닫기)
+  if(editingId){
+    const id = editingId;
+    if(S.contracts.find(x=>x.id===id)) openEditor(id);
+    else { edSnap=null; editingId=null; $('#editModal').classList.remove('on'); document.body.style.overflow=''; }
+  }
   refreshAll();
 }
+function undo(){
+  if(!undoStack.length){ return; }
+  const cur = localStorage.getItem(LSKEY);
+  const prev = undoStack.pop(); lastPushedS = null;
+  if(cur){ redoStack.push(cur); if(redoStack.length>UNDO_MAX) redoStack.shift(); }
+  applySnap(prev);
+}
+function redo(){
+  if(!redoStack.length){ return; }
+  const cur = localStorage.getItem(LSKEY);
+  const nxt = redoStack.pop(); lastPushedS = null;
+  if(cur){ undoStack.push(cur); if(undoStack.length>UNDO_MAX) undoStack.shift(); }
+  applySnap(nxt);
+}
 document.addEventListener('keydown', e=>{
-  if((e.ctrlKey||e.metaKey) && (e.key==='z'||e.key==='Z') && !e.shiftKey && !e.altKey){
-    const tag=(e.target&&e.target.tagName||'').toLowerCase();
-    if(tag==='input'||tag==='textarea'||(e.target&&e.target.isContentEditable)) return;   // 입력칸 안에서는 기본 텍스트 실행취소
-    e.preventDefault(); undo();
-  }
+  const z = (e.ctrlKey||e.metaKey) && (e.key==='z'||e.key==='Z') && !e.altKey;
+  const y = (e.ctrlKey||e.metaKey) && (e.key==='y'||e.key==='Y') && !e.altKey;
+  if(!z && !y) return;
+  // 입력칸 안에서도 앱 실행취소 동작 — 입력 중 값을 먼저 확정(blur)한 뒤 되돌림 (연속 Ctrl+Z 지원)
+  const el = document.activeElement;
+  if(el && /^(input|textarea|select)$/i.test(el.tagName)) el.blur();
+  e.preventDefault();
+  if(y || (z && e.shiftKey)) redo(); else undo();
 });
 function checkRestore(){
   try{
@@ -900,6 +933,14 @@ const isHiddenCat = cat => (S.hiddenCats||[]).includes(cat);
 const visCats = items => items.filter(cat=>!isHiddenCat(cat));
 // 기본 표시 라벨 (사용자 지정 라벨이 없을 때) — 특정질병수술비는 항상 'N대수술비'로 보이게
 const CAT_DISPLAY = { '질병종수술':'질병종수술(5종기준)', '상해종수술':'상해종수술(5종기준)' };
+// 정액형/실손형 구분 — M보장분석의 '구분' 칸 값 우선, 없으면(제안서·수동) 분류·담보명으로 추론
+const LOSS_CATS = new Set(['질병입원의료','질병통원','상해입원의료','상해통원','일상생활배상','교통사고처리지원금(형사합의포함)','변호사선임비용','벌금비용','화재벌금','민사소송법률비용']);
+function covKind(v){
+  if(v && (v.kind==='정액' || v.kind==='실손')) return v.kind;
+  if(v && LOSS_CATS.has(v.category)) return '실손';
+  if(/실손|실비|배상책임|법률비용|선임비용|처리지원금|벌금/.test(String((v&&v.name)||'').replace(/\s/g,''))) return '실손';
+  return '정액';
+}
 const catLabel = cat => (S.catLabels && S.catLabels[cat]) || CAT_DISPLAY[cat] || cat;
 const groupLabel = g => (S.groupLabels && S.groupLabels[g]) || g;
 
@@ -1671,7 +1712,7 @@ function parseMPage(txt){
       else cat = '기타';
     }
     if(!name) name = std;
-    c.covs.push({ name, stdCat: std, category: cat, amt, renew: /갱신/.test(name) });
+    c.covs.push({ name, stdCat: std, category: cat, amt, renew: /갱신/.test(name), kind: m[2] });   // kind = M보장분석 '구분' 칸 (정액|실손)
   });
   return h ? { c, matu } : { cont: c._ord, covs: c.covs };   // 연속 페이지는 담보만 반환 → 같은 번호 계약에 병합
 }
@@ -2049,6 +2090,7 @@ function openEditor(id){
   const c = S.contracts.find(x=>x.id===id); if(!c) return;
   edSnap = JSON.stringify(c);   // 취소용 스냅샷 (담보 수정은 즉시 반영되므로 원본 보존)
   edSnapMat = (S.matOv||{})[id]; edSnapFut = (S.futureOv||{})[id];
+  edCovTab = 'all';   // 담보 탭 초기화
   deletedCovs = [];   // 새 계약 편집 시작 — 이전 삭제 이력 비움
   covBaseline = c.covs.slice();   // 현재 순서를 정상 기준으로 저장
   $('#edTitle').textContent = (c.insurer || c.productName) ? `${c.insurer||''} ${c.productName||''}`.trim() : '계약 편집';
@@ -2088,16 +2130,28 @@ function renderEdHead(c){
 function renderCovRows(c){
   const tb = $('#covBody'); tb.innerHTML = '';
   const cnt = $('#covCount'); if(cnt) cnt.textContent = `${c.covs.length}개`;
+  // 정액형/실손형 탭 카운트·활성 표시
+  const kFix = c.covs.filter(v=>covKind(v)==='정액').length, kLoss = c.covs.length - kFix;
+  const tabs = $('#covTabs');
+  if(tabs) tabs.querySelectorAll('.ct').forEach(b=>{
+    const k = b.dataset.k;
+    b.classList.toggle('on', edCovTab===k);
+    b.textContent = k==='all' ? `전체 ${c.covs.length}` : k==='정액' ? `정액형 보장 ${kFix}` : `실손형 보장 ${kLoss}`;
+  });
   if(!c.covs.length){
     tb.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--c-text-muted);padding:18px;font-weight:600;">등록된 담보가 없습니다. 아래 ‘+ 담보 추가’로 입력하세요.</td></tr>`;
     return;
   }
+  let shown = 0;
   c.covs.forEach((v,i)=>{
+    if(edCovTab!=='all' && covKind(v)!==edCovTab) return;
+    shown++;
     const tr = document.createElement('tr');
     tr.draggable = false;          // 기본 off — input 편집 보호, 핸들로만 드래그
     tr.dataset.idx = i;
+    const dragH = edCovTab==='all' ? `<span class="drag-handle" title="드래그하여 순서 변경">⠿</span>` : '';
     tr.innerHTML = `
-      <td><span class="drag-handle" title="드래그하여 순서 변경">⠿</span><select onchange="updCov(${i},'category',this.value)" style="width:calc(100% - 22px);">${(()=>{
+      <td>${dragH}<select onchange="updCov(${i},'category',this.value)" style="width:${edCovTab==='all'?'calc(100% - 22px)':'100%'};">${(()=>{
         const vc = v.category || '기타';
         let opts = allCats().concat(['기타']);
         if(!opts.includes(vc)) opts = [vc].concat(opts);   // 알 수 없는 옛 분류값도 그대로 보이게 (첫 항목으로 오인 표시 방지)
@@ -2106,16 +2160,26 @@ function renderCovRows(c){
       <td><input type="text" value="${esc(v.name)}" onchange="updCov(${i},'name',this.value)" style="width:100%;">${v.stdCat?`<div style="font-size:10.5px;font-weight:700;color:var(--c-text-faint);margin-top:2px;">신정원 구분: ${esc(v.stdCat)}</div>`:''}</td>
       <td><input type="number" value="${v.amt}" onchange="updCov(${i},'amt',this.value)"></td>
       <td style="text-align:center;"><button class="delbtn" onclick="delCov(${i})">✕</button></td>`;
-    // 드래그: 핸들에서만 시작
+    // 드래그: 핸들에서만 시작 (전체 탭에서만 — 필터 중 순서 변경 방지)
     const handle = tr.querySelector('.drag-handle');
-    handle.addEventListener('mousedown', ()=>{ tr.draggable = true; });
-    tr.addEventListener('dragstart', e=>{ dragSrcIdx = i; tr.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; });
-    tr.addEventListener('dragend', ()=>{ tr.draggable = false; tr.classList.remove('dragging'); tb.querySelectorAll('tr').forEach(r=>r.classList.remove('drop-into')); });
-    tr.addEventListener('dragover', e=>{ e.preventDefault(); e.dataTransfer.dropEffect='move'; tr.classList.add('drop-into'); });
-    tr.addEventListener('dragleave', ()=> tr.classList.remove('drop-into'));
-    tr.addEventListener('drop', e=>{ e.preventDefault(); tr.classList.remove('drop-into'); moveCovRow(dragSrcIdx, i); });
+    if(handle){
+      handle.addEventListener('mousedown', ()=>{ tr.draggable = true; });
+      tr.addEventListener('dragstart', e=>{ dragSrcIdx = i; tr.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; });
+      tr.addEventListener('dragend', ()=>{ tr.draggable = false; tr.classList.remove('dragging'); tb.querySelectorAll('tr').forEach(r=>r.classList.remove('drop-into')); });
+      tr.addEventListener('dragover', e=>{ e.preventDefault(); e.dataTransfer.dropEffect='move'; tr.classList.add('drop-into'); });
+      tr.addEventListener('dragleave', ()=> tr.classList.remove('drop-into'));
+      tr.addEventListener('drop', e=>{ e.preventDefault(); tr.classList.remove('drop-into'); moveCovRow(dragSrcIdx, i); });
+    }
     tb.appendChild(tr);
   });
+  if(!shown){
+    tb.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--c-text-muted);padding:18px;font-weight:600;">${edCovTab==='정액'?'정액형':'실손형'} 보장 담보가 없습니다.</td></tr>`;
+  }
+}
+function setCovTab(k){
+  edCovTab = k;
+  const c = S.contracts.find(x=>x.id===editingId);
+  if(c) renderCovRows(c);
 }
 let dragSrcIdx = null;
 function moveCovRow(from, to){
@@ -2171,6 +2235,7 @@ function renderDeletedCovBar(){
 function addCovRow(){
   const c = S.contracts.find(x=>x.id===editingId); if(!c) return;
   const nv = {name:'', category:'기타', amt:0};
+  if(edCovTab!=='all') nv.kind = edCovTab;   // 현재 탭(정액/실손)으로 추가
   c.covs.push(nv); covBaseline.push(nv); renderCovRows(c);
   const rows = $('#covBody').querySelectorAll('tr');
   const last = rows[rows.length-1]; const inp = last && last.querySelector('input');
