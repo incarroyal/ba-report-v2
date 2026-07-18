@@ -634,6 +634,32 @@ function migrateState(st){
     // 구버전 분류를 현행 기본틀로 재매핑 (표에서 안 보이던 담보 복구)
     (c.covs||[]).forEach(v=>{ if(v && v.category && CAT_ALIAS[v.category]) v.category = CAT_ALIAS[v.category]; });
   });
+  // 일회성 전면 재분류(v26): 신정원 원문 정책을 저장된 계약에도 소급 적용
+  //  · M보장분석 계약(src=report): 저장된 '신정원 담보명'(stdCat) 원문 그대로
+  //  · 제안서 계약(src=proposal): 담보명을 신정원 관행으로 재매핑 (교통상해입원일당→기타 등)
+  //  · 수동 입력 계약: 건드리지 않음
+  if(st.migV !== 26){
+    (st.contracts||[]).forEach(c=>{
+      (c.covs||[]).forEach(v=>{
+        if(!v || !v.name) return;
+        if(c.src==='report' && v.stdCat) v.category = String(v.stdCat).trim();
+        else if(c.src==='proposal') v.category = mapCovCat(v.name);
+      });
+    });
+    // 재분류 결과 중 기본틀에 없는 신정원 구분은 자동 등록 ('기타'·금액조각 제외)
+    const base = new Set(GROUPS.flatMap(g=>g[1]));
+    st.extraGroups = st.extraGroups||[]; st.extraCats = st.extraCats||{};
+    (st.contracts||[]).forEach(c=>(c.covs||[]).forEach(v=>{
+      if(!v || !v.category || v.category==='기타') return;
+      const cat = v.category;
+      if(base.has(cat) || Object.values(st.extraCats).some(a=>(a||[]).includes(cat))) return;
+      if(cat.length<2 || cat.length>24 || /^[\d,.]+\s*(?:억|만|천)?$/.test(cat) || !/[가-힣]/.test(cat)){ v.category='기타'; return; }
+      const g = KNOWN_SJW[cat] || guessGroupForStd(cat);
+      if(!GROUPS.some(p=>p[0]===g) && !st.extraGroups.includes(g)) st.extraGroups.push(g);
+      (st.extraCats[g] = st.extraCats[g]||[]).push(cat);
+    }));
+    st.migV = 26;
+  }
   // 사용자가 기본틀에서 제외한 구분이 과거 자동 등록으로 남아있으면 정리
   if(st.extraCats) Object.keys(st.extraCats).forEach(g=>{
     st.extraCats[g] = (st.extraCats[g]||[]).filter(c2=>!DENY_SJW.has(c2));
@@ -1044,12 +1070,13 @@ function mapCovCat(name){
     if(has('50%') && !has('미만')) return inj ? '상해후유50%↑' : '질병후유50%↑';
     return inj ? '상해후유3%↑' : '질병후유3%↑';
   }
-  // 암 — 중입자는 별도 구분, 표적·세기조절·양성자는 고액항암치료비(표적), 그 외 치료류는 기타
+  // 암 — 중입자·암주요치료는 별도 구분, 표적·세기조절·양성자는 고액항암치료비(표적), 그 외 치료류는 기타
   if(has('중입자')) return '중입자방사선치료비';
   if(has('표적','세기조절','양성자')) return '고액항암치료비(표적)';
   if(has('항암')) return '기타';
   if(has('암') && has('수술') && !has('진단')) return '암수술';
-  if(has('암') && has('주요치료','치료비','치료시','입원일당','통원') && !has('진단비','진단금')) return '기타';
+  if(has('암') && has('주요치료')) return '암주요치료비';
+  if(has('암') && has('치료비','치료시','입원일당','통원') && !has('진단비','진단금')) return '기타';
   if(has('유사암제외','유사암제외형')) return '암진단';
   if(has('소액암','유사암','제자리암','경계성','갑상선암','기타피부암')) return '유사암진단';
   if(has('남녀특정암','특정암','부위별암')) return '특정암진단';
@@ -1074,9 +1101,10 @@ function mapCovCat(name){
   // 일반 수술
   if(has('상해수술','재해수술')) return '상해수술';
   if(has('질병수술')) return '질병수술';
-  // 입원·간병
+  // 입원·간병 — M보장분석 관행: 교통(운전) 계열 입원일당은 기타
   if(has('간병')) return '간병인일당(사용입원일당)';
-  if(has('입원일당')&&has('상해','재해','교통')) return '상해입원일당';
+  if(has('입원일당')&&has('교통','운전')) return '기타';
+  if(has('입원일당')&&has('상해','재해')) return '상해입원일당';
   if(has('입원일당')||has('입원급여금')) return '질병입원일당';
   // 실손
   if(has('실손','실비')){
