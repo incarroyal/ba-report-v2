@@ -648,15 +648,22 @@ function migrateState(st){
   //  · M보장분석 계약(src=report): 저장된 '신정원 담보명'(stdCat) 원문 그대로
   //  · 제안서 계약(src=proposal): 담보명을 신정원 관행으로 재매핑 (교통상해입원일당→기타 등)
   //  · 수동 입력 계약: 건드리지 않음
-  if(st.migV !== 27){
+  if(st.migV !== 28){
+    const baseRows = new Set(GROUPS.flatMap(g=>g[1]));
     (st.contracts||[]).forEach(c=>{
       (c.covs||[]).forEach(v=>{
         if(!v || !v.name) return;
-        if(c.src==='report' && v.stdCat){
+        if(v.stdCat){   // 신정원 칸 원본 보유 → 그 값을 기본틀로 매핑 (최우선)
           const s = String(v.stdCat).trim();
           v.category = s==='기타' ? '기타' : (CAT_ALIAS[s]!==undefined ? CAT_ALIAS[s] : s);
+        } else if(c.src==='proposal' || c.src==='report'){
+          // 신정원 정보가 없는 옛 저장분(구버전·AI 경로) → 현행 기본틀로 재매핑
+          const cur = String(v.category||'').trim();
+          const byAlias = CAT_ALIAS[cur]!==undefined ? CAT_ALIAS[cur] : (baseRows.has(cur) ? cur : null);
+          const byName = mapCovCat(v.name);
+          // 담보명에 치료류 신호(다빈치·항암·수술 등)가 명확하면 치료비 행 우선, 그 외에는 저장 분류 신뢰
+          v.category = (/치료비$/.test(byName) && byAlias!==byName) ? byName : (byAlias!==null ? byAlias : byName);
         }
-        else if(c.src==='proposal') v.category = mapCovCat(v.name);
       });
     });
     // 재분류 결과 중 기본틀에 없는 신정원 구분은 자동 등록 ('기타'·금액조각 제외)
@@ -671,7 +678,7 @@ function migrateState(st){
       if(!GROUPS.some(p=>p[0]===g) && !st.extraGroups.includes(g)) st.extraGroups.push(g);
       (st.extraCats[g] = st.extraCats[g]||[]).push(cat);
     }));
-    st.migV = 27;
+    st.migV = 28;
   }
   // 사용자가 기본틀에서 제외한 구분이 과거 자동 등록으로 남아있으면 정리
   if(st.extraCats) Object.keys(st.extraCats).forEach(g=>{
@@ -1114,8 +1121,9 @@ function mapCovCat(name){
     if((has('80%')||has('50%')) && !has('미만')) return '기타';
     return has('상해','재해') ? '상해후유장해 3%이상' : '질병후유장해 3%이상';
   }
-  // 암 — 진단은 일반암/유사암, 수술·항암·표적·중입자 등 치료류는 전부 암치료비
+  // 암 — 진단은 일반암/유사암, 수술·항암·표적·중입자·다빈치로봇 등 치료류는 전부 암치료비
   if(has('중입자','표적','세기조절','양성자','항암')) return '암치료비';
+  if(has('다빈치','로봇수술','로봇암')) return '암치료비';
   if(has('암') && has('수술') && !has('진단')) return '암치료비';
   if(has('암') && has('주요치료','치료비','치료시')) return '암치료비';
   if(has('유사암제외','유사암제외형')) return '일반암진단';
@@ -1937,16 +1945,25 @@ async function handleProposals(files){
     try{
       const bytes = await fileToBytes(f);
       // 텍스트로 메타·담보 직접 추출 (AI 누락/오인식 보완) — pdf.js
-      let propMeta = {}, propCovs = [];
+      let propMeta = {}, propCovs = [], isMReport = false;
       try{
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
         const pdoc = await pdfjsLib.getDocument({data: new Uint8Array(bytes)}).promise;
         let ptxt='';
         for(let pp=1; pp<=pdoc.numPages; pp++){ const tc=await (await pdoc.getPage(pp)).getTextContent(); ptxt += ' ' + tc.items.map(i=>i.str).join(' '); }
+        const flat = ptxt.replace(/\s+/g,' ');
+        isMReport = /별첨\s*상품별\s*보험가입현황/.test(flat) && /신정원\s*담보명/.test(flat);
         propMeta = proposalMeta(ptxt);
         propCovs = buildProposalCovs(ptxt);
         if(!S.custAge){ const am = ptxt.replace(/\s+/g,' ').match(/(남|여|남자|여자)\s*[\/(]?\s*(\d{1,3})\s*세|(\d{1,3})\s*세\s*[,)\s]/); if(am) S.custAge = +(am[2]||am[3]); }
       }catch(_){}
+      // M보장분석 PDF를 제안서 칸에 올린 경우 → 신정원 담보명 파서로 자동 전환 (AI·키워드 분류 사용 안 함)
+      if(isMReport){
+        prog('#progProp', base+span*0.3, `'${f.name}' — M보장분석 형식 감지, 신정원 담보명 기준으로 인식 중...`);
+        try{
+          if(await tryParseMReport(new Uint8Array(bytes).slice())){ done++; continue; }
+        }catch(_){ /* 실패 시 일반 제안서 흐름으로 */ }
+      }
       const src = await PDFLib.PDFDocument.load(bytes,{ignoreEncryption:true});
       const pages = Array.from({length: Math.min(src.getPageCount(), 12)}, (_,k)=>k);
       const groups = chunkArr(pages, 3);   // 3페이지/구간 — 각 호출이 10초 안에 끝나도록
