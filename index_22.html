@@ -312,11 +312,11 @@ table.pv td.grp:hover .rowacts.g{opacity:1;}
 .tblwrap{overflow:auto;max-height:76vh;border:1px solid var(--c-line);border-radius:10px;}
 table.pv{border-collapse:collapse;width:100%;font-size:13.5px;white-space:nowrap;}
 table.pv th{background:var(--c-teal-deep);color:#fff;padding:6px 10px;font-size:12.5px;border:1px solid #0c8278;position:sticky;top:0;z-index:6;}
-/* 좌측 구분·담보 열 고정 — 가로 스크롤 시에도 담보명이 항상 보이도록 */
-table.pv th:nth-child(1){position:sticky;left:0;z-index:7;}
-table.pv th:nth-child(2){position:sticky;left:58px;z-index:7;}
-table.pv td.grp{position:sticky;left:0;z-index:4;}
-table.pv td.cov{position:sticky;left:58px;z-index:3;}
+/* 좌측 구분·담보 열 고정 — 가로 스크롤 시 대분류·중분류(담보명)가 함께 보이도록 (구분 열 폭 고정으로 겹침 방지) */
+table.pv th:nth-child(1){position:sticky;left:0;z-index:7;width:74px;min-width:74px;max-width:74px;}
+table.pv th:nth-child(2){position:sticky;left:74px;z-index:7;}
+table.pv td.grp{position:sticky;left:0;z-index:4;width:74px;min-width:74px;max-width:74px;white-space:normal;word-break:keep-all;}
+table.pv td.cov{position:sticky;left:74px;z-index:3;box-shadow:2px 0 0 var(--c-line);}
 table.pv td[colspan]{position:sticky;left:0;z-index:3;}
 table.pv th .ins{font-weight:800;display:block;max-width:120px;overflow:hidden;text-overflow:ellipsis;} table.pv th .st{font-size:10.5px;opacity:.9;display:block;max-width:120px;overflow:hidden;text-overflow:ellipsis;}
 table.pv th.drop{background:var(--c-orange);border-color:#d96f12;}
@@ -536,7 +536,7 @@ table.pv td.mcell.ed .spwrap .spcancel{background:#e5e9f0;color:#5a6678;}
       </div>
       <div class="cov-scroll">
         <table>
-          <thead><tr><th style="width:30%">보장구분 (표준 분류)</th><th style="width:42%">보장명</th><th style="width:18%">보장금액(만원)</th><th style="width:10%"></th></tr></thead>
+          <thead><tr><th style="width:30%">보장구분 (신정원 기준)</th><th style="width:42%">보장명</th><th style="width:18%">보장금액(만원)</th><th style="width:10%"></th></tr></thead>
           <tbody id="covBody"></tbody>
         </table>
       </div>
@@ -951,6 +951,26 @@ const isHiddenCat = cat => (S.hiddenCats||[]).includes(cat);
 const visCats = items => items.filter(cat=>!isHiddenCat(cat));
 // 기본 표시 라벨 (사용자 지정 라벨이 없을 때) — 특정질병수술비는 항상 'N대수술비'로 보이게
 const CAT_DISPLAY = { '암치료비':'치료비', '뇌질환치료비':'치료비', '심장질환치료비':'치료비' };   // 그룹 안에서는 '치료비'로 표시
+// 편집기 보장구분 선택지 = 신정원 담보명 (M보장분석 4건 실측 어휘) — 선택 시 기본틀로 자동 매핑돼 표에 반영
+const SJW_SEL = ['질병사망','상해사망','질병후유3%↑','상해후유3%↑','질병후유50%↑','질병후유80%↑','상해후유50%↑','상해후유80%↑',
+  '암진단','유사암진단','특정암진단','고액암진단','암수술','암주요치료비','고액항암치료비(표적)','중입자방사선치료비',
+  '뇌혈관질환진단','뇌졸중진단','뇌출혈진단','뇌산정특례대상진단비','뇌졸중수술',
+  '허혈성심장질환진단','급성심근경색진단','심장산정특례대상진단비','급성심근경색수술',
+  '질병수술','상해수술','질병종수술','상해종수술','특정질병수술',
+  '질병입원일당','상해입원일당','간병인일당(사용입원일당)',
+  '질병입원의료','질병통원','상해입원의료','상해통원',
+  '교통사고처리지원금(형사합의포함)','변호사선임비용','벌금비용','자동차부상치료비','민사소송법률비용','화재벌금',
+  '골절진단','화상진단','보존치료','일상생활배상','2대질환주요치료비','기타'];
+// 신정원 구분 선택 → stdCat 저장 + 기본틀 분류 자동 매핑
+function updCovStd(i, val){
+  const c = S.contracts.find(x=>x.id===editingId); if(!c || !c.covs[i]) return;
+  const v = c.covs[i];
+  v.stdCat = val;
+  v.category = val==='기타' ? '기타'
+    : (CAT_ALIAS[val]!==undefined ? CAT_ALIAS[val]
+    : (allCats().includes(val) ? val : (autoRegisterStdCat(val) ? val : '기타')));
+  persist(); renderCovRows(c); refreshAll();
+}
 /* ── M보장분석 실측 사전: 회사 담보명 → 신정원 담보명 (4건·448행 실측, 2026.07.18) ──
    신정원 칸이 없는 리포트(롯데 등)·제안서·AI 결과의 담보명을 이 사전으로 조회해 M보장분석과 동일하게 분류 */
 const SJW_NAME_DICT = {
@@ -1221,8 +1241,16 @@ async function buildContractTable(bytes){
         name: m[8].replace(/\s+/g,' ').trim(),
         payProgress: m[6],
         payTerm,
-        period: m[3] + ' ~ ' + m[4]
+        period: m[3] + ' ~ ' + m[4],
+        prem
       };
+    }
+    // 보험료 0원 계약(실손의료비보험 등): 날짜·납입주기 없이 "No 보험사 0/0 0원 0원 0원 상품명" 형식
+    const RX2 = new RegExp('(\\d{1,3})\\s+(' + INS + ')\\s+(\\d{1,3}\\/\\d{1,3})\\s+0\\s*원\\s+0\\s*원\\s+0\\s*원\\s+(.+?)(?=\\s+\\d{1,3}\\s+' + INS + '|\\s+서울|$)', 'g');
+    RX2.lastIndex = 0; let zi = 0;
+    while(m = RX2.exec(fullText)){
+      out['z' + (++zi)] = { insurer: m[2].trim(), name: m[4].replace(/\s+/g,' ').trim(),
+        payProgress: m[3]==='0/0' ? '' : m[3], payTerm: '', period: '', prem: 0 };
     }
   }catch(e){ DBG.error = String(e&&e.message||e); }
   DBG.result = out;
@@ -1576,9 +1604,14 @@ function addMissingFromTable(){
   const have = new Set(S.contracts.filter(c=>c.src==='report').map(c=> +c.monthlyPremium||0));
   let added = 0;
   Object.keys(tm).forEach(k=>{
-    const prem = +k;
-    if(prem <= 0 || have.has(prem)) return;
-    const t = tm[prem];
+    const t = tm[k];
+    const prem = (t && t.prem!=null) ? +t.prem : (+k||0);
+    if(prem > 0){ if(have.has(prem)) return; }
+    else {   // 보험료 0원 계약(실손의료비 등) — 상품명 기준 중복 확인 후 추가
+      if(!t || !t.name) return;
+      const nk = String(t.name).replace(/\s/g,'');
+      if(S.contracts.some(c=>c.src==='report' && String(c.productName||'').replace(/\s/g,'')===nk)) return;
+    }
     S.contracts.push({ id: uid(), src:'report', status:'유지', _ord: 9000 + added,
       insurer: t.insurer||'', productName: t.name||'', monthlyPremium: prem,
       payProgress: t.payProgress||'', payTerm: t.payTerm||'', period: t.period||'',
@@ -2306,13 +2339,13 @@ function renderCovRows(c){
     tr.dataset.idx = i;
     const dragH = edCovTab==='all' ? `<span class="drag-handle" title="드래그하여 순서 변경">⠿</span>` : '';
     tr.innerHTML = `
-      <td>${dragH}<select onchange="updCov(${i},'category',this.value)" style="width:${edCovTab==='all'?'calc(100% - 22px)':'100%'};">${(()=>{
-        const vc = v.category || '기타';
-        let opts = allCats().concat(['기타']);
-        if(!opts.includes(vc)) opts = [vc].concat(opts);   // 알 수 없는 옛 분류값도 그대로 보이게 (첫 항목으로 오인 표시 방지)
+      <td>${dragH}<select onchange="updCovStd(${i},this.value)" style="width:${edCovTab==='all'?'calc(100% - 22px)':'100%'};" title="신정원 담보구분 — 선택하면 표준분류 표에 자동 반영됩니다">${(()=>{
+        const vc = v.stdCat || v.category || '기타';   // 신정원 구분을 그대로 표시 (없으면 현재 분류)
+        let opts = SJW_SEL.slice();
+        if(!opts.includes(vc)) opts = [vc].concat(opts);   // 사전 밖 값도 그대로 보이게
         return opts.map(k=>`<option ${k===vc?'selected':''}>${k}</option>`).join('');
       })()}</select></td>
-      <td><input type="text" value="${esc(v.name)}" onchange="updCov(${i},'name',this.value)" style="width:100%;">${v.stdCat?`<div style="font-size:10.5px;font-weight:700;color:var(--c-text-faint);margin-top:2px;">신정원 구분: ${esc(v.stdCat)}</div>`:''}</td>
+      <td><input type="text" value="${esc(v.name)}" onchange="updCov(${i},'name',this.value)" style="width:100%;"></td>
       <td><input type="number" value="${v.amt}" onchange="updCov(${i},'amt',this.value)"></td>
       <td style="text-align:center;"><button class="delbtn" onclick="delCov(${i})">✕</button></td>`;
     // 드래그: 핸들에서만 시작 (전체 탭에서만 — 필터 중 순서 변경 방지)
@@ -2724,7 +2757,7 @@ function revertInfoTot(key, side){ if(S.infoTot && S.infoTot[key]){ delete S.inf
 function renderMatrix(){
   const cs = S.contracts;
   if(!cs.length){ $('#mtxWrap').innerHTML=''; return; }
-  let html = '<table class="pv"><thead><tr><th style="width:58px;">구분</th><th style="text-align:left;">담보</th>';
+  let html = '<table class="pv"><thead><tr><th style="width:74px;">구분</th><th style="text-align:left;">담보</th>';
   cs.forEach(c=>{
     const cls = DROP_ST.includes(c.status)?'drop':c.status==='제안'?'prop':'';
     html += `<th class="${cls}"><button class="thdel" onclick="event.stopPropagation();delContract('${c.id}')" title="이 계약(상품) 삭제">✕</button><span class="ins" onclick="renameField('${c.id}','insurer')" title="클릭하면 보험사 수정" style="cursor:pointer;">${esc(c.insurer)}</span><span class="st" onclick="renameField('${c.id}','productName')" title="클릭하면 상품명 수정" style="cursor:pointer;">${esc(short(stripMu(c.productName)))} · ${c.status}</span></th>`;
