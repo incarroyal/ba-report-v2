@@ -558,14 +558,14 @@ const GROUPS = [
   ['사망',       ['질병사망','상해사망']],
   ['후유장해',   ['질병후유3%↑','질병후유80%↑','상해후유3%↑','상해후유50%↑','상해후유80%↑']],
   ['실손의료비', ['질병입원의료','질병통원','상해입원의료','상해통원']],
-  ['암',         ['암진단','유사암진단','특정암진단','암수술','고액항암치료비(표적)']],
-  ['뇌혈관질환', ['뇌혈관질환진단','뇌졸중진단','뇌졸중수술']],
-  ['심장질환',   ['허혈성심장질환진단','급성심근경색진단','급성심근경색수술']],
+  ['암',         ['암진단','유사암진단','특정암진단','고액암진단','암수술','암주요치료비','고액항암치료비(표적)','중입자방사선치료비']],
+  ['뇌혈관질환', ['뇌혈관질환진단','뇌출혈진단','뇌졸중진단','뇌산정특례대상진단비','뇌졸중수술']],
+  ['심장질환',   ['허혈성심장질환진단','급성심근경색진단','심장산정특례대상진단비','급성심근경색수술']],
   ['수술비',     ['상해수술','질병종수술','상해종수술']],
   ['입원·간병',  ['질병입원일당','상해입원일당']],
   ['운전자',     ['교통사고처리지원금(형사합의포함)','변호사선임비용','벌금비용','자동차부상치료비','민사소송법률비용']],
   ['치아',       ['보존치료']],
-  ['기타',       ['일상생활배상','골절진단','화상진단','화재벌금']]
+  ['기타',       ['일상생활배상','골절진단','화상진단','화재벌금','2대질환주요치료비']]
 ];
 // 기본 GROUPS + 사용자가 추가한 대분류(extraGroups)/중분류(extraCats) 병합
 function effectiveGroups(){
@@ -1044,8 +1044,9 @@ function mapCovCat(name){
     if(has('50%') && !has('미만')) return inj ? '상해후유50%↑' : '질병후유50%↑';
     return inj ? '상해후유3%↑' : '질병후유3%↑';
   }
-  // 암 — 표적·세기조절·양성자·중입자 방사선은 고액항암치료비(표적), 그 외 치료류는 기타
-  if(has('표적','세기조절','양성자','중입자')) return '고액항암치료비(표적)';
+  // 암 — 중입자는 별도 구분, 표적·세기조절·양성자는 고액항암치료비(표적), 그 외 치료류는 기타
+  if(has('중입자')) return '중입자방사선치료비';
+  if(has('표적','세기조절','양성자')) return '고액항암치료비(표적)';
   if(has('항암')) return '기타';
   if(has('암') && has('수술') && !has('진단')) return '암수술';
   if(has('암') && has('주요치료','치료비','치료시','입원일당','통원') && !has('진단비','진단금')) return '기타';
@@ -1062,7 +1063,7 @@ function mapCovCat(name){
   if(has('종수술','종질병수술','1~5종','3종','5종','7종')) return has('상해','재해')?'상해종수술':'질병종수술';
   // 뇌혈관 (뇌출혈은 뇌졸중 계열 · 외상성 뇌손상/뇌출혈은 기타)
   if(has('외상성')) return '기타';
-  if(has('뇌출혈')) return has('수술')?'뇌졸중수술':'뇌졸중진단';
+  if(has('뇌출혈')) return has('수술')?'뇌졸중수술':'뇌출혈진단';
   if(has('뇌졸중')) return has('수술')?'뇌졸중수술':'뇌졸중진단';
   if(has('뇌혈관')&&(has('수술')||has('치료'))) return '뇌졸중수술';
   if(has('뇌혈관')) return '뇌혈관질환진단';
@@ -1272,7 +1273,7 @@ async function pool(tasks, limit, onDone){
 const CAT_ALIAS = {   // 레거시(구버전 기본틀)·회사식 표기 → 신정원 원문 구분
   '일반암진단비':'암진단', '유사암진단비':'유사암진단', '암치료비':'기타',
   '항암치료':'기타', '재진단암':'기타', '재진단암진단':'기타',
-  '뇌혈관질환진단비':'뇌혈관질환진단', '뇌졸중진단비':'뇌졸중진단', '뇌출혈진단비':'뇌졸중진단', '뇌출혈진단':'뇌졸중진단', '뇌혈관치료비':'뇌졸중수술',
+  '뇌혈관질환진단비':'뇌혈관질환진단', '뇌졸중진단비':'뇌졸중진단', '뇌출혈진단비':'뇌출혈진단', '뇌혈관치료비':'뇌졸중수술',
   '허혈성심장질환진단비':'허혈성심장질환진단', '급성심근경색진단비':'급성심근경색진단', '심장질환치료비':'급성심근경색수술',
   '질병수술비':'질병수술', '상해수술비':'상해수술', '종수술비(1~5종)':'질병종수술', '특정질병수술비':'질병종수술', 'N대수술':'질병종수술',
   '간병인사용지원':'간병인일당(사용입원일당)', '간병인사용입원일당':'간병인일당(사용입원일당)',
@@ -1557,6 +1558,7 @@ function guessGroupForStd(std){
 function autoRegisterStdCat(std){
   std = String(std||'').trim();
   if(!std || std==='기타' || std.length<2 || std.length>24 || !/[가-힣]/.test(std)) return false;
+  if(/^[\d,.]+\s*(?:억|만|천)?$/.test(std)) return false;   // '10만' 같은 금액 조각 오등록 방지
   if(DENY_SJW.has(std)) return false;   // 사용자가 기본틀에서 제외한 구분은 재등록 금지
   if(allCats().includes(std)) return true;
   const g = KNOWN_SJW[std] || guessGroupForStd(std);
@@ -1580,9 +1582,13 @@ function parseManAmt(s){
 function parseMPage(txt){
   txt = String(txt||'').replace(/\s+/g,' ');
   const h = txt.match(/별첨\s*상품별\s*보험가입현황\s*(\d+)\s+(\S+)\s+(.+?)\s*계약자\/피보험자/);
-  if(!h) return null;
-  const c = { id: uid(), src:'report', status:'유지', insurer: h[2], productName: h[3].trim(),
-              monthlyPremium:0, payProgress:'', payTerm:'', period:'', csPhone:'', special:false, covs:[], _ord:+h[1] };
+  // 담보 30행 초과 시 이어지는 연속 페이지: "별첨 … NN" + 계약자 정보 없이 표만 반복
+  const hc = !h && txt.match(/별첨\s*상품별\s*보험가입현황\s*(\d+)\s/);
+  if(!h && !(hc && /\d{1,2}\s+(?:정액|실손)\s/.test(txt))) return null;
+  const c = h
+    ? { id: uid(), src:'report', status:'유지', insurer: h[2], productName: h[3].trim(),
+        monthlyPremium:0, payProgress:'', payTerm:'', period:'', csPhone:'', special:false, covs:[], _ord:+h[1] }
+    : { covs:[], _ord:+hc[1] };
   let matu = '';
   const pm = txt.match(/납입주기\/납입기간\/만기\s+([^\/ ]+)\/([^\/ ]+)\/(종신|[^ ]+(?:\s*만기)?)/);
   if(pm){
@@ -1611,7 +1617,7 @@ function parseMPage(txt){
   // 담보 행: "N 정액|실손 회사담보명 신정원담보명 금액" — 행 시작 번호로 분할
   const body = (txt.split(/신정원\s*담보명\s*가입금액/)[1]) || txt;
   body.split(/\s(?=\d{1,2}\s+(?:정액|실손)\s)/).forEach(sg=>{
-    sg = sg.replace(/\s*\*\s*신용정보원[^]*$/,'').replace(/(?:\s+\d{1,2}){2,}\s*(?:\*.*)?$/,'').trim();   // 각주('* 신용정보원…')와 뒤에 붙은 빈 행 번호들(6 7 8 … 30) 제거
+    sg = sg.replace(/\s*\*\s*신용정보원[^]*$/,'').replace(/(?:\s+\d{1,2})+\s*(?:\*.*)?$/,'').trim();   // 각주('* 신용정보원…')와 뒤에 붙은 빈 행 번호들(단독 포함: … 10만 41) 제거 — 금액은 만/억 접미라 안전
     let m = sg.match(/^(\d{1,2})\s+(정액|실손)\s+(.+?)\s+(\S+)\s+((?:\d+억\s*)?[\d,]*\s*(?:만|천)?)$/);
     if(!m){
       // 회사담보명+신정원명이 공백 없이 한 덩어리인 행("…자가용운전자용)기타 10만")
@@ -1639,7 +1645,7 @@ function parseMPage(txt){
     if(!name) name = std;
     c.covs.push({ name, stdCat: std, category: cat, amt, renew: /갱신/.test(name) });
   });
-  return { c, matu };
+  return h ? { c, matu } : { cont: c._ord, covs: c.covs };   // 연속 페이지는 담보만 반환 → 같은 번호 계약에 병합
 }
 // M보장분석 전체 파싱 — 성공 시 true (별첨 페이지가 하나도 없으면 false → 기존 파이프라인으로)
 async function tryParseMReport(bytes){
@@ -1652,7 +1658,12 @@ async function tryParseMReport(bytes){
     const txt = tc.items.map(i=>i.str).join(' ');
     if(!/별첨\s*상품별\s*보험가입현황/.test(txt.replace(/\s+/g,' '))) continue;
     const r = parseMPage(txt);
-    if(r) found.push(r);
+    if(r && r.c) found.push(r);
+    else if(r && r.cont != null && found.length){
+      // 30행 초과 계약의 연속 페이지 → 같은 번호 계약에 담보 이어붙이기
+      const target = found.find(x=>x.c._ord===r.cont) || found[found.length-1];
+      target.c.covs.push(...r.covs);
+    }
     prog('#progReport', 0.1 + 0.8*(p/doc.numPages), `신정원 보장분석 인식 중... (${p}/${doc.numPages}p, 계약 ${found.length}건)`);
   }
   if(!found.length) return false;
