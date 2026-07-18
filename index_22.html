@@ -309,15 +309,21 @@ table.pv td.grp:hover .rowacts.g{opacity:1;}
 .stat.prop .v{color:var(--c-purple);} .stat.after{border-color:var(--c-line-teal);background:var(--c-teal-bg-1);}
 .stat.after .v{color:var(--c-teal-deep);}
 .stat .sub{font-size:11.5px;color:var(--c-text-faint);margin-top:2px;}
-.tblwrap{overflow-x:auto;border:1px solid var(--c-line);border-radius:10px;}
-table.pv{border-collapse:collapse;width:100%;font-size:12.5px;white-space:nowrap;}
-table.pv th{background:var(--c-teal-deep);color:#fff;padding:5px 10px;font-size:12px;border:1px solid #0c8278;position:sticky;top:0;}
+.tblwrap{overflow:auto;max-height:76vh;border:1px solid var(--c-line);border-radius:10px;}
+table.pv{border-collapse:collapse;width:100%;font-size:13.5px;white-space:nowrap;}
+table.pv th{background:var(--c-teal-deep);color:#fff;padding:6px 10px;font-size:12.5px;border:1px solid #0c8278;position:sticky;top:0;z-index:6;}
+/* 좌측 구분·담보 열 고정 — 가로 스크롤 시에도 담보명이 항상 보이도록 */
+table.pv th:nth-child(1){position:sticky;left:0;z-index:7;}
+table.pv th:nth-child(2){position:sticky;left:58px;z-index:7;}
+table.pv td.grp{position:sticky;left:0;z-index:4;}
+table.pv td.cov{position:sticky;left:58px;z-index:3;}
+table.pv td[colspan]{position:sticky;left:0;z-index:3;}
 table.pv th .ins{font-weight:800;display:block;max-width:120px;overflow:hidden;text-overflow:ellipsis;} table.pv th .st{font-size:10.5px;opacity:.9;display:block;max-width:120px;overflow:hidden;text-overflow:ellipsis;}
 table.pv th.drop{background:var(--c-orange);border-color:#d96f12;}
 table.pv th.prop{background:var(--c-purple);border-color:#5b2483;}
-table.pv td{border:1px solid var(--c-line);padding:3px 7px;text-align:right;background:#fff;line-height:1.25;}
+table.pv td{border:1px solid var(--c-line);padding:5px 8px;text-align:right;background:#fff;line-height:1.3;}
 table.pv td.grp{background:var(--c-teal-bg-2);font-weight:700;text-align:center;color:var(--c-teal-deepest);}
-table.pv td.cov{text-align:left;font-weight:600;background:#fcfefd;white-space:nowrap;line-height:1.2;position:relative;font-size:12px;padding-right:6px;}
+table.pv td.cov{text-align:left;font-weight:600;background:#fcfefd;white-space:nowrap;line-height:1.25;font-size:13px;padding-right:6px;}
 table.pv td.cov .rowacts{position:absolute;right:2px;top:50%;transform:translateY(-50%);margin:0;background:rgba(252,254,253,.96);padding:0 2px;border-radius:4px;}
 table.pv td.tot{font-weight:700;background:var(--c-teal-bg-1);}
 table.pv td.up{color:var(--c-success);font-weight:700;} table.pv td.dn{color:var(--c-danger);font-weight:700;}
@@ -3472,23 +3478,42 @@ function addCoverP(p, cust, dstr, pn){
   const s = p.addSlide(); s.background = {color:'FFFFFF'};
   const cnm = (cust && cust!=='고객') ? cust : 'OOO';
   const pnm = pn || 'OO';
-  s.addImage({ data: COVER156_BG, x:0, y:0, w:PW, h:5.0, sizing:{type:'cover', w:PW, h:5.0} });
-  s.addText('CONSULTING REPORT', {x:0.7, y:5.35, w:4.5, h:0.28, fontSize:10, bold:true, color:PC.GOLD, charSpacing:3.2, fontFace:FONT});
+  // 상단 브랜드 바 + 골드 포인트
+  s.addShape('rect', {x:0, y:0, w:PW, h:0.16, fill:{color:PC.NAVY}});
+  s.addShape('rect', {x:0, y:0.16, w:2.05, h:0.045, fill:{color:PC.GOLD}});
+  // 우상단 기하 포인트 (절제된 동심원 아웃라인)
+  s.addShape('ellipse', {x:PW-3.3, y:-1.65, w:4.95, h:4.95, fill:{color:'FFFFFF', transparency:100}, line:{color:'E8EDF4', width:1.5}});
+  s.addShape('ellipse', {x:PW-2.35, y:-0.95, w:3.55, h:3.55, fill:{color:'FFFFFF', transparency:100}, line:{color:'EEF2F8', width:1.5}});
+  // 헤더
+  s.addText([
+    {text:'ROYAL', options:{color:PC.NAVY, bold:true, fontSize:12.5, charSpacing:2.5}},
+    {text:'   INSURANCE CONSULTING', options:{color:'8B96A5', bold:true, fontSize:7.5, charSpacing:3}}
+  ], {x:0.7, y:0.42, w:5.4, h:0.34, fontFace:FONT, valign:'middle'});
+  s.addText(dstr, {x:5.9, y:0.44, w:1.67, h:0.3, fontSize:9, bold:true, color:PC.MUTE, align:'right', fontFace:FONT, valign:'middle'});
+  // 본문
+  s.addText('INSURANCE PORTFOLIO REVIEW', {x:0.7, y:4.0, w:5.5, h:0.3, fontSize:9.5, bold:true, color:PC.GOLD, charSpacing:4.2, fontFace:FONT});
   s.addText([
     {text:cnm, options:{color:PC.BLUE}},
-    {text:' 고객님\n보장분석 컨설팅', options:{color:PC.NAVY}}
-  ], {x:0.68, y:5.72, w:6.9, h:1.25, fontSize:27, bold:true, fontFace:FONT, charSpacing:-0.5, lineSpacingMultiple:1.12, valign:'top'});
-  s.addText('모두의 인생이 더 단단해지도록,\n우리는 설계합니다', {x:0.7, y:7.12, w:5.5, h:0.66, fontSize:11.5, bold:true, color:'5A6678', fontFace:FONT, lineSpacingMultiple:1.35, valign:'top'});
-  s.addShape('rect', {x:0.7, y:8.05, w:1.34, h:0.04, fill:{color:PC.GOLD}});
-  s.addText(`${pnm} 설계사`, {x:0.7, y:8.22, w:4, h:0.4, fontSize:15, bold:true, color:PC.NAVY, fontFace:FONT});
+    {text:' 고객님', options:{color:'5A6678'}}
+  ], {x:0.68, y:4.42, w:6.9, h:0.42, fontSize:15, bold:true, fontFace:FONT, valign:'middle'});
+  s.addText('보장분석 리포트', {x:0.66, y:4.92, w:7.0, h:0.95, fontSize:41, bold:true, color:PC.NAVY, fontFace:FONT, charSpacing:-1, valign:'middle'});
+  s.addShape('rect', {x:0.7, y:6.28, w:0.63, h:0.047, fill:{color:PC.GOLD}});
+  // 메타 3열
+  const meta = [['CONSULTANT', pnm], ['DATE', dstr], ['OFFICE', '인카금융서비스 로얄사업단']];
+  meta.forEach(([lb, vv], i)=>{
+    const mx = 0.7 + i*2.42;
+    s.addText(lb, {x:mx, y:6.62, w:2.3, h:0.24, fontSize:7.5, bold:true, color:'9AA6B6', charSpacing:2.5, fontFace:FONT});
+    s.addText(vv, {x:mx, y:6.88, w:2.35, h:0.34, fontSize:12, bold:true, color:PC.NAVY, fontFace:FONT});
+  });
+  // 푸터
   s.addShape('line', {x:0.7, y:10.38, w:6.87, h:0, line:{color:PC.LINE, width:1}});
   s.addText([
-    {text:'iN', options:{color:PC.NAVY, bold:true, italic:true, fontSize:12.5}},
-    {text:'CAR', options:{color:PC.BLUE, bold:true, italic:true, fontSize:12.5}},
-    {text:'  인카금융서비스(주)', options:{color:PC.NAVY, bold:true, fontSize:10.5}},
+    {text:'iN', options:{color:PC.NAVY, bold:true, italic:true, fontSize:12}},
+    {text:'CAR', options:{color:PC.BLUE, bold:true, italic:true, fontSize:12}},
+    {text:'  인카금융서비스(주)', options:{color:PC.NAVY, bold:true, fontSize:10}},
     {text:'  KOSDAQ 상장법인', options:{color:'8B96A5', bold:true, fontSize:8}}
   ], {x:0.7, y:10.5, w:5.6, h:0.32, fontFace:FONT, valign:'middle'});
-  s.addText(dstr, {x:5.9, y:10.52, w:1.67, h:0.28, fontSize:8.5, bold:true, color:PC.MUTE, align:'right', fontFace:FONT, valign:'middle'});
+  s.addText('CONFIDENTIAL', {x:5.6, y:10.52, w:1.97, h:0.28, fontSize:8, bold:true, color:'9AA6B6', charSpacing:2.5, align:'right', fontFace:FONT, valign:'middle'});
   s.addText('본 자료는 인카금융서비스 로얄사업단 내부자료입니다. 무단 유출·복제·배포 및 로얄사업단 외 인원이 사용 시 민형사상 책임을 물을 수 있습니다.',
     {x:0.7, y:10.92, w:6.87, h:0.4, fontSize:6.5, color:'A7B2C0', fontFace:FONT, lineSpacingMultiple:1.3, valign:'top'});
 }
@@ -3766,22 +3791,35 @@ function buildPrintHTML(){
   {
   const cnm = ($('#custName').value.trim()) || 'OOO';
   const pnm = pn || 'OO';
-  h += `<div class="psheet" style="padding:0;overflow:hidden;display:flex;flex-direction:column;background:#fff;">
-    <!-- 상단 브랜드 이미지(세로 크롭) -->
-    <div style="height:43%;background:url('${COVER156_BG}') center 26%/cover no-repeat;position:relative;">
-      <div style="position:absolute;left:0;right:0;bottom:0;height:30mm;background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,0.96));"></div>
+  h += `<div class="psheet" style="padding:0;overflow:hidden;position:relative;background:#fff;display:flex;flex-direction:column;">
+    <!-- 상단 브랜드 바 -->
+    <div style="height:4mm;background:#0E2C4D;"></div>
+    <div style="height:1.1mm;background:#B0894C;width:52mm;"></div>
+    <!-- 우상단 기하 포인트 (절제된 동심원) -->
+    <div style="position:absolute;top:-42mm;right:-42mm;width:126mm;height:126mm;border:0.55mm solid #E8EDF4;border-radius:50%;"></div>
+    <div style="position:absolute;top:-24mm;right:-24mm;width:90mm;height:90mm;border:0.55mm solid #EEF2F8;border-radius:50%;"></div>
+    <!-- 헤더 -->
+    <div style="display:flex;justify-content:space-between;align-items:baseline;padding:11mm 18mm 0;position:relative;">
+      <div><span style="font-weight:900;font-size:12.5pt;color:#0E2C4D;letter-spacing:2.5px;">ROYAL</span>&nbsp;&nbsp;<span style="font-size:7.5pt;color:#8B96A5;font-weight:800;letter-spacing:3px;">INSURANCE CONSULTING</span></div>
+      <div style="font-size:9pt;color:#9AA6B6;font-weight:700;">${dstr}</div>
     </div>
-    <!-- 하단 정보 -->
-    <div style="flex:1;padding:11mm 18mm 12mm;display:flex;flex-direction:column;">
-      <div style="font-size:9pt;font-weight:800;color:#B0894C;letter-spacing:4px;margin-bottom:5mm;">CONSULTING REPORT</div>
-      <div style="font-size:29pt;font-weight:800;color:#0E2C4D;line-height:1.25;letter-spacing:-1px;"><span style="color:#1565C0;">${esc(cnm)}</span> 고객님<br>보장분석 컨설팅</div>
-      <div style="font-size:11.5pt;font-weight:700;color:#5A6678;margin-top:7mm;line-height:1.5;">모두의 인생이 더 단단해지도록,<br>우리는 설계합니다</div>
-      <div style="width:34mm;height:2.6pt;background:#B0894C;border-radius:2pt;margin:9mm 0 5mm;"></div>
-      <div style="font-size:16pt;font-weight:800;color:#0E2C4D;">${esc(pnm)} 설계사</div>
-      <div style="flex:1;"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;border-top:0.8pt solid #E5E9F0;padding-top:5mm;">
-        <div><span style="font-size:13pt;font-weight:900;color:#0E2C4D;font-style:italic;letter-spacing:-0.6px;">iN</span><span style="font-size:13pt;font-weight:900;color:#1565C0;font-style:italic;letter-spacing:-0.6px;">CAR</span>&nbsp;<span style="font-size:11pt;font-weight:800;color:#0E2C4D;">인카금융서비스(주)</span>&nbsp;<span style="font-size:8.5pt;font-weight:700;color:#8B96A5;">KOSDAQ 상장법인</span></div>
-        <div style="font-size:8.5pt;color:#9AA6B6;font-weight:700;">${dstr}</div>
+    <!-- 본문 -->
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 18mm;position:relative;">
+      <div style="font-size:9.5pt;font-weight:800;color:#B0894C;letter-spacing:4.5px;margin-bottom:7mm;">INSURANCE PORTFOLIO REVIEW</div>
+      <div style="font-size:15pt;font-weight:700;color:#5A6678;margin-bottom:3mm;"><span style="color:#1565C0;font-weight:800;">${esc(cnm)}</span> 고객님</div>
+      <div style="font-size:41pt;font-weight:800;color:#0E2C4D;line-height:1.12;letter-spacing:-1.5px;">보장분석 리포트</div>
+      <div style="width:16mm;height:1.2mm;background:#B0894C;margin:11mm 0 9mm;"></div>
+      <div style="display:flex;gap:17mm;">
+        <div><div style="font-size:7.5pt;font-weight:800;color:#9AA6B6;letter-spacing:2.5px;margin-bottom:1.6mm;">CONSULTANT</div><div style="font-size:12.5pt;font-weight:800;color:#0E2C4D;">${esc(pnm)}</div></div>
+        <div><div style="font-size:7.5pt;font-weight:800;color:#9AA6B6;letter-spacing:2.5px;margin-bottom:1.6mm;">DATE</div><div style="font-size:12.5pt;font-weight:800;color:#0E2C4D;">${dstr}</div></div>
+        <div><div style="font-size:7.5pt;font-weight:800;color:#9AA6B6;letter-spacing:2.5px;margin-bottom:1.6mm;">OFFICE</div><div style="font-size:12.5pt;font-weight:800;color:#0E2C4D;">인카금융서비스 로얄사업단</div></div>
+      </div>
+    </div>
+    <!-- 푸터 -->
+    <div style="padding:0 18mm 12mm;position:relative;">
+      <div style="border-top:0.8pt solid #E5E9F0;padding-top:5mm;display:flex;justify-content:space-between;align-items:center;">
+        <div><span style="font-size:12pt;font-weight:900;color:#0E2C4D;font-style:italic;letter-spacing:-0.6px;">iN</span><span style="font-size:12pt;font-weight:900;color:#1565C0;font-style:italic;letter-spacing:-0.6px;">CAR</span>&nbsp;<span style="font-size:10pt;font-weight:800;color:#0E2C4D;">인카금융서비스(주)</span>&nbsp;<span style="font-size:8pt;font-weight:700;color:#8B96A5;">KOSDAQ 상장법인</span></div>
+        <div style="font-size:8pt;color:#9AA6B6;font-weight:800;letter-spacing:2.5px;">CONFIDENTIAL</div>
       </div>
       <div style="font-size:7pt;color:#A7B2C0;font-weight:600;line-height:1.6;margin-top:3mm;">본 자료는 인카금융서비스 로얄사업단 내부자료입니다. 무단 유출·복제·배포 및 로얄사업단 외 인원이 사용 시 민형사상 책임을 물을 수 있습니다.</div>
     </div>
