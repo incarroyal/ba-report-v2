@@ -1316,7 +1316,9 @@ function mapCovCat(name){
   if(has('입원일당')&&has('교통','운전')) return '기타';
   if(has('입원일당')&&has('상해','재해')) return '상해입원일당';
   if(has('입원일당')||has('입원급여금')) return '질병입원일당';
-  // 실손의료비
+  // 실손의료비 — 처방조제·외래는 통원, 비급여 3종(도수·주사·MRI)은 기타
+  if(has('처방조제','외래의료비','외래')) return has('상해') ? '상해통원' : '질병통원';
+  if(has('비급여도수','비급여주사','비급여MRI','비급여 주사','비급여 MRI')) return '기타';
   if(has('실손','실비')){
     if(has('상해')&&has('통원')) return '상해통원';
     if(has('상해')) return '상해입원';
@@ -1906,6 +1908,121 @@ function parseMPage(txt){
   return h ? { c, matu } : { cont: c._ord, covs: c.covs };   // 연속 페이지는 담보만 반환 → 같은 번호 계약에 병합
 }
 // M보장분석 전체 파싱 — 성공 시 true (별첨 페이지가 하나도 없으면 false → 기존 파이프라인으로)
+/* ===== KB손보 '보장분석' 리포트 (상품별 가입담보상세) — AI 없이 텍스트 직접 파싱 =====
+   행 구조: N | 정액|실손 | (정액: 담보명, KB분류) (실손: 대상, 담보명) | 금액만
+   실손 담보(입원의료비·외래·처방조제·비급여 3종)까지 전부 추출되며, 분류는 M보장 사전→기본틀 매핑 */
+function kbCellsFromTextContent(tc){
+  const rows = {};
+  tc.items.forEach(it=>{
+    if(!it.str.trim()) return;
+    const y = Math.round(it.transform[5]/3)*3;
+    (rows[y]=rows[y]||[]).push({x: it.transform[4], w: it.width, s: it.str});
+  });
+  return Object.keys(rows).map(Number).sort((a,b)=>b-a).map(y=>{
+    const its = rows[y].sort((a,b)=>a.x-b.x);
+    const cells = []; let cur = its[0].s, end = its[0].x + its[0].w;
+    for(let i=1;i<its.length;i++){
+      if(its[i].x - end > 6){ cells.push(cur.trim()); cur = its[i].s; }
+      else cur += its[i].s;
+      end = its[i].x + its[i].w;
+    }
+    cells.push(cur.trim());
+    return cells;
+  });
+}
+function parseKBContracts(pagesCells){
+  const contracts = [];
+  let cur = null, pendName = null;
+  const flat = [];
+  pagesCells.forEach(lines=>lines.forEach(c=>flat.push(c)));
+  const isPayLine = s => /\/\s*\d+\s*년\s*\/\s*(?:\d+\s*세\s*만기|종신)/.test(s);
+  for(let i=0;i<flat.length;i++){
+    const c = flat[i];
+    const j = c.join(' ');
+    const dm = j.match(/\|?\s*가입일자\s*:\s*(\d{4}-\d{2}-\d{2})/);
+    if(dm && c.length>=2 && /^[가-힣A-Za-z()&]{2,14}$/.test(c[0]||'')){
+      const insurer = c[0];
+      let pname = '';
+      let k = i+1;
+      while(k<flat.length && !isPayLine(flat[k].join(' '))){ pname += ' ' + flat[k].join(' '); k++; if(k-i>5) break; }
+      const payline = (flat[k]||[]).join(' ');
+      const periodline = (flat[k+1]||[]).join(' ');
+      const premline = (flat[k+2]||[]).join(' ');
+      pname = pname.replace(/\s+/g,' ').trim();
+      const baseName = pname.replace(/\s*\(\d+\/\d+\)\s*$/,'').trim();
+      const per = periodline.match(/(\d{4}-\d{2}-\d{2})~\s*(\d{4}-\d{2}-\d{2})/);
+      const prm = premline.match(/([\d,]+)\s*원/);
+      const pt = payline.match(/(월납|연납|일시납|분기납|반기납)\/(\d+)년/);
+      const key = insurer + '|' + dm[1];   // 같은 보험사+가입일자 = 같은 계약 (연속 (n/m) 페이지 병합)
+      if(cur && cur._key === key){ if(!cur.productName && baseName) cur.productName = baseName; }
+      else {
+        cur = { _key:key, insurer, productName: baseName,
+          period: per ? per[1].replace(/-/g,'.') + ' ~ ' + (per[2].startsWith('9999')?'':per[2].replace(/-/g,'.')) : '',
+          monthlyPremium: /일시납/.test(payline) ? 0 : (prm ? +prm[1].replace(/,/g,'') : 0),
+          payTerm: (pt && pt[2]!=='0') ? pt[1]+'/'+pt[2]+'년' : (pt ? pt[1] : ''),
+          covs: [] };
+        contracts.push(cur);
+      }
+      i = k + (per?1:0) + ((prm || /보험료미제공/.test(premline)) ? 1 : 0);
+      pendName = null;
+      continue;
+    }
+    if(cur && /^\d{1,3}$/.test(c[0]||'') && (c[1]==='정액'||c[1]==='실손')){
+      let name, amtCell;
+      if(c.length >= 5){ name = (c[1]==='실손') ? c[3] : c[2]; amtCell = c[4]; }
+      else if(c.length === 4){ name = (c[1]==='실손') ? (pendName || c[2]) : c[2]; amtCell = c[3]; }
+      else { pendName = null; continue; }
+      const am = String(amtCell||'').replace(/\s/g,'').match(/^(?:(\d+)억)?([\d,]*)만?원?$/);
+      const amt = am ? (+(am[1]||0))*10000 + (+(String(am[2]||'').replace(/,/g,''))||0) : 0;
+      if(name && amt>0){
+        const sc = sanitizeCov({ name: String(name).replace(/\s+/g,' ').trim(), category:'', amt, kind: c[1], renew: /갱신/.test(name) });
+        if(sc.amt>0) cur.covs.push(sc);
+      }
+      pendName = null;
+      continue;
+    }
+    pendName = (c.length===1 && /[가-힣]/.test(c[0]||'') && !/만기|가입일자|상세|기준담보/.test(c[0])) ? c[0] : null;
+  }
+  return contracts.filter(c=>c.covs.length || c.monthlyPremium>0);
+}
+async function tryParseKBReport(bytes){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  const doc = await pdfjsLib.getDocument({data: bytes,
+    cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/', cMapPacked: true}).promise;
+  const pagesCells = [];
+  for(let p=1; p<=doc.numPages; p++){
+    const tc = await (await doc.getPage(p)).getTextContent();
+    const lines = kbCellsFromTextContent(tc);
+    if(lines.some(l=>l.join(' ').includes('님의 상품별 가입담보상세'))) pagesCells.push(lines);
+    if(p===3 && !pagesCells.length && !doc.numPages) break;
+    prog('#progReport', 0.05 + 0.5*(p/doc.numPages), `KB 보장분석 인식 중... (${p}/${doc.numPages}p)`);
+  }
+  if(!pagesCells.length) return false;
+  const found = parseKBContracts(pagesCells);
+  if(!found.length) return false;
+  S.contracts = S.contracts.filter(x=>x.src!=='report');
+  found.forEach((c, idx)=>{
+    // 납입회차 추정 (매월납 + N년 + 계약일)
+    let payProgress = '';
+    const yv = (String(c.payTerm).match(/(\d+)\s*년/)||[])[1];
+    const sm = c.period.match(/(\d{4})\.(\d{1,2})/);
+    if(/월납/.test(c.payTerm) && yv && sm){
+      const now = new Date(); const tot = (+yv)*12;
+      let n = (now.getFullYear()-(+sm[1]))*12 + (now.getMonth()+1-(+sm[2])) + 1;
+      n = Math.max(0, Math.min(tot, n));
+      payProgress = n + '/' + tot;
+    }
+    S.contracts.push({ id: uid(), src:'report', status:'유지', _ord: idx,
+      insurer: c.insurer, productName: c.productName, monthlyPremium: c.monthlyPremium,
+      payProgress, payTerm: c.payTerm, period: c.period,
+      csPhone: autoCs(c.insurer), special: guessSpecial(c.productName), covs: c.covs });
+  });
+  const nCov = found.reduce((s,c)=>s+c.covs.length, 0);
+  prog('#progReport', 1, `완료 — KB 보장분석에서 계약 ${found.length}건 · 담보 ${nCov}개를 직접 추출했습니다 (실손 담보 포함 · AI 호출 없음).`);
+  refreshAll(); persist();
+  return true;
+}
+
 async function tryParseMReport(bytes){
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
   const doc = await pdfjsLib.getDocument({data: bytes,
@@ -1949,6 +2066,9 @@ async function handleReport(file){
     prog('#progReport', 0.05, '리포트 형식 확인 중...');
     try{
       if(await tryParseMReport(new Uint8Array(bytes).slice())) return;
+    }catch(e){ /* 형식 감지 실패 시 다음 파서로 */ }
+    try{
+      if(await tryParseKBReport(new Uint8Array(bytes).slice())) return;   // KB손보 '상품별 가입담보상세' 형식
     }catch(e){ /* 형식 감지 실패 시 기존 파이프라인으로 */ }
     await analyzeReport(bytes, true);
   }catch(e){
