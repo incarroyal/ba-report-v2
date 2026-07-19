@@ -1546,7 +1546,8 @@ const CAT_ALIAS = {   // 신정원 구분·옛 분류 → 현행 기본틀 (M리
   '상급종합병원 상해입원일당':'상해입원일당', '종합병원이하 상해입원일당':'상해입원일당',
   '질병중환자실입원일당':'질병입원일당', '상해중환자실입원일당':'상해입원일당',
   '암요양병원입원일당':'기타', '암입원일당':'기타', '암통원':'기타', '고액암진단':'일반암진단',
-  '상해한방치료':'기타', '상해50%이상후유장해':'기타', '간병':'질병간병인입원일당', '생활질환입원일당':'질병입원일당'
+  '상해한방치료':'기타', '상해50%이상후유장해':'기타', '간병':'질병간병인입원일당', '생활질환입원일당':'질병입원일당',
+  '특정질병입원일당':'질병입원일당'
 };
 function sanitizeCov(v){
   let cat = String(v.category||'').trim();
@@ -1994,10 +1995,16 @@ function parseKBContracts(pagesCells){
         amtCell = c[4];
       }
       else if(c.length === 4){
-        if(c[1]==='실손'){ name = pendName || c[2]; } else { name = c[2]; std = pendName; }
+        // 담보명이 윗줄로 밀린 행: [N, 구분, (실손:대상 | 정액:신정원명), 금액] + 직전 단독줄 = 담보명
+        if(c[1]==='실손'){ name = pendName || c[2]; }
+        else { name = pendName || c[2]; std = pendName ? c[2] : null; }
         amtCell = c[3];
       }
       else { pendName = null; continue; }
+      // 칸 밀림 안전망: 신정원 칸에 회사담보명이 들어온 경우 서로 교환
+      if(std && name && (std.length>18 || /_\(무\)|\(무\)|특약|해약환급|일반심사형/.test(std)) && name.length<=16 && !/_\(무\)|특약/.test(name)){
+        const tmp = name; name = std; std = tmp;
+      }
       const am = String(amtCell||'').replace(/\s/g,'').match(/^(?:(\d+)억)?([\d,]*)만?원?$/);
       const amt = am ? (+(am[1]||0))*10000 + (+(String(am[2]||'').replace(/,/g,''))||0) : 0;
       if(name && amt>0){
