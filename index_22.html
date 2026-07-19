@@ -591,7 +591,7 @@ const GROUPS = [
   ['뇌질환',     ['뇌혈관진단','뇌졸중진단','뇌출혈진단','뇌질환치료비','뇌졸중수술']],
   ['심장질환',   ['허혈성진단','급성심근경색진단','심장질환치료비','급성심근경색수술']],
   ['수술비',     ['상해수술비','상해종수술비','질병수술비','질병종수술비','N대수술비']],
-  ['입원·간병',  ['상해입원일당','상해간병인입원일당','질병입원일당','질병간병인입원일당','간병']],
+  ['입원·간병인', ['상해입원일당','상해간병인입원일당','질병입원일당','질병간병인입원일당']],
   ['실손의료비', ['질병입원','질병통원','상해입원','상해통원']],
   ['기타',       ['일상생활배상책임']]
 ];
@@ -667,7 +667,7 @@ function migrateState(st){
   //  · M보장분석 계약(src=report): 저장된 '신정원 담보명'(stdCat) 원문 그대로
   //  · 제안서 계약(src=proposal): 담보명을 신정원 관행으로 재매핑 (교통상해입원일당→기타 등)
   //  · 수동 입력 계약: 건드리지 않음
-  if(st.migV !== 31){
+  if(st.migV !== 32){
     const baseRows = new Set(GROUPS.flatMap(g=>g[1]));
     (st.contracts||[]).forEach(c=>{
       (c.covs||[]).forEach(v=>{
@@ -699,7 +699,12 @@ function migrateState(st){
       if(!GROUPS.some(p=>p[0]===g) && !st.extraGroups.includes(g)) st.extraGroups.push(g);
       (st.extraCats[g] = st.extraCats[g]||[]).push(cat);
     }));
-    st.migV = 31;
+    // '간병' 행 폐지 — 그룹명 '입원·간병'→'입원·간병인', 간병(간병인 아님) 담보는 기타로
+    ['extraCats'].forEach(k=>{ if(st[k] && st[k]['입원·간병']){ st[k]['입원·간병인'] = st[k]['입원·간병']; delete st[k]['입원·간병']; } });
+    if(Array.isArray(st.hiddenCats)) st.hiddenCats = st.hiddenCats.filter(x=>x!=='간병' && x!=='간병일당');
+    if(Array.isArray(st.catOrder)) st.catOrder = st.catOrder.filter(x=>x!=='간병' && x!=='간병일당');
+    (st.contracts||[]).forEach(c=>(c.covs||[]).forEach(v=>{ if(v && (v.category==='간병'||v.category==='간병일당')) v.category='기타'; }));
+    st.migV = 32;
   }
   // 사용자가 기본틀에서 제외한 구분이 과거 자동 등록으로 남아있으면 정리
   if(st.extraCats) Object.keys(st.extraCats).forEach(g=>{
@@ -806,9 +811,18 @@ const fmtWon = v => (v||0).toLocaleString() + '원';
 // 긴 담보명 어절 줄바꿈: '운전자용자동차사고부상치료비' → '운전자용자동차사고' + '부상치료비'
 function krBreak(nm, max, sep){
   nm = String(nm||'').trim();
-  if(nm.length <= (max||14)) return null;
-  const m = nm.match(/^(.{3,}?)(부상치료비|치료지원금|처리지원금|선임비용|배상책임|간병인입원일당|입원일당|치료비|수술비|진단비|지원금|위로금|보험금|의료비|조제료|일당|비용)$/);
-  if(m) return m[1] + (sep||'\n') + m[2];
+  max = max||14; sep = sep||'\n';
+  if(nm.length <= max) return null;
+  const SUF = /^(.{3,}?)(부상치료비|치료지원금|처리지원금|선임비용|배상책임|간병인입원일당|입원일당|치료비|수술비|진단비|지원금|위로금|보험금|의료비|조제료|일당|비용)$/;
+  // 1순위: 첫 괄호·대괄호 앞에서 분리 — 운전자용자동차사고부상치료비(1~5급)[기본계약] → 이름 + (1~5급)[기본계약]
+  const p = nm.match(/^([^(（\[]{2,}?)([(（\[].*)$/);
+  if(p){
+    const head = p[1].trim(), tail = p[2].trim();
+    if(head.length > max){ const m2 = head.match(SUF); if(m2) return m2[1] + sep + m2[2] + tail; }
+    return head + sep + tail;
+  }
+  const m = nm.match(SUF);
+  if(m) return m[1] + sep + m[2];
   return null;
 }
 function fmtMan(v){
@@ -1340,7 +1354,7 @@ function mapCovCat(name){
   if(has('질병수술')) return '질병수술비';
   // 입원·간병 (교통/운전 계열 입원일당은 기본틀 비표시) — 간병인(사용)과 간병(보장)은 별개
   if(has('간병인')) return has('상해','재해') ? '상해간병인입원일당' : '질병간병인입원일당';
-  if(has('간병')) return '간병';
+  if(has('간병')) return '기타';
   if(has('입원일당')&&has('교통','운전')) return '기타';
   if(has('입원일당')&&has('상해','재해')) return '상해입원일당';
   if(has('입원일당')||has('입원급여금')) return '질병입원일당';
@@ -1573,7 +1587,7 @@ const CAT_ALIAS = {   // 신정원 구분·옛 분류 → 현행 기본틀 (M리
   '상급종합병원 상해입원일당':'상해입원일당', '종합병원이하 상해입원일당':'상해입원일당',
   '질병중환자실입원일당':'질병입원일당', '상해중환자실입원일당':'상해입원일당',
   '암요양병원입원일당':'기타', '암입원일당':'기타', '암통원':'기타', '고액암진단':'일반암진단',
-  '상해한방치료':'기타', '상해50%이상후유장해':'기타', '간병일당':'간병', '생활질환입원일당':'질병입원일당',
+  '상해한방치료':'기타', '상해50%이상후유장해':'기타', '간병일당':'기타', '간병':'기타', '생활질환입원일당':'질병입원일당',
   '특정질병입원일당':'질병입원일당'
 };
 function sanitizeCov(v){
@@ -3037,7 +3051,8 @@ function renderMatrix(){
         if(mEdit && mEdit.cid===c.id && mEdit.cat===cat){
           html += `<td class="mcell ed" data-col="c${ci}">${freeEditorHTML(c.id, cat)}</td>`;
         } else {
-          html += `<td class="mcell${over?' over':''}" data-col="c${ci}" onclick="editCell('${c.id}','${esc(cat)}')" title="${esc((()=>{ const nm2=repCovs(c,cat).filter(v2=>+v2.amt>0).map(v2=>v2.name+' '+fmtMan(v2.amt)); return (nm2.length? nm2.join('\n')+'\n' : '')+'클릭하면 수정'; })())}">${v?catSplitFmt([c],cat,GMK_SCR,'<br>'):'<span class="add">+</span>'}</td>`;
+          const ft = cellTxtOf(c, cat);
+          html += `<td class="mcell${(over||ft)?' over':''}" data-col="c${ci}" onclick="editCell('${c.id}','${esc(cat)}')" title="${esc((()=>{ const nm2=repCovs(c,cat).filter(v2=>+v2.amt>0).map(v2=>v2.name+' '+fmtMan(v2.amt)); return (nm2.length? nm2.join('\n')+'\n' : '')+'클릭하면 수정'; })())}">${ft? esc(ft).replace(/\n/g,'<br>') : (v?catSplitFmt([c],cat,GMK_SCR,'<br>'):'<span class="add">+</span>')}</td>`;
         }
       });
       // 현재·개선 후 합계도 직접 수정(갱신/일반 각각)·복원 가능
@@ -3099,50 +3114,39 @@ function freeEditorHTML(cid, cat){
   const save = `saveCellFree('${cid}','${esc(cat)}')`;
   const c = S.contracts.find(x=>x.id===cid);
   const s = c ? catSplit([c], cat) : {renew:0, normal:0};
-  const cur = [s.normal?`${s.normal.toLocaleString()}만원`:'', s.renew?`${s.renew.toLocaleString()}만원(갱신)`:''].filter(Boolean).join('\n');
+  const saved = (S.cellTxt && S.cellTxt[cid] && S.cellTxt[cid][cat]) || '';
+  const cur = saved || [s.normal?`${s.normal.toLocaleString()}만원`:'', s.renew?`${s.renew.toLocaleString()}만원(갱신)`:''].filter(Boolean).join('\n');
   return `<div class="spwrap free">
-    <textarea class="fce" rows="3" placeholder="예) 암진단 3,000만원(갱신)&#10;뇌혈관진단 2,000만원&#10;담보명을 쓰면 그 행으로 자동 입력" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();${save}}else if(event.key==='Escape'){${cancel}}">${esc(cur)}</textarea>
+    <textarea class="fce" rows="3" placeholder="여기 쓴 내용이 이 칸에 그대로 표시됩니다&#10;예) 암진단 3,000만원(갱신)&#10;예) 증권 확인 필요" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();${save}}else if(event.key==='Escape'){${cancel}}">${esc(cur)}</textarea>
     <div class="spbtns"><button class="spok" onmousedown="event.preventDefault();${save}">저장</button><button class="spcancel" onmousedown="event.preventDefault();${cancel}">취소</button></div>
   </div>`;
 }
 function saveCellFree(cid, clickedCat){
   const ta = $('#mtxWrap td.mcell.ed textarea.fce');
-  const text = ta ? ta.value : '';
+  const text = ta ? ta.value.trim() : '';
   mEdit = null;
-  const acc = {};
+  S.cellTxt = S.cellTxt || {}; S.cellAmt = S.cellAmt || {};
+  if(!text){   // 비우면 이 칸 오버라이드 전부 해제
+    if(S.cellTxt[cid]) delete S.cellTxt[cid][clickedCat];
+    if(S.cellAmt[cid]) delete S.cellAmt[cid][clickedCat];
+    refreshPreviewOnly(); persist(); renderMatrix(); return;
+  }
+  // 쓴 내용을 이 칸에 '그대로' 표시 — 다른 행으로 자동 배정하지 않는다
+  (S.cellTxt[cid] = S.cellTxt[cid]||{})[clickedCat] = text;
+  // 합계·비교표 정합: 줄에서 금액이 읽히면 이 칸 합산값으로 반영 (표시는 어디까지나 원문 그대로)
+  let r=0, n=0, found=false;
   String(text).split(/\n+/).forEach(line=>{
     line = line.trim(); if(!line) return;
-    const renew = /갱신/.test(line);
     const amt = parseFreeAmt(line);
     if(!(amt>0)) return;
-    // 담보명 부분 추출 (금액·괄호·갱신 표기 제거)
-    let nm = line.replace(/\(?\s*갱신\s*\)?/g,' ')
-                 .replace(/[0-9][0-9,.]*\s*(?:억|천만|만)?\s*원?/g,' ')
-                 .replace(/[()]/g,' ').replace(/[금비]\s*$/,'').replace(/\s+/g,' ').trim();
-    let cat = clickedCat;
-    if(nm.replace(/\s/g,'').length >= 2){
-      const d = sjwByName(nm);
-      const cand = d!==null ? (d==='기타' ? '기타' : (CAT_ALIAS[d]!==undefined ? CAT_ALIAS[d] : d)) : mapCovCat(nm);
-      if(cand && cand!=='기타'){
-        if(allCats().includes(cand)) cat = cand;
-        else if(autoRegisterStdCat(cand)) cat = cand;
-      }
-    }
-    const a = acc[cat] = acc[cat] || {r:0, n:0};
-    if(renew) a.r += amt; else a.n += amt;
+    found = true;
+    if(/갱신/.test(line)) r += amt; else n += amt;
   });
-  S.cellAmt = S.cellAmt || {};
-  const c = S.contracts.find(x=>x.id===cid);
-  if(!Object.keys(acc).length && S.cellAmt[cid]) delete S.cellAmt[cid][clickedCat];   // 비우면 오버라이드 해제
-  Object.entries(acc).forEach(([cat, v])=>{
-    if(S.cellAmt[cid]) delete S.cellAmt[cid][cat];
-    const auto = c ? catSplit([c], cat) : {renew:0, normal:0};
-    if(v.r===auto.renew && v.n===auto.normal){ /* 원본과 동일 → 오버라이드 없음 */ }
-    else (S.cellAmt[cid] = S.cellAmt[cid]||{})[cat] = {r:v.r, n:v.n};
-  });
+  if(found){ (S.cellAmt[cid] = S.cellAmt[cid]||{})[clickedCat] = {r, n}; }
   refreshPreviewOnly(); persist(); renderMatrix();
 }
-
+// 이 칸(계약×담보)에 사용자가 직접 쓴 표시 텍스트
+const cellTxtOf = (c, cat) => (S.cellTxt && S.cellTxt[c.id] && S.cellTxt[c.id][cat]) || '';
 function splitEditorHTML(r, n, saveCall){
   const cancel = `mEdit=null;mCmpEdit=null;renderMatrix();renderCmpTable();`;
   const ent = `if(event.key==='Enter'){event.preventDefault();${saveCall}}else if(event.key==='Escape'){${cancel}}`;
@@ -3166,8 +3170,8 @@ function saveCell(cid, cat){
   else { (S.cellAmt[cid] = S.cellAmt[cid]||{})[cat] = {r, n}; }
   refreshPreviewOnly(); persist();
 }
-function revertCell(cid, cat){ if(S.cellAmt && S.cellAmt[cid]) delete S.cellAmt[cid][cat]; refreshPreviewOnly(); persist(); }
-function revertAllCells(){ S.cellAmt = {}; refreshPreviewOnly(); persist(); }
+function revertCell(cid, cat){ if(S.cellAmt && S.cellAmt[cid]) delete S.cellAmt[cid][cat]; if(S.cellTxt && S.cellTxt[cid]) delete S.cellTxt[cid][cat]; refreshPreviewOnly(); persist(); }
+function revertAllCells(){ S.cellAmt = {}; S.cellTxt = {}; refreshPreviewOnly(); persist(); }
 // 종합비교/합계(현재 a·개선후 b) 한쪽 분리 표기 HTML
 function sideFmt(side, cat){ const s=catSplitSide(side,cat); const p=[]; if(s.renew>0)p.push(fmtMan(s.renew)+GMK_SCR); if(s.normal>0)p.push(fmtMan(s.normal)); return p.join('<br>')||'-'; }
 function editCmpCell(cat, field, where){ mCmpEdit={cat, field, where:where||'cmp'}; mEdit=null; if(mCmpEdit.where==='mtx') renderMatrix(); else renderCmpTable(); }
@@ -3253,7 +3257,7 @@ const C = { NAVY:'0D3B66', NAVYBOX:'16406E', BLUE:'1565C0', MIDNAVY:'2F5D96',
 const ST_FILL = {'유지':C.NAVY, '리모델링':C.ORG, '이체중지':C.RED, '증권확인':C.AMBER, '제안':C.BLUE};
 const ST_HEX  = {'유지':'#0D3B66', '리모델링':'#D9730D', '이체중지':'#C0392B', '증권확인':'#B8860B', '제안':'#1565C0'};
 let FONT = 'Pretendard';
-const BUILD_TAG = 'v26.07.19-9';
+const BUILD_TAG = 'v26.07.19-10';
 
 /* ----- 한 페이지 맞춤 헬퍼 ----- */
 const fitH = (n, avail, maxH=0.3, minH=0.13) => Math.max(minH, Math.min(maxH, avail/Math.max(1,n)));
@@ -3834,7 +3838,7 @@ function addDetailSlidesP(p, list, eyebrow, baseTitle){
   const chunks = detailChunks(list, 3, 40, weighP);
   chunks.forEach(({grp, cats}, ci)=>{
     const s = p.addSlide(); chromeP(s, eyebrow, baseTitle + (chunks.length>1?` (${ci+1}/${chunks.length})`:''));
-    const catW = 0.4, subW = 1.55;
+    const catW = 0.4, subW = 1.85;
     const cw = (PCW - catW - subW) / grp.length;
     const PRD = cpl(cw, 7.5);
     const corner = t => ({text:t, options:{colspan:2, bold:true, color:'FFFFFF', fill:{color:PC.NAVY}, align:'left', valign:'middle', fontSize:8.5}});
@@ -3861,9 +3865,10 @@ function addDetailSlidesP(p, list, eyebrow, baseTitle){
       if(span) row.push({text:g, options:{bold:true, color:'FFFFFF', fill:{color:PC.NAVY2}, align:'center', valign:'middle', fontSize:7.5, rowspan:span}});
       row.push(tdP(catLabel(catKey), {align:'left', fill:{color: ri%2?PC.ZEB:PC.CV}, color:'3A4655', fontSize:8, bold:false}));
       grp.forEach(c=>{
+        const ft2 = cellTxtOf(c, catKey);
         const sp2 = catSplit([c], catKey);
         const parts = []; if(sp2.renew>0) parts.push(fmtMan(sp2.renew)+'(갱신)'); if(sp2.normal>0) parts.push(fmtMan(sp2.normal));
-        row.push(tdP(parts.join('\n')||'·', {color: parts.length?PC.INK:'C5CDD8', fontSize:8, fill: ri%2?{color:PC.ZEB}:undefined}));
+        row.push(tdP(ft2 || parts.join('\n')||'·', {color: (ft2||parts.length)?PC.INK:'C5CDD8', fontSize:8, fill: ri%2?{color:PC.ZEB}:undefined}));
       });
       rows.push(row);
       rowH.push(unit * ((w||1)>1 ? 1.65 : 1));
@@ -4298,9 +4303,9 @@ function buildPrintHTML(){
   // 갱신/비갱신 분리 표기(<br> 2줄)가 생기는 행은 무게 1.65로 계산 — 페이지 하단 잘림 방지
   const wPrint = (grp, cat) => grp.some(c=>{ if(c.special) return false; const sp=catSplit([c],cat); return sp.renew>0 && sp.normal>0; }) ? 1.65 : 1;
   const dSec = (list, eb, title) => detailChunks(list, 3, 40, wPrint).map(({grp, cats}, ci, arr)=>{
-    const cw = (74/grp.length).toFixed(1);
+    const cw = (71/grp.length).toFixed(1);
     return `<div class="psheet content">${chrome(eb, title + (arr.length>1?` (${ci+1}/${arr.length})`:''))}
-    <div class="pbody pbody-top"><table class="pt detail" style="font-size:11pt;"><colgroup><col style="width:7%"><col style="width:19%">${grp.map(()=>`<col style="width:${cw}%">`).join('')}</colgroup>
+    <div class="pbody pbody-top"><table class="pt detail" style="font-size:11pt;"><colgroup><col style="width:7%"><col style="width:22%">${grp.map(()=>`<col style="width:${cw}%">`).join('')}</colgroup>
     <tr><th class="l" colspan="2" style="font-size:11.5pt;">보험사</th>${grp.map(c=>`<th class="c" style="background:${ST_HEX[c.status]};font-size:11.5pt;vertical-align:middle;">${esc(c.insurer)}<br><span style="font-weight:600;opacity:.9;font-size:8.5pt;">${c.status}${c.special?' · 분류외':''}</span></th>`).join('')}</tr>
     <tr><td colspan="2" class="grp">상품명</td>${grp.map(c=>`<td class="c" style="font-size:9pt;color:#5A6678;line-height:1.2;"><div class="clip2">${esc(cleanProd(c.productName))}</div></td>`).join('')}</tr>
     <tr><td colspan="2" class="grp">월 보험료</td>${grp.map(c=>`<td class="c hl" style="font-size:9.5pt;">${fmtWon(c.monthlyPremium)}${isRenew(c)?' +(갱신)':''}</td>`).join('')}</tr>
@@ -4312,7 +4317,7 @@ function buildPrintHTML(){
       <td class="cv">${esc(catLabel(catKey))}</td>
       ${grp.map(c=> c.special
         ? (ri===0 ? `<td rowspan="${cats.length}" style="vertical-align:top;text-align:left;padding:2.6mm 3mm;font-size:9.8pt;line-height:1.6;background:#FBFCFE;"><div style="font-size:9.5pt;font-weight:800;color:#B0894C;letter-spacing:.4px;margin-bottom:2mm;">분류 외 · 주요 보장 내용</div>${spList(c)}</td>` : '')
-        : (()=>{const v=catAmt(c,catKey);return `<td${v?'':' style="color:#C5CDD8;"'}>${v?catSplitFmt([c],catKey,GMK_PDF,'<br>'):'·'}</td>`;})()
+        : (()=>{const ft=cellTxtOf(c,catKey); if(ft) return `<td>${esc(ft).replace(/\n/g,'<br>')}</td>`; const v=catAmt(c,catKey);return `<td${v?'':' style="color:#C5CDD8;"'}>${v?catSplitFmt([c],catKey,GMK_PDF,'<br>'):'·'}</td>`;})()
       ).join('')}</tr>`).join('')}
     </table></div>${pFoot(cust)}</div>`;
   }).join('');
