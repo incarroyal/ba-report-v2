@@ -190,6 +190,11 @@ input:focus,select:focus{outline:none;border-color:var(--c-primary);box-shadow:0
   .dcard .dt2{font-size:11pt;font-weight:800;color:#1A2433;margin:2.5mm 0 2mm;}
   .dcard .dd{font-size:8.5pt;color:#5A6678;font-weight:600;line-height:1.6;}
 }
+/* 출력물 공통: 본문은 중간 굵기, 제목·헤더·대분류만 굵게 + 어절 줄바꿈 */
+.psheet{word-break:keep-all;font-weight:500;}
+.psheet .pt td{font-weight:500;}
+.psheet .pt th, .psheet .pt .grp, .psheet .ptit, .psheet .phead h2, .psheet .pcard .v{font-weight:800;}
+.pt.cmpfit td{padding:var(--pv,1.7mm) 2mm;font-size:inherit;}
 @media screen{ .psheet{display:none;} }
 .delbtn{appearance:none;-webkit-appearance:none;background:#fde8e8;border:none;color:var(--c-danger);cursor:pointer;font-size:12px;font-weight:700;padding:3px 9px;border-radius:5px;font-family:inherit;transition:.12s;}
 .delbtn:hover{background:var(--c-danger);color:#fff;}
@@ -793,6 +798,14 @@ function resetAll(){ if(!confirm('모든 데이터를 초기화할까요?')) ret
 
 /* ================= 유틸 ================= */
 const fmtWon = v => (v||0).toLocaleString() + '원';
+// 긴 담보명 어절 줄바꿈: '운전자용자동차사고부상치료비' → '운전자용자동차사고' + '부상치료비'
+function krBreak(nm, max, sep){
+  nm = String(nm||'').trim();
+  if(nm.length <= (max||14)) return null;
+  const m = nm.match(/^(.{3,}?)(부상치료비|치료지원금|처리지원금|선임비용|배상책임|간병인입원일당|입원일당|치료비|수술비|진단비|지원금|위로금|보험금|의료비|조제료|일당|비용)$/);
+  if(m) return m[1] + (sep||'\n') + m[2];
+  return null;
+}
 function fmtMan(v){
   v = +v||0; if(!v) return '';
   if(v >= 10000){ const eok = Math.floor(v/10000), rem = v%10000;
@@ -3841,14 +3854,29 @@ function addDetailSlidesP(p, list, eyebrow, baseTitle){
 
 /* ----- 3P. 분류 외 보험 카드 (3장/페이지) ----- */
 function addSpecialCardsP(p, list, eyebrow, title){
-  const chunks = []; for(let i=0;i<list.length;i+=3) chunks.push(list.slice(i,i+3));
-  chunks.forEach((grp, ci)=>{
-    const s = p.addSlide(); chromeP(s, eyebrow, title + (chunks.length>1?` (${ci+1}/${chunks.length})`:''));
-    const n = Math.max(grp.length, 2), gap = 0.14;
-    const cardW = (PCW - gap*(n-1)) / n;
+  // 길이 기반 패킹: 긴 카드 1행(3개/장), 짧은 카드 2행(최대 6개/장)
+  const estP = c => 2.2 + Math.min([...(c.covs||[])].filter(v=>+v.amt>0).length, 30)*0.225 + 0.5;
+  const sorted = [...list].sort((a,b)=>estP(b)-estP(a));
+  const pagesSp = []; let ii = 0;
+  const AVAIL = P_BOT - P_TOP;
+  while(ii < sorted.length){
+    const row1 = sorted.slice(ii, ii+3); ii += row1.length;
+    const rows2 = [row1];
+    if(ii < sorted.length && Math.max(...row1.map(estP)) + estP(sorted[ii]) + 0.2 <= AVAIL){
+      rows2.push(sorted.slice(ii, ii+3)); ii += rows2[1].length;
+    }
+    pagesSp.push(rows2);
+  }
+  pagesSp.forEach((rowsArr, ci)=>{
+    const s = p.addSlide(); chromeP(s, eyebrow, title + (pagesSp.length>1?` (${ci+1}/${pagesSp.length})`:''));
+    let yBase = P_TOP;
+    rowsArr.forEach(grp=>{
+    const rowMax = Math.max(...grp.map(estP));
+    const gap = 0.14;
+    const cardW = (PCW - gap*2) / 3;
     grp.forEach((c, i)=>{
       const x = PX + i*(cardW+gap);
-      let y = P_TOP;
+      let y = yBase;
       s.addShape('roundRect', {x, y, w:cardW, h:0.62, rectRadius:0.05, fill:{color:stHexP(c.status)}, line:{type:'none'}});
       s.addText(c.insurer, {x:x+0.12, y:y+0.05, w:cardW-0.24, h:0.3, fontSize:11.5, bold:true, color:'FFFFFF', fontFace:FONT});
       s.addText(`${c.status} · 분류외`, {x:x+0.12, y:y+0.34, w:cardW-0.24, h:0.22, fontSize:7.5, color:'FFFFFF', fontFace:FONT});
@@ -3875,9 +3903,9 @@ function addSpecialCardsP(p, list, eyebrow, title){
       const cplC = cpl(cardW*0.72, 7.5);
       const cRows = [], cH = []; let used = 0, shown = 0;
       for(const v of covs){
-        const cvn = covNameDisp(v.name||catLabel(v.category)||'담보');
-        const h = cvn.length>cplC ? 0.4 : 0.225;
-        if(used + h > (P_BOT - y - 0.24)) break;
+        let cvn = covNameDisp(v.name||catLabel(v.category)||'담보'); const kb2 = krBreak(cvn, cplC, '\n'); if(kb2) cvn = kb2;
+        const h = (cvn.includes('\n') || cvn.length>cplC) ? 0.4 : 0.225;
+        if(used + h > (yBase + rowMax - y - 0.24)) break;
         cRows.push([ tdP(cvn, {align:'left', fontSize:7.5, color:'3A4655', bold:false}),
                      tdP(fmtMan(v.amt), {align:'right', fontSize:7.5, color:PC.NAVY}) ]);
         cH.push(h); used += h; shown++;
@@ -3885,6 +3913,8 @@ function addSpecialCardsP(p, list, eyebrow, title){
       if(covs.length > shown){ cRows.push([ tdP(`외 ${covs.length-shown}건 (증권·설계서 참조)`, {align:'left', fontSize:7, color:'8B96A5', colspan:2, bold:false}) ]); cH.push(0.22); }
       s.addTable(cRows, {x, y, w:cardW, colW:[cardW*0.72, cardW*0.28],
         border:{type:'solid', color:'EEF1F6', pt:0.5}, rowH:cH, fontFace:FONT, valign:'middle'});
+    });
+    yBase += rowMax + 0.2;
     });
   });
 }
@@ -3905,7 +3935,7 @@ function addComparePagesP(p, cust){
     const b = sideTxtP(afterContracts(), r.catKey, r.b?fmtMan(r.b):'-');
     return {...r, aTxt:a.t, bTxt:b.t, h: Math.max(a.n,b.n)>1 ? 0.36 : 0.225};
   });
-  const HEAD = 0.28, FIRST_EXTRA = 2.15;
+  const HEAD = 0.28, FIRST_EXTRA = 0;
   const pages = []; let pg = [], used = HEAD;
   items.forEach(it=>{
     const budget = (P_BOT - P_TOP) - (pages.length===0 ? FIRST_EXTRA : 0);
@@ -3917,36 +3947,7 @@ function addComparePagesP(p, cust){
     const s = p.addSlide();
     chromeP(s, 'BEFORE & AFTER', `${cust}님 컨설팅 전후 보장 비교${pages.length>1?` (${pi+1}/${pages.length})`:''}`);
     let y = P_TOP;
-    if(pi===0){
-      const bw = (PCW - 0.36)/4;
-      const sub = aftP<curP?`월 ${fmtWon(curP-aftP)} 절감`:(aftP>curP?`월 ${fmtWon(aftP-curP)} 증가`:'변동 없음');
-      const cards = [
-        ['현재 월 보험료', fmtWon(curP), PC.GRAY, false],
-        ['리모델링·이체중지', dropP?'− '+fmtWon(dropP):'0원', 'D9730D', false],
-        ['신규 제안', propP?'+ '+fmtWon(propP):'0원', PC.BLUE, false],
-        ['개선 후 월 보험료', fmtWon(aftP), PC.NAVY, true]
-      ];
-      cards.forEach((cd, i)=>{
-        const x = PX + i*(bw+0.12);
-        s.addShape('roundRect', {x, y, w:bw, h:0.92, rectRadius:0.06, fill:{color: cd[3]?PC.NAVY:'FFFFFF'}, line: cd[3]?{type:'none'}:{color:PC.LINE, width:0.75}});
-        if(!cd[3]) s.addShape('rect', {x:x+0.02, y, w:bw-0.04, h:0.05, fill:{color:String(cd[2])}});
-        s.addText(cd[0], {x:x+0.09, y:y+0.1, w:bw-0.18, h:0.2, fontSize:7.5, bold:true, color: cd[3]?PC.DARKSUB:PC.GRAY, fontFace:FONT});
-        s.addText(cd[1], {x:x+0.09, y:y+0.33, w:bw-0.18, h:0.34, fontSize:12, bold:true, color: cd[3]?'FFFFFF':String(cd[2]), fontFace:FONT});
-        if(cd[3]) s.addText(sub, {x:x+0.09, y:y+0.66, w:bw-0.18, h:0.2, fontSize:7, bold:true, color:PC.DARKSUB, fontFace:FONT});
-      });
-      y += 1.08;
-      const futC = curContracts().reduce((s2,c)=>s2+futurePrem(c),0), futA = afterContracts().reduce((s2,c)=>s2+futurePrem(c),0);
-      const pd = (key,side)=>{ const ov=S.infoTot&&S.infoTot[key]&&S.infoTot[key][side]; return ov!=null?ov:cs2sum(side==='a'?curContracts():afterContracts(),key); };
-      const wd = (a,b)=>{ const d=b-a; return d===0?'변동 없음':(d<0?'▼ '+fmtWon(-d):'▲ '+fmtWon(d)); };
-      const pt = [
-        [thP('구분'), thP('항목',{align:'left'}), thP('현재'), thP('개선 후'), thP('증감')],
-        [grpP('보험료',{rowspan:2}), tdP('월 납입 보험료',{align:'left', fill:{color:PC.ZEB}}), tdP(pd('prem','a'),{color:PC.BLUE}), tdP(pd('prem','b'),{fill:{color:PC.ZEB}, color:PC.HLTX}), tdP(wd(curP,aftP),{fontSize:7.5, color: aftP<curP?PC.GREEN:aftP>curP?PC.RED:'C5CDD8'})],
-        [tdP('향후 납입할 보험료',{align:'left', fill:{color:PC.ZEB}, bold:false}), tdP(pd('future','a')), tdP(pd('future','b'),{fill:{color:PC.ZEB}}), tdP(wd(futC,futA),{fontSize:7.5, color: futA<futC?PC.GREEN:futA>futC?PC.RED:'C5CDD8'})]
-      ];
-      s.addTable(pt, {x:PX, y, w:PCW, colW:[0.62, 2.2, 1.6, 1.6, 1.25],
-        border:{type:'solid', color:PC.LINE, pt:0.5}, rowH:[0.26, 0.3, 0.3], fontFace:FONT, valign:'middle'});
-      y += 1.0;
-    }
+    
     const t = [[thP('구분'), thP('담보',{align:'left'}),
       {text:'현재', options:{bold:true, color:'FFFFFF', fill:{color:PC.GRAY}, align:'center', valign:'middle', fontSize:8.5}},
       {text:'개선 후', options:{bold:true, color:'FFFFFF', fill:{color:PC.BLUE}, align:'center', valign:'middle', fontSize:8.5}},
@@ -3969,13 +3970,46 @@ function addComparePagesP(p, cust){
 
 /* ----- 5P. 비고 및 상담 메모 ----- */
 function addMemoP(p){
-  const s = p.addSlide(); chromeP(s, 'NOTES', '비고 및 상담 메모');
+  const s = p.addSlide(); chromeP(s, 'RESULT & NOTES', '최종 보장분석 전후 결과 · 상담 메모');
+  // ── 전후 결과 요약 카드 + 보험료 표 ──
+  const curP2 = sumPrem(curContracts()), aftP2 = sumPrem(afterContracts());
+  const dropP2 = sumPrem(dropContracts());
+  const propP2 = sumPrem(S.contracts.filter(c=>c.status==='제안'));
+  {
+    const bw = (PCW - 0.36)/4;
+    const sub = aftP2<curP2?`월 ${fmtWon(curP2-aftP2)} 절감`:(aftP2>curP2?`월 ${fmtWon(aftP2-curP2)} 증가`:'변동 없음');
+    const cards = [
+      ['현재 월 보험료', fmtWon(curP2), PC.GRAY, false],
+      ['리모델링·이체중지', dropP2?'− '+fmtWon(dropP2):'0원', 'D9730D', false],
+      ['신규 제안', propP2?'+ '+fmtWon(propP2):'0원', PC.BLUE, false],
+      ['개선 후 월 보험료', fmtWon(aftP2), PC.NAVY, true]
+    ];
+    cards.forEach((cd, i)=>{
+      const x = PX + i*(bw+0.12), y0 = P_TOP;
+      s.addShape('roundRect', {x, y:y0, w:bw, h:1.0, rectRadius:0.06, fill:{color: cd[3]?PC.NAVY:'FFFFFF'}, line: cd[3]?{type:'none'}:{color:PC.LINE, width:0.75}});
+      if(!cd[3]) s.addShape('rect', {x:x+0.02, y:y0, w:bw-0.04, h:0.05, fill:{color:String(cd[2])}});
+      s.addText(cd[0], {x:x+0.1, y:y0+0.1, w:bw-0.2, h:0.2, fontSize:8, bold:true, color: cd[3]?PC.DARKSUB:PC.GRAY, fontFace:FONT});
+      s.addText(cd[1], {x:x+0.1, y:y0+0.35, w:bw-0.2, h:0.38, fontSize:13.5, bold:true, color: cd[3]?'FFFFFF':String(cd[2]), fontFace:FONT});
+      if(cd[3]) s.addText(sub, {x:x+0.1, y:y0+0.74, w:bw-0.2, h:0.2, fontSize:7.5, bold:true, color:PC.DARKSUB, fontFace:FONT});
+    });
+    const futC = curContracts().reduce((s2,c)=>s2+futurePrem(c),0), futA = afterContracts().reduce((s2,c)=>s2+futurePrem(c),0);
+    const pd = (key,side)=>{ const ov=S.infoTot&&S.infoTot[key]&&S.infoTot[key][side]; return ov!=null?ov:cs2sum(side==='a'?curContracts():afterContracts(),key); };
+    const wd = (a,b)=>{ const d2=b-a; return d2===0?'변동 없음':(d2<0?'▼ '+fmtWon(-d2):'▲ '+fmtWon(d2)); };
+    const pt2 = [
+      [thP('구분'), thP('항목',{align:'left'}), thP('현재'), thP('개선 후'), thP('증감')],
+      [grpP('보험료',{rowspan:2}), tdP('월 납입 보험료',{align:'left'}), tdP(pd('prem','a'),{color:PC.BLUE}), tdP(pd('prem','b'),{color:PC.NAVY}), tdP(wd(curP2,aftP2),{fontSize:7.5})],
+      [tdP('향후 납입할 보험료',{align:'left'}), tdP(pd('future','a')), tdP(pd('future','b')), tdP(wd(futC,futA),{fontSize:7.5})]
+    ];
+    s.addTable(pt2, {x:PX, y:P_TOP+1.16, w:PCW, colW:[0.8, 2.2, 1.6, 1.6, 1.07],
+      border:{type:'solid', color:PC.LINE, pt:0.5}, rowH:[0.26,0.28,0.28], fontSize:8, fontFace:FONT, valign:'middle'});
+  }
+  const MTOP = P_TOP + 2.25;
   const drops = dropContracts();
   const checks = S.contracts.filter(c=>c.status==='증권확인');
   const colw = (PCW - 0.3)/2, xL = PX, xR = PX + colw + 0.3;
-  s.addText('리모델링 · 자동이체 중지 보험', {x:xL, y:P_TOP, w:colw, h:0.26, fontSize:10.5, bold:true, color:'D9730D', fontFace:FONT});
-  s.addText('해당 보험사 고객센터로 문의하시면 됩니다.', {x:xL, y:P_TOP+0.27, w:colw, h:0.2, fontSize:7.5, color:'8B96A5', bold:true, fontFace:FONT});
-  let yL = P_TOP + 0.58;
+  s.addText('리모델링 · 자동이체 중지 보험', {x:xL, y:MTOP, w:colw, h:0.26, fontSize:10.5, bold:true, color:'D9730D', fontFace:FONT});
+  s.addText('해당 보험사 고객센터로 문의하시면 됩니다.', {x:xL, y:MTOP+0.27, w:colw, h:0.2, fontSize:7.5, color:'8B96A5', bold:true, fontFace:FONT});
+  let yL = MTOP + 0.58;
   if(drops.length){
     const t = [[thP('보험사',{fontSize:7.5}), thP('상품명',{align:'left', fontSize:7.5}), thP('상태',{fontSize:7.5}), thP('월보험료',{fontSize:7.5}), thP('고객센터',{fontSize:7.5})]];
     const rh = [0.26]; const NM = cpl(1.12, 7);
@@ -4000,8 +4034,8 @@ function addMemoP(p){
   const boxH = Math.min(3.4, 0.4 + Math.max(1, checks.length)*0.32);
   s.addShape('roundRect', {x:xL, y:yL+0.32, w:colw, h:boxH, rectRadius:0.05, fill:{color:PC.ZEB}, line:{color:PC.LINE, width:0.75}});
   s.addText(chkTxt, {x:xL+0.13, y:yL+0.45, w:colw-0.26, h:boxH-0.2, fontSize:8, color:'3A4655', bold:true, fontFace:FONT, lineSpacingMultiple:1.5, valign:'top'});
-  s.addText('상담 메모', {x:xR, y:P_TOP, w:colw, h:0.26, fontSize:10.5, bold:true, color:PC.NAVY, fontFace:FONT});
-  for(let i=0;i<14;i++) s.addShape('line', {x:xR, y:P_TOP+0.72+i*0.62, w:colw, h:0, line:{color:'D5DEEA', width:0.75}});
+  s.addText('상담 메모', {x:xR, y:MTOP, w:colw, h:0.26, fontSize:10.5, bold:true, color:PC.NAVY, fontFace:FONT});
+  for(let i=0;i<10;i++) s.addShape('line', {x:xR, y:MTOP+0.72+i*0.62, w:colw, h:0, line:{color:'D5DEEA', width:0.75}});
 }
 
 /* ----- PPT 내보내기 (A4 세로 · PDF와 동일 구성) ----- */
@@ -4234,7 +4268,7 @@ function buildPrintHTML(){
     const list2 = arr.slice(0, MAXSP);
     // 담보명은 음절 단위로 자연 줄바꿈(word-break:normal), 금액은 절대 줄어들거나 잘리지 않게(flex 고정폭)
     return list2.map(v=>`<div style="display:flex;justify-content:space-between;align-items:baseline;gap:3mm;padding:0.8mm 0;border-bottom:0.3pt solid #EEF1F6;">`
-      + `<span style="flex:1 1 auto;min-width:0;word-break:normal;overflow-wrap:anywhere;">${esc(covNameDisp(v.name||catLabel(v.category)||'담보'))}</span><b style="flex:0 0 auto;white-space:nowrap;color:#0E2C4D;">${fmtMan(v.amt)}</b></div>`).join('')
+      + `<span style="flex:1 1 auto;min-width:0;word-break:keep-all;overflow-wrap:break-word;">${(()=>{const nm0=covNameDisp(v.name||catLabel(v.category)||'담보');const kb=krBreak(nm0,15,'<br>');return kb? kb.split('<br>').map(esc).join('<br>') : esc(nm0);})()}</span><b style="flex:0 0 auto;white-space:nowrap;color:#0E2C4D;">${fmtMan(v.amt)}</b></div>`).join('')
       + (arr.length>MAXSP ? `<div style="padding:1.2mm 0;color:#8B96A5;font-size:8.5pt;font-weight:700;">외 ${arr.length-MAXSP}건 (상세는 증권·설계서 참조)</div>` : '');
   };
   // 갱신/비갱신 분리 표기(<br> 2줄)가 생기는 행은 무게 1.65로 계산 — 페이지 하단 잘림 방지
@@ -4261,10 +4295,9 @@ function buildPrintHTML(){
   // 분류 외 보험 전용 레이아웃 — 빈 기본틀(구분/담보) 열을 빼고 '주요 보장 내용'을 넓게
   const chunk3 = a => { const o=[]; for(let i=0;i<a.length;i+=3) o.push(a.slice(i,i+3)); return o; };
   const lab = t => `<span style="color:#8B96A5;font-weight:600;">${t}</span>`;
-  const dSecSpecial = (list, eb, title) => chunk3(list).map((grp, ci, arr)=>{
-    return `<div class="psheet content">${chrome(eb, title + (arr.length>1?` (${ci+1}/${arr.length})`:''))}
-    <div class="pbody pbody-top"><div style="display:flex;gap:5mm;align-items:stretch;">
-    ${grp.map(c=>{const f=futurePrem(c);return `<div style="flex:1 1 0;max-width:${(100/Math.max(grp.length,2)).toFixed(1)}%;border:0.6pt solid #DCE5F0;border-radius:3mm;overflow:hidden;display:flex;flex-direction:column;">
+  // 분류외 카드 — 길이 기반 패킹: 긴 카드는 1행(3개/장), 짧은 카드는 2행(최대 6개/장)
+  const estSp = c => 42 + Math.min([...(c.covs||[])].filter(v=>+v.amt>0).length, 22) * 6.2;   // mm 추정 높이
+  const spCard = c => { const f = futurePrem(c); return `<div style="flex:1 1 0;max-width:33.4%;border:0.6pt solid #DCE5F0;border-radius:3mm;overflow:hidden;display:flex;flex-direction:column;">
       <div style="background:${ST_HEX[c.status]};color:#fff;padding:3mm 4mm;">
         <div style="font-size:12.5pt;font-weight:800;line-height:1.1;">${esc(c.insurer)}</div>
         <div style="font-size:8.5pt;font-weight:600;opacity:.9;margin-top:1mm;">${c.status} · 분류외</div>
@@ -4281,9 +4314,23 @@ function buildPrintHTML(){
         <div style="font-size:9pt;font-weight:800;color:#B0894C;letter-spacing:.4px;margin-bottom:2.5mm;">주요 보장 내용</div>
         <div style="font-size:9.5pt;line-height:1.55;">${spList(c)}</div>
       </div>
-    </div>`;}).join('')}
-    </div></div>${pFoot(cust)}</div>`;
-  }).join('');
+    </div>`; };
+  const dSecSpecial = (list, eb, title) => {
+    const sorted = [...list].sort((a,b)=>estSp(b)-estSp(a));
+    const pages = []; let i2 = 0;
+    while(i2 < sorted.length){
+      const row1 = sorted.slice(i2, i2+3); i2 += row1.length;
+      const rows = [row1];
+      if(i2 < sorted.length && Math.max(...row1.map(estSp)) + estSp(sorted[i2]) + 8 <= 234){
+        rows.push(sorted.slice(i2, i2+3)); i2 += rows[1].length;
+      }
+      pages.push(rows);
+    }
+    return pages.map((rows, ci)=>`<div class="psheet content">${chrome(eb, title + (pages.length>1?` (${ci+1}/${pages.length})`:''))}
+    <div class="pbody pbody-top">
+    ${rows.map(row=>`<div style="display:flex;gap:5mm;align-items:stretch;margin-bottom:5mm;">${row.map(spCard).join('')}</div>`).join('')}
+    </div>${pFoot(cust)}</div>`).join('');
+  };
   h += dSec(curContracts().filter(c=>!c.special), 'CURRENT COVERAGE', '계약별 보장 상세');
   const spList2 = specialCur();
   if(spList2.length) h += dSecSpecial(spList2, 'SPECIAL POLICIES', '분류 외 보험 · 계약별 상세');   // 분류외는 자기들끼리 모아서
@@ -4305,56 +4352,72 @@ function buildPrintHTML(){
     <tr><td class="cv">향후 납입할 보험료</td><td class="c">${pPremDisp('future','a')}</td><td class="c">${pPremDisp('future','b')}</td><td class="c">${pWonDelta(futCp,futAp)}</td></tr></table>`;
   const gMk = '<span style="color:#C0392B;font-size:6.5pt;">(갱신)</span>';
   const sideP = (side, cat)=>{ const s=catSplitSide(side,cat); const p=[]; if(s.renew>0)p.push(fmtMan(s.renew)+gMk); if(s.normal>0)p.push(fmtMan(s.normal)); return p.join('<br>')||'-'; };
-  const cmpRow = r => {
+  const cmpRow = (r, span) => {
     const aDisp = sideP('a', r.catKey);
     const bDisp = sideP('b', r.catKey);
-    return `<tr class="zebra"><td class="grp" style="font-size:7.5pt;word-break:keep-all;white-space:nowrap;${r.g?'':'background:#fff;border-bottom-color:#EAEEF4;'}">${esc(r.g)}</td><td class="cv" style="word-break:keep-all;">${esc(r.cat)}</td>
+    const grpTd = span>0 ? `<td class="grp" rowspan="${span}" style="font-size:0.95em;word-break:keep-all;vertical-align:middle;">${esc(r.g)}</td>` : '';
+    return `<tr class="zebra">${grpTd}<td class="cv" style="word-break:keep-all;">${esc(r.cat)}</td>
     <td style="color:#94A3B5;white-space:nowrap;">${aDisp}</td><td style="font-weight:800;color:#0E2C4D;white-space:nowrap;">${bDisp}</td>
     <td class="c" style="white-space:nowrap;">${r.d===0
-      ? '<span style="color:#C5CDD8;font-size:8pt;">유지</span>'
+      ? '<span style="color:#C5CDD8;font-size:0.95em;">유지</span>'
       : r.d>0
-      ? `<span style="display:inline-block;font-size:7.5pt;font-weight:800;color:#1F8A5B;background:#E7F3EC;padding:0.5mm 2.2mm;border-radius:5mm;">▲ ${fmtMan(r.d)}</span>`
-      : `<span style="display:inline-block;font-size:7.5pt;font-weight:800;color:#C0392B;background:#FBE9E7;padding:0.5mm 2.2mm;border-radius:5mm;">▼ ${fmtMan(-r.d)}</span>`}</td></tr>`; };
-  const cmpTbl = part => `<table class="pt" style="width:100%;"><colgroup>${['12%','30%','19%','19%','20%'].map(w=>`<col style="width:${w}">`).join('')}</colgroup>
+      ? `<span style="display:inline-block;font-size:0.92em;font-weight:800;color:#1F8A5B;background:#E7F3EC;padding:0.5mm 2.2mm;border-radius:5mm;">▲ ${fmtMan(r.d)}</span>`
+      : `<span style="display:inline-block;font-size:0.92em;font-weight:800;color:#C0392B;background:#FBE9E7;padding:0.5mm 2.2mm;border-radius:5mm;">▼ ${fmtMan(-r.d)}</span>`}</td></tr>`; };
+  const cmpTbl = (part, scale) => {
+    let body = '';
+    for(let bi=0; bi<part.length; bi++){
+      const r = part[bi];
+      let span = 0;
+      if(r.g){ span = 1; while(bi+span<part.length && !part[bi+span].g) span++; }
+      body += cmpRow(r, span);
+    }
+    return `<table class="pt cmpfit" style="width:100%;font-size:${(8.1*(scale||1)).toFixed(2)}pt;--pv:${(1.55*(scale||1)).toFixed(2)}mm;"><colgroup>${['12%','30%','19%','19%','20%'].map(w=>`<col style=\"width:${w}\">`).join('')}</colgroup>
     <tr><th class="c">구분</th><th class="l">담보</th><th class="c">현재</th><th class="c">개선 후</th><th class="c">증감</th></tr>
-    ${part.map(cmpRow).join('')}</table>`;
+    ${body}</table>`;
+  };
   // 세로 1단 — 행 높이 추정 기반 페이지 분할 (2줄 행·긴 담보명 반영, 하단 잘림 방지)
   const cmpRowH = r => {
     const a = catSplitSide('a', r.catKey), b = catSplitSide('b', r.catKey);
     const twoLine = (a.renew>0 && a.normal>0) || (b.renew>0 && b.normal>0) || String(r.cat||'').length>16;
     return twoLine ? 9.4 : 5.8;   // mm (배지·패딩 포함 여유값)
   };
-  const CMP_BUDGET_FIRST = 182, CMP_BUDGET_NEXT = 240, CMP_HEAD = 9;   // mm — 첫 장은 카드+보험료표 공간 제외
-  const cmpPages = [];
-  { let pg = [], used = CMP_HEAD;
-    cmp.forEach(r=>{
-      const budget = cmpPages.length===0 ? CMP_BUDGET_FIRST : CMP_BUDGET_NEXT;
-      const rh2 = cmpRowH(r);
-      if(pg.length && used + rh2 > budget){ cmpPages.push(pg); pg=[]; used=CMP_HEAD; }
-      pg.push(r); used += rh2;
+  const CMP_HEAD = 9;       // mm — 표 헤더
+  const CMP_BUDGET = 238;   // mm — 표 전용 한 페이지 예산
+  const totH = cmp.reduce((s2,r)=>s2+cmpRowH(r), 0) + CMP_HEAD;
+  const fitScale = CMP_BUDGET / totH;
+  if(fitScale >= 0.78){
+    // 한 페이지 자동핏: 행이 적으면 키우고(≤1.3) 많으면 줄여서(≥0.78) 여백 없이 꽉 차게
+    const scale = Math.min(1.3, Math.max(0.78, fitScale));
+    h += `<div class="psheet content">${chrome('BEFORE & AFTER', `${cust}님 컨설팅 전후 보장 비교`)}
+      <div class="pbody pbody-top">${cmpTbl(cmp, scale)}</div>${pFoot(cust)}</div>`;
+  } else {
+    // 행이 아주 많으면 2장 분할 (각 장도 자동핏)
+    const half = Math.ceil(cmp.length/2);
+    let cut = half;
+    for(let ci2=half; ci2<cmp.length; ci2++){ if(cmp[ci2].g){ cut = ci2; break; } }   // 그룹 경계에서 자르기
+    [[cmp.slice(0,cut),1],[cmp.slice(cut),2]].forEach(([part,pn])=>{
+      const ph = part.reduce((s2,r)=>s2+cmpRowH(r),0) + CMP_HEAD;
+      const sc = Math.min(1.3, Math.max(0.78, CMP_BUDGET/ph));
+      h += `<div class="psheet content">${chrome('BEFORE & AFTER', `${cust}님 컨설팅 전후 보장 비교 (${pn}/2)`)}
+        <div class="pbody pbody-top">${cmpTbl(part, sc)}</div>${pFoot(cust)}</div>`;
     });
-    if(pg.length || !cmpPages.length) cmpPages.push(pg);
   }
-  cmpPages.forEach((pageRows, pi)=>{
-    h += `<div class="psheet content">${chrome('BEFORE & AFTER', `${cust}님 컨설팅 전후 보장 비교${cmpPages.length>1?` (${pi+1}/${cmpPages.length})`:''}`)}`;
-    if(pi===0){
-      const sub = aftP<curP?`월 ${fmtWon(curP-aftP)} 절감`:(aftP>curP?`월 ${fmtWon(aftP-curP)} 증가`:'변동 없음');
-      h += `<div class="pcards" style="margin-bottom:5mm;">
-        ${[['현재 월 보험료', fmtWon(curP), '', '#6B7888', ''],
-           ['리모델링·이체중지', dropP?'− '+fmtWon(dropP):'0원', '', '#D9730D', ''],
-           ['신규 제안', props.length?'+ '+fmtWon(sumPrem(props)):'0원', '', '#1565C0', ''],
-           ['개선 후 월 보험료', fmtWon(aftP), 'dark', '', sub]]
-          .map(b=>`<div class="pcard ${b[2]}">${b[3]?`<div class="topbar" style="background:${b[3]};"></div>`:''}<div class="lb">${b[0]}</div><div class="v" style="font-size:14pt;${b[2]?'':'color:'+b[3]+';'}">${b[1]}</div>${b[4]?`<div class="sub">${b[4]}</div>`:''}</div>`).join('')}
-      </div>` + premTbl;
-    }
-    h += `<div class="pbody pbody-top">${cmpTbl(pageRows)}</div>${pFoot(cust)}</div>`;
-  });
 
   // ===== 8. 메모 =====
   const drops = dropContracts();
   const checks = S.contracts.filter(c=>c.status==='증권확인');
-  h += `<div class="psheet">${chrome('NOTES', '비고 및 상담 메모')}
-    <div style="display:flex;gap:10mm;">
+  {
+  const sub2 = aftP<curP?`월 ${fmtWon(curP-aftP)} 절감`:(aftP>curP?`월 ${fmtWon(aftP-curP)} 증가`:'변동 없음');
+  h += `<div class="psheet">${chrome('RESULT & NOTES', '최종 보장분석 전후 결과 · 상담 메모')}
+    <div class="pcards" style="margin-bottom:5mm;">
+      ${[['현재 월 보험료', fmtWon(curP), '', '#6B7888', ''],
+         ['리모델링·이체중지', dropP?'− '+fmtWon(dropP):'0원', '', '#D9730D', ''],
+         ['신규 제안', props.length?'+ '+fmtWon(sumPrem(props)):'0원', '', '#1565C0', ''],
+         ['개선 후 월 보험료', fmtWon(aftP), 'dark', '', sub2]]
+        .map(b=>`<div class="pcard ${b[2]}">${b[3]?`<div class="topbar" style="background:${b[3]};"></div>`:''}<div class="lb">${b[0]}</div><div class="v" style="font-size:15pt;${b[2]?'':'color:'+b[3]+';'}">${b[1]}</div>${b[4]?`<div class="sub">${b[4]}</div>`:''}</div>`).join('')}
+    </div>
+    ${premTbl}
+    <div style="display:flex;gap:10mm;margin-top:2mm;">
       <div style="width:50%;">
         <div class="ptit" style="font-size:10pt;">리모델링 · 자동이체 중지 보험</div>
         <div style="font-size:8pt;color:#8B96A5;font-weight:600;margin:-2mm 0 3mm;">해당 보험사 고객센터로 문의하시면 됩니다.</div>
@@ -4373,6 +4436,7 @@ function buildPrintHTML(){
       </div>
     </div>${pFoot(cust)}
   </div>`;
+  }
   return h;
 }
 
