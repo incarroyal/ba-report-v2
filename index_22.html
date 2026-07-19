@@ -161,7 +161,7 @@ input:focus,select:focus{outline:none;border-color:var(--c-primary);box-shadow:0
   /* 긴 텍스트(상품명 등)는 최대 2줄까지만 — 표 높이가 예측을 벗어나 페이지가 잘리는 것 방지 */
   .clip2{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;word-break:keep-all;overflow-wrap:break-word;}
   table.pt tbody tr.zebra:nth-child(even){background:#F8FAFC;}
-  table.pt td.grp{background:#EEF3F9;color:#0E2C4D;font-weight:800;text-align:center;font-size:8.5pt;border-bottom:0.5pt solid #DCE5F0;}
+  table.pt td.grp{background:#EEF3F9;color:#0E2C4D;font-weight:800;text-align:center;font-size:8.5pt;border-bottom:0.5pt solid #DCE5F0;vertical-align:middle;}
   table.pt td.cv{text-align:left;background:#FCFDFE;color:#3A4655;font-weight:600;}
   table.pt td.hl{background:#F4F8FC;font-weight:800;color:#1B4470;}
   table.pt.detail td{padding:calc(0.6mm + var(--dpad,0mm)) 2.3mm;font-size:calc(9.3pt * var(--df,1));line-height:1.12;}
@@ -322,7 +322,7 @@ table.pv th{background:var(--c-teal-deep);color:#fff;padding:6px 10px;font-size:
 /* 좌측 구분·담보 열 고정 — 가로 스크롤 시 대분류·중분류(담보명)가 함께 보이도록 (구분 열 폭 고정으로 겹침 방지) */
 table.pv th:nth-child(1){position:sticky;left:0;z-index:7;width:96px;min-width:96px;max-width:96px;}
 table.pv th:nth-child(2){position:sticky;left:96px;z-index:7;}
-table.pv td.grp{position:sticky;left:0;z-index:4;width:96px;min-width:96px;max-width:96px;white-space:nowrap;}
+table.pv td.grp{position:sticky;left:0;z-index:4;width:96px;min-width:96px;max-width:96px;white-space:nowrap;vertical-align:middle !important;}
 table.pv td.mcell.ed{min-width:180px;}
 table.pv td.cov{position:sticky;left:96px;z-index:3;box-shadow:2px 0 0 var(--c-line);min-width:132px;}
 table.pv th:nth-child(2){min-width:132px;}
@@ -670,7 +670,7 @@ function migrateState(st){
   //  · M보장분석 계약(src=report): 저장된 '신정원 담보명'(stdCat) 원문 그대로
   //  · 제안서 계약(src=proposal): 담보명을 신정원 관행으로 재매핑 (교통상해입원일당→기타 등)
   //  · 수동 입력 계약: 건드리지 않음
-  if(st.migV !== 33){
+  if(st.migV !== 34){
     const baseRows = new Set(GROUPS.flatMap(g=>g[1]));
     const strictM = {};
     GROUPS.flatMap(g=>g[1]).forEach(r=>{ strictM[r.replace(/\s+/g,'')] = r; });
@@ -693,6 +693,11 @@ function migrateState(st){
           // 담보명에 치료류 신호(다빈치·항암·수술 등)가 명확하면 치료비 행 우선, 그 외에는 저장 분류 신뢰
           v.category = (/치료비$/.test(byName) && byAlias!==byName) ? byName : (byAlias!==null ? byAlias : byName);
         }
+        // N대수술비 행은 34대 이상만 — 5대장기이식수술비 등은 기타로
+        if(v.category==='N대수술비'){
+          const nd = String(v.name||'').match(/(\d{1,3})\s*대/);
+          if(!nd || +nd[1] < 34) v.category = '기타';
+        }
       });
     });
     // 재분류 결과 중 기본틀에 없는 신정원 구분은 자동 등록 ('기타'·금액조각 제외)
@@ -712,7 +717,7 @@ function migrateState(st){
     if(Array.isArray(st.hiddenCats)) st.hiddenCats = st.hiddenCats.filter(x=>x!=='간병' && x!=='간병일당');
     if(Array.isArray(st.catOrder)) st.catOrder = st.catOrder.filter(x=>x!=='간병' && x!=='간병일당');
     (st.contracts||[]).forEach(c=>(c.covs||[]).forEach(v=>{ if(v && (v.category==='간병'||v.category==='간병일당')) v.category='기타'; }));
-    st.migV = 33;
+    st.migV = 34;
   }
   // 사용자가 기본틀에서 제외한 구분이 과거 자동 등록으로 남아있으면 정리
   if(st.extraCats) Object.keys(st.extraCats).forEach(g=>{
@@ -3340,7 +3345,7 @@ const C = { NAVY:'0D3B66', NAVYBOX:'16406E', BLUE:'1565C0', MIDNAVY:'2F5D96',
 const ST_FILL = {'유지':C.NAVY, '리모델링':C.ORG, '이체중지':C.RED, '증권확인':C.AMBER, '제안':C.BLUE};
 const ST_HEX  = {'유지':'#0D3B66', '리모델링':'#D9730D', '이체중지':'#C0392B', '증권확인':'#B8860B', '제안':'#1565C0'};
 let FONT = 'Pretendard';
-const BUILD_TAG = 'v26.07.19-19';
+const BUILD_TAG = 'v26.07.19-20';
 
 /* ----- 한 페이지 맞춤 헬퍼 ----- */
 const fitH = (n, avail, maxH=0.3, minH=0.13) => Math.max(minH, Math.min(maxH, avail/Math.max(1,n)));
