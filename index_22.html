@@ -323,6 +323,7 @@ table.pv th{background:var(--c-teal-deep);color:#fff;padding:6px 10px;font-size:
 table.pv th:nth-child(1){position:sticky;left:0;z-index:7;width:96px;min-width:96px;max-width:96px;}
 table.pv th:nth-child(2){position:sticky;left:96px;z-index:7;}
 table.pv td.grp{position:sticky;left:0;z-index:4;width:96px;min-width:96px;max-width:96px;white-space:nowrap;}
+table.pv td.mcell.ed{min-width:180px;}
 table.pv td.cov{position:sticky;left:96px;z-index:3;box-shadow:2px 0 0 var(--c-line);min-width:132px;}
 table.pv th:nth-child(2){min-width:132px;}
 .spwrap.free textarea.fce{width:158px;font-family:inherit;font-size:11.5px;font-weight:600;padding:5px 6px;border:1.5px solid var(--c-primary);border-radius:7px;resize:none;line-height:1.45;display:block;background:#fff;}
@@ -669,16 +670,21 @@ function migrateState(st){
   //  · M보장분석 계약(src=report): 저장된 '신정원 담보명'(stdCat) 원문 그대로
   //  · 제안서 계약(src=proposal): 담보명을 신정원 관행으로 재매핑 (교통상해입원일당→기타 등)
   //  · 수동 입력 계약: 건드리지 않음
-  if(st.migV !== 32){
+  if(st.migV !== 33){
     const baseRows = new Set(GROUPS.flatMap(g=>g[1]));
+    const strictM = {};
+    GROUPS.flatMap(g=>g[1]).forEach(r=>{ strictM[r.replace(/\s+/g,'')] = r; });
+    Object.entries(CAT_ALIAS).forEach(([k,val])=>{ strictM[k.replace(/\s+/g,'')] = val; });
     (st.contracts||[]).forEach(c=>{
       (c.covs||[]).forEach(v=>{
         if(!v || !v.name) return;
         const dictStd = sjwByName(v.name);   // M보장분석 실측 사전 최우선
         if(dictStd !== null && !v.stdCat){ v.stdCat = dictStd; }
-        if(v.stdCat){   // 신정원 담보명 보유 → 기본틀로 매핑
-          const s = String(v.stdCat).trim();
-          v.category = s==='기타' ? '기타' : (CAT_ALIAS[s]!==undefined ? CAT_ALIAS[s] : s);
+        if(v.stdCat){   // 신정원 담보명 보유 → 정제 후 '정확히 들어맞는 것만', 나머지는 기타
+          const sn = stdNorm(v.stdCat);
+          if(sn) v.stdCat = sn;
+          const hit = strictM[String(sn||'').replace(/\s+/g,'')];
+          v.category = (hit !== undefined && (hit==='기타' || baseRows.has(hit))) ? hit : '기타';
         } else if(c.src==='proposal' || c.src==='report'){
           // 신정원 정보가 없는 옛 저장분(구버전·AI 경로) → 현행 기본틀로 재매핑
           const cur = String(v.category||'').trim();
@@ -706,7 +712,7 @@ function migrateState(st){
     if(Array.isArray(st.hiddenCats)) st.hiddenCats = st.hiddenCats.filter(x=>x!=='간병' && x!=='간병일당');
     if(Array.isArray(st.catOrder)) st.catOrder = st.catOrder.filter(x=>x!=='간병' && x!=='간병일당');
     (st.contracts||[]).forEach(c=>(c.covs||[]).forEach(v=>{ if(v && (v.category==='간병'||v.category==='간병일당')) v.category='기타'; }));
-    st.migV = 32;
+    st.migV = 33;
   }
   // 사용자가 기본틀에서 제외한 구분이 과거 자동 등록으로 남아있으면 정리
   if(st.extraCats) Object.keys(st.extraCats).forEach(g=>{
@@ -1549,16 +1555,16 @@ const CAT_ALIAS = {   // 신정원 구분·옛 분류 → 현행 기본틀 (M리
   '질병후유3%↑':'질병후유장해 3%이상', '상해후유3%↑':'상해후유장해 3%이상',
   '질병후유80%↑':'기타', '질병후유50%↑':'기타', '상해후유50%↑':'기타', '상해후유80%↑':'기타',
   // 암 — 진단은 일반암/유사암, 치료·수술류는 암치료비로
-  '암진단':'일반암진단', '일반암진단비':'일반암진단', '특정암진단':'일반암진단', '고액암진단':'일반암진단',
+  '암진단':'일반암진단', '일반암진단비':'일반암진단', '특정암진단':'기타', '고액암진단':'기타',
   '유사암진단비':'유사암진단',
-  '암수술비':'암수술', '특정암수술':'암수술', '암주요치료비':'암치료비', '고액항암치료비(표적)':'암치료비', '중입자방사선치료비':'암치료비', '항암치료':'암치료비',
-  '재진단암':'기타', '재진단암진단':'기타', '전이암진단비':'일반암진단', '고액암치료비':'암치료비', '암입원·통원·기타':'기타', '레켐비치료비':'기타',
+  '암수술비':'암수술', '특정암수술':'기타', '암주요치료비':'암치료비', '고액항암치료비(표적)':'암치료비', '중입자방사선치료비':'암치료비', '항암치료':'암치료비',
+  '재진단암':'기타', '재진단암진단':'기타', '전이암진단비':'기타', '고액암치료비':'암치료비', '암입원·통원·기타':'기타', '레켐비치료비':'기타',
   // 뇌질환
-  '뇌혈관질환진단':'뇌혈관진단', '뇌혈관질환진단비':'뇌혈관진단', '뇌산정특례대상진단비':'뇌혈관진단',
+  '뇌혈관질환진단':'뇌혈관진단', '뇌혈관질환진단비':'뇌혈관진단', '뇌산정특례대상진단비':'기타',
   '뇌졸중진단비':'뇌졸중진단', '뇌출혈진단비':'뇌출혈진단',
   '뇌혈관질환수술':'뇌졸중수술', '뇌혈관질환수술비':'뇌졸중수술', '뇌혈관수술비':'뇌졸중수술', '뇌출혈수술':'뇌졸중수술', '뇌혈관치료비':'뇌질환치료비',
   // 심장질환
-  '허혈성심장질환진단':'허혈성진단', '허혈성심장질환진단비':'허혈성진단', '심장산정특례대상진단비':'허혈성진단',
+  '허혈성심장질환진단':'허혈성진단', '허혈성심장질환진단비':'허혈성진단', '심장산정특례대상진단비':'기타',
   '급성심근경색진단비':'급성심근경색진단',
   '허혈성심장질환수술':'급성심근경색수술', '심장질환수술비':'급성심근경색수술', '심장수술비':'급성심근경색수술',
   // 수술비
@@ -1578,31 +1584,49 @@ const CAT_ALIAS = {   // 신정원 구분·옛 분류 → 현행 기본틀 (M리
   '골절진단':'기타', '화상진단':'기타', '보존치료':'기타', '2대질환주요치료비':'기타',
   '장기요양자금':'재가급여', '치매진단비':'치매진단',
   // ── KB손보 보장분석 '신정원 담보명' 칸 어휘 (2026.07 실측) ──
-  '기타수술':'기타', '특정질병진단':'기타', '기타 인보험(정액)담보':'기타', '기타인보험(정액)담보':'기타',
+  '암진단비':'일반암진단', '기타수술':'기타', '특정질병진단':'기타', '기타 인보험(정액)담보':'기타', '기타인보험(정액)담보':'기타',
   '상해후유장해':'상해후유장해 3%이상', '질병후유장해':'질병후유장해 3%이상',
   '상해80%이상후유장해':'기타', '질병80%이상후유장해':'기타', '교통상해50%이상후유장해':'기타',
-  '특정상해수술':'상해수술비', '소액암진단(유사암진단)':'유사암진단',
+  '특정상해수술':'기타', '소액암진단(유사암진단)':'유사암진단',
   '항암방사선약물치료비':'암치료비', '고액항암치료비':'암치료비',
   '치과치료(보존)':'기타', '치과통원':'기타', '응급치료':'기타', '교통상해사망':'기타',
   '중대화상진단':'기타', '중대골절진단':'기타', '특정상해진단':'기타', '깁스치료':'기타', '인공관절수술':'기타',
-  '상급종합병원 질병입원일당':'질병입원일당', '종합병원이하 질병입원일당':'질병입원일당',
-  '상급종합병원 상해입원일당':'상해입원일당', '종합병원이하 상해입원일당':'상해입원일당',
-  '질병중환자실입원일당':'질병입원일당', '상해중환자실입원일당':'상해입원일당',
-  '암요양병원입원일당':'기타', '암입원일당':'기타', '암통원':'기타', '고액암진단':'일반암진단',
-  '상해한방치료':'기타', '상해50%이상후유장해':'기타', '간병일당':'기타', '간병':'기타', '생활질환입원일당':'질병입원일당',
-  '특정질병입원일당':'질병입원일당'
+  '상급종합병원 질병입원일당':'기타', '종합병원이하 질병입원일당':'기타',
+  '상급종합병원 상해입원일당':'기타', '종합병원이하 상해입원일당':'기타',
+  '질병중환자실입원일당':'기타', '상해중환자실입원일당':'기타',
+  '암요양병원입원일당':'기타', '암입원일당':'기타', '암통원':'기타',
+  '상해한방치료':'기타', '상해50%이상후유장해':'기타', '간병일당':'기타', '간병':'기타', '생활질환입원일당':'기타',
+  '특정질병입원일당':'기타'
 };
+// 신정원 담보명 정제: 괄호·대괄호 수식(맞춤고지·감액없음·회한 등) 제거
+function stdNorm(s){
+  return String(s||'').replace(/[（(][^（()）]*[）)]/g,'').replace(/\[[^\]]*\]/g,'').replace(/\s{2,}/g,' ').trim();
+}
+// 엄격 매칭 사전: 기본틀 행명 + 별칭(공백 무시) → 행. 여기 없으면 무조건 '기타'
+let _strictM = null, _strictSig = '';
+function STRICT_STD(){
+  const rows = allCats(); const sig = rows.join('|');
+  if(_strictM && _strictSig===sig) return _strictM;
+  const m = {};
+  rows.forEach(r=>{ m[r.replace(/\s+/g,'')] = r; });
+  Object.entries(CAT_ALIAS).forEach(([k,val])=>{ m[k.replace(/\s+/g,'')] = val; });
+  _strictM = m; _strictSig = sig; return m;
+}
 function sanitizeCov(v){
   let cat = String(v.category||'').trim();
   let stdCat = v.stdCat || null;
-  // ⓪ 리포트의 '신정원 담보명' 칸(KB손보 등)이 있으면 그 값이 최우선 — 그대로 보장구분으로 매핑
-  const stdIn = stdCat && String(stdCat).trim().length<=16 && !/맞춤고지|회한|감액없음|\d{2}\.\d{2}/.test(stdCat) ? String(stdCat).trim() : null;
+  // ⓪ 리포트의 '신정원 담보명' 칸(KB손보 등)이 최우선 — 정제 후 '정확히 들어맞는 것만' 해당 행, 나머지는 기타
+  let stdIn = null;
+  if(stdCat){
+    const sn = stdNorm(stdCat);
+    if(sn && sn.length<=16 && !/\d{2}\.\d{2}/.test(sn)) stdIn = sn;
+  }
   const dictStd = stdIn ? null : sjwByName(v.name);   // 칸 값이 없을 때만 M보장 사전으로 보완
   if(stdIn !== null){
     stdCat = stdIn;
-    cat = stdIn==='기타' ? '기타'
-      : (CAT_ALIAS[stdIn]!==undefined ? CAT_ALIAS[stdIn]
-      : (allCats().includes(stdIn) ? stdIn : (autoRegisterStdCat(stdIn) ? stdIn : '기타')));
+    const hit = STRICT_STD()[stdIn.replace(/\s+/g,'')];
+    cat = hit !== undefined ? hit : '기타';
+    if(cat!=='기타' && !allCats().includes(cat)) cat = '기타';
   } else if(dictStd !== null){
     stdCat = dictStd;
     cat = dictStd==='기타' ? '기타' : (CAT_ALIAS[dictStd]!==undefined ? CAT_ALIAS[dictStd] : dictStd);
@@ -3008,7 +3032,7 @@ function renderMatrix(){
       <span class="rowacts"><button class="ract del" onclick="hideInfoRow('${r.key}')" title="이 행 삭제 (복원 가능)">✕</button></span></td>`;
     cs.forEach((c,ci)=>{
       if(mEditInfo && mEditInfo.cid===c.id && mEditInfo.key===r.key){
-        html += `<td class="mcell ed" data-col="c${ci}"><input type="text" value="${esc(infoRaw(c,r.key))}" onblur="saveInfoCell('${c.id}','${r.key}',this.value)" onkeydown="if(event.key==='Enter'){this.blur();}else if(event.key==='Escape'){mEditInfo=null;renderMatrix();}"></td>`;
+        html += `<td class="mcell ed" data-col="c${ci}"><input type="text" style="width:100%;box-sizing:border-box;min-width:0;" value="${esc(infoRaw(c,r.key))}" onblur="saveInfoCell('${c.id}','${r.key}',this.value)" onkeydown="if(event.key==='Enter'){this.blur();}else if(event.key==='Escape'){mEditInfo=null;renderMatrix();}"></td>`;
       } else {
         html += `<td class="mcell" data-col="c${ci}" onclick="editInfoCell('${c.id}','${r.key}')" title="클릭하면 수정">${r.disp(c)}</td>`;
       }
@@ -3294,7 +3318,7 @@ const C = { NAVY:'0D3B66', NAVYBOX:'16406E', BLUE:'1565C0', MIDNAVY:'2F5D96',
 const ST_FILL = {'유지':C.NAVY, '리모델링':C.ORG, '이체중지':C.RED, '증권확인':C.AMBER, '제안':C.BLUE};
 const ST_HEX  = {'유지':'#0D3B66', '리모델링':'#D9730D', '이체중지':'#C0392B', '증권확인':'#B8860B', '제안':'#1565C0'};
 let FONT = 'Pretendard';
-const BUILD_TAG = 'v26.07.19-16';
+const BUILD_TAG = 'v26.07.19-17';
 
 /* ----- 한 페이지 맞춤 헬퍼 ----- */
 const fitH = (n, avail, maxH=0.3, minH=0.13) => Math.max(minH, Math.min(maxH, avail/Math.max(1,n)));
