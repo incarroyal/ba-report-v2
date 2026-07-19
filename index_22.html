@@ -2955,16 +2955,19 @@ function saveCmpEdit(){
 }
 
 /* ----- 계약 요약 정보 행(월보험료·향후납입·납입기간·납입회차·만기) 인라인 수정·삭제·복원 ----- */
+// 정보 칸에 사용자가 직접 쓴 원문 — 있으면 화면·PDF·PPT 모두 이 값을 그대로 표시
+const infoOvOf = (c, key) => (S.infoOv && S.infoOv[c.id] && S.infoOv[c.id][key]) || '';
 const INFO_ROWS = [
-  { key:'prem',    label:'월 납입 보험료',   tot:true,  disp:c=>(c.monthlyPremium||0).toLocaleString()+'원'+(isRenew(c)?' +(갱신)':'') },
-  { key:'future',  label:'향후 납입할 보험료', tot:true,  disp:c=>{const t=futurePrem(c);return t?t.toLocaleString()+'원'+(isRenew(c)?' +(갱신)':''):'-';} },
-  { key:'sdate',   label:'계약일',           tot:false, disp:c=>esc(splitPeriod(c.period)[0]||'-') },
-  { key:'payterm', label:'납입기간',         tot:false, disp:c=>esc(c.payTerm||'-')+(isRenew(c)?' <b style="color:var(--c-primary);">갱신형</b>':'') },
-  { key:'payprog', label:'납입회차',         tot:false, disp:c=>esc(payProgressDisp(c)) },
-  { key:'mat',     label:'만기',             tot:false, disp:c=>`<span style="font-size:11px;">${esc(maturityAge(c))}</span>` },
+  { key:'prem',    label:'월 납입 보험료',   tot:true,  disp:c=>{const o=infoOvOf(c,'prem'); return o?esc(o):(c.monthlyPremium||0).toLocaleString()+'원'+(isRenew(c)?' +(갱신)':'');} },
+  { key:'future',  label:'향후 납입할 보험료', tot:true,  disp:c=>{const o=infoOvOf(c,'future'); if(o) return esc(o); const t=futurePrem(c);return t?t.toLocaleString()+'원'+(isRenew(c)?' +(갱신)':''):'-';} },
+  { key:'sdate',   label:'계약일',           tot:false, disp:c=>{const o=infoOvOf(c,'sdate'); return o?esc(o):esc(splitPeriod(c.period)[0]||'-');} },
+  { key:'payterm', label:'납입기간',         tot:false, disp:c=>{const o=infoOvOf(c,'payterm'); return o?esc(o):esc(c.payTerm||'-')+(isRenew(c)?' <b style="color:var(--c-primary);">갱신형</b>':'');} },
+  { key:'payprog', label:'납입회차',         tot:false, disp:c=>{const o=infoOvOf(c,'payprog'); return o?esc(o):esc(payProgressDisp(c));} },
+  { key:'mat',     label:'만기',             tot:false, disp:c=>`<span style="font-size:11px;">${esc(infoOvOf(c,'mat')||maturityAge(c))}</span>` },
 ];
 const INFO_LABEL = Object.fromEntries(INFO_ROWS.map(r=>[r.key, r.label]));
 function infoRaw(c, key){
+  const o = infoOvOf(c, key); if(o) return o;
   if(key==='prem') return c.monthlyPremium||'';
   if(key==='future') return futurePrem(c)||'';
   if(key==='sdate') return splitPeriod(c.period)[0]||'';
@@ -2984,6 +2987,9 @@ function editInfoCell(cid, key){ mEditInfo={cid,key}; renderMatrix(); }
 function saveInfoCell(cid, key, val){
   mEditInfo=null; const c=S.contracts.find(x=>x.id===cid); if(!c){ renderMatrix(); return; }
   val=String(val).trim();
+  S.infoOv = S.infoOv || {};
+  if(!val){ if(S.infoOv[cid]) delete S.infoOv[cid][key]; }
+  else (S.infoOv[cid] = S.infoOv[cid]||{})[key] = val;   // 쓴 그대로 표시 (화면·PDF·PPT 공통)
   if(key==='prem') c.monthlyPremium = parseInt(val.replace(/[^0-9]/g,''))||0;
   else if(key==='sdate'){ const pe=splitPeriod(c.period)[1]||''; c.period = (val||'')+'~'+pe; }
   else if(key==='payterm') c.payTerm = val.replace(/갱신형/g,'').trim();
@@ -3222,7 +3228,7 @@ function saveCell(cid, cat){
 function revertCell(cid, cat){ if(S.cellAmt && S.cellAmt[cid]) delete S.cellAmt[cid][cat]; if(S.cellTxt && S.cellTxt[cid]) delete S.cellTxt[cid][cat]; refreshPreviewOnly(); persist(); }
 function revertAllCells(){ S.cellAmt = {}; S.cellTxt = {}; refreshPreviewOnly(); persist(); }
 // 종합비교/합계(현재 a·개선후 b) 한쪽 분리 표기 HTML
-function sideFmt(side, cat){ const ft=cmpTxtOf(cat, side); if(ft) return esc(ft).replace(/\n/g,'<br>'); const s=catSplitSide(side,cat); const p=[]; if(s.renew>0)p.push(fmtMan(s.renew)+GMK_SCR); if(s.normal>0)p.push(fmtMan(s.normal)); return p.join('<br>')||'-'; }
+function sideFmt(side, cat){ const ft=cmpTxtOf(cat, side)||catFreeTxt(side, cat); if(ft) return esc(ft).replace(/\n/g,'<br>'); const s=catSplitSide(side,cat); const p=[]; if(s.renew>0)p.push(fmtMan(s.renew)+GMK_SCR); if(s.normal>0)p.push(fmtMan(s.normal)); return p.join('<br>')||'-'; }
 function editCmpCell(cat, field, where){ mCmpEdit={cat, field, where:where||'cmp'}; mEdit=null; if(mCmpEdit.where==='mtx') renderMatrix(); else renderCmpTable(); }
 function saveCmpCell(cat, field){
   const where = (mCmpEdit&&mCmpEdit.where)||'cmp';
@@ -3252,6 +3258,21 @@ function saveCmpCell(cat, field){
 }
 // 합계 칸에 사용자가 직접 쓴 표시 텍스트
 const cmpTxtOf = (cat, field) => (S.cmpTxt && S.cmpTxt[cat] && S.cmpTxt[cat][field]) || '';
+// 이 행(cat)에 셀 원문 텍스트가 있으면 합계에도 원문 그대로 — 나머지 계약의 자동 합산액은 병기
+function catFreeTxt(side, cat){
+  const list = side==='a' ? curContracts() : afterContracts();
+  const txts = []; let ar=0, an=0;
+  list.forEach(c=>{
+    const ft = (typeof cellTxtOf==='function') ? cellTxtOf(c, cat) : '';
+    if(ft) txts.push(ft);
+    else { const s = catSplit([c], cat); ar+=s.renew; an+=s.normal; }
+  });
+  if(!txts.length) return null;
+  const parts = [...txts];
+  if(ar>0) parts.push(fmtMan(ar)+'(갱신)');
+  if(an>0) parts.push(fmtMan(an));
+  return parts.join('\n');
+}
 function renderCellRestoreBar(){
   const bar = $('#cellRestoreBar'); if(!bar) return;
   const items = [];
@@ -3319,7 +3340,7 @@ const C = { NAVY:'0D3B66', NAVYBOX:'16406E', BLUE:'1565C0', MIDNAVY:'2F5D96',
 const ST_FILL = {'유지':C.NAVY, '리모델링':C.ORG, '이체중지':C.RED, '증권확인':C.AMBER, '제안':C.BLUE};
 const ST_HEX  = {'유지':'#0D3B66', '리모델링':'#D9730D', '이체중지':'#C0392B', '증권확인':'#B8860B', '제안':'#1565C0'};
 let FONT = 'Pretendard';
-const BUILD_TAG = 'v26.07.19-18';
+const BUILD_TAG = 'v26.07.19-19';
 
 /* ----- 한 페이지 맞춤 헬퍼 ----- */
 const fitH = (n, avail, maxH=0.3, minH=0.13) => Math.max(minH, Math.min(maxH, avail/Math.max(1,n)));
@@ -3910,13 +3931,13 @@ function addDetailSlidesP(p, list, eyebrow, baseTitle){
     rows.push([ corner('상품명'),
       ...grp.map(c=> tdP(wrap2t(cleanProd(c.productName), PRD), {fontSize:7.5, color:'5A6678', fill:{color:PC.ZEB}, bold:false})) ]);
     rows.push([ corner('월 보험료'),
-      ...grp.map(c=> tdP(fmtWon(c.monthlyPremium)+(isRenew(c)?' +(갱신)':''), {fontSize:8.5, color:PC.HLTX, fill:{color:PC.HL}})) ]);
+      ...grp.map(c=> tdP(infoOvOf(c,'prem')||fmtWon(c.monthlyPremium)+(isRenew(c)?' +(갱신)':''), {fontSize:8.5, color:PC.HLTX, fill:{color:PC.HL}})) ]);
     rows.push([ corner('향후 납입할 보험료'),
-      ...grp.map(c=>{ const f=futurePrem(c); return tdP(f?fmtWon(f)+(isRenew(c)?' +(갱신)':''):'-', {fontSize:7.5, color:'5A6678', fill:{color:PC.ZEB}}); }) ]);
-    rows.push([ corner('계약일'), ...grp.map(c=> tdP(splitPeriod(c.period)[0]||'-', {fontSize:7.5, fill:{color:PC.ZEB}})) ]);
-    rows.push([ corner('보장만기'), ...grp.map(c=> tdP(maturityAge(c), {fontSize:7.5, fill:{color:PC.ZEB}})) ]);
+      ...grp.map(c=>{ const f=futurePrem(c); return tdP(infoOvOf(c,'future')||(f?fmtWon(f)+(isRenew(c)?' +(갱신)':''):'-'), {fontSize:7.5, color:'5A6678', fill:{color:PC.ZEB}}); }) ]);
+    rows.push([ corner('계약일'), ...grp.map(c=> tdP(infoOvOf(c,'sdate')||splitPeriod(c.period)[0]||'-', {fontSize:7.5, fill:{color:PC.ZEB}})) ]);
+    rows.push([ corner('보장만기'), ...grp.map(c=> tdP(infoOvOf(c,'mat')||maturityAge(c), {fontSize:7.5, fill:{color:PC.ZEB}})) ]);
     rows.push([ corner('납입기간 및 회차'),
-      ...grp.map(c=> tdP([payProgressDisp(c),(c.payTerm||'')+(isRenew(c)?' 갱신형':'')].filter(x=>x&&x.trim()).join(' · ')||'-', {fontSize:7.5, fill:{color:PC.ZEB}})) ]);
+      ...grp.map(c=> tdP([infoOvOf(c,'payprog')||payProgressDisp(c), infoOvOf(c,'payterm')||((c.payTerm||'')+(isRenew(c)?' 갱신형':''))].filter(x=>x&&x.trim()).join(' · ')||'-', {fontSize:7.5, fill:{color:PC.ZEB}})) ]);
     const prodL = Math.max(1, ...grp.map(c=> wrap2(cleanProd(c.productName), PRD).lines));
     const rowH = [0.38, prodL>=3?0.56:(prodL===2?0.42:0.3), 0.26, 0.26, 0.24, 0.24, 0.26];
     const metaSum = rowH.reduce((a,b)=>a+b,0);
@@ -3978,11 +3999,11 @@ function addSpecialCardsP(p, list, eyebrow, title){
       const nm = wrap2(cleanProd(c.productName), cpl(cardW*0.66, 7.5));
       const meta = [
         ['상품명', nm.txt],
-        ['월 보험료', fmtWon(c.monthlyPremium)+(isRenew(c)?' +(갱신)':'')],
-        ['향후 납입', f?fmtWon(f)+(isRenew(c)?' +(갱신)':''):'-'],
-        ['계약일', splitPeriod(c.period)[0]||'-'],
-        ['보장만기', maturityAge(c)],
-        ['납입', [payProgressDisp(c),(c.payTerm||'')+(isRenew(c)?' 갱신형':'')].filter(x=>x&&x.trim()).join(' · ')||'-']
+        ['월 보험료', infoOvOf(c,'prem')||fmtWon(c.monthlyPremium)+(isRenew(c)?' +(갱신)':'')],
+        ['향후 납입', infoOvOf(c,'future')||(f?fmtWon(f)+(isRenew(c)?' +(갱신)':''):'-')],
+        ['계약일', infoOvOf(c,'sdate')||splitPeriod(c.period)[0]||'-'],
+        ['보장만기', infoOvOf(c,'mat')||maturityAge(c)],
+        ['납입', [infoOvOf(c,'payprog')||payProgressDisp(c), infoOvOf(c,'payterm')||((c.payTerm||'')+(isRenew(c)?' 갱신형':''))].filter(x=>x&&x.trim()).join(' · ')||'-']
       ];
       const mRows = meta.map(([k,v])=>[ tdP(k, {align:'left', color:'8B96A5', fontSize:7.5}), tdP(v, {align:'left', fontSize:7.5, color:PC.TXT, bold:false}) ]);
       const mH = meta.map(([k],idx)=> idx===0 && nm.lines>1 ? 0.4 : 0.23);
@@ -4021,7 +4042,7 @@ function addComparePagesP(p, cust){
   const dropP = sumPrem(dropContracts());
   const propP = sumPrem(S.contracts.filter(c=>c.status==='제안'));
   const sideTxtP = (list, catKey, fb, side)=>{
-    if(side){ const ft = cmpTxtOf(catKey, side); if(ft) return {t: ft, n: ft.split('\n').length}; }
+    if(side){ const ft = cmpTxtOf(catKey, side)||catFreeTxt(side, catKey); if(ft) return {t: ft, n: ft.split('\n').length}; }
     const sp2 = catSplit(list, catKey); const parts = [];
     if(sp2.renew>0) parts.push(fmtMan(sp2.renew)+'(갱신)'); if(sp2.normal>0) parts.push(fmtMan(sp2.normal));
     if(!parts.length) return {t: fb||'-', n:1};
@@ -4391,11 +4412,11 @@ function buildPrintHTML(){
     <div class="pbody pbody-top"><table class="pt detail" style="font-size:11pt;--dpad:${dpad.toFixed(2)}mm;--df:${df};"><colgroup><col style="width:12%"><col style="width:22%">${grp.map(()=>`<col style="width:${cw}%">`).join('')}</colgroup>
     <tr><th class="l" colspan="2" style="font-size:11.5pt;">보험사</th>${grp.map(c=>`<th class="c" style="background:${ST_HEX[c.status]};font-size:11.5pt;vertical-align:middle;">${esc(c.insurer)}<br><span style="font-weight:600;opacity:.9;font-size:8.5pt;">${c.status}${c.special?' · 분류외':''}</span></th>`).join('')}</tr>
     <tr><td colspan="2" class="grp">상품명</td>${grp.map(c=>`<td class="c" style="font-size:9pt;color:#5A6678;line-height:1.2;"><div class="clip2">${esc(cleanProd(c.productName))}</div></td>`).join('')}</tr>
-    <tr><td colspan="2" class="grp">월 보험료</td>${grp.map(c=>`<td class="c hl" style="font-size:9.5pt;">${fmtWon(c.monthlyPremium)}${isRenew(c)?' +(갱신)':''}</td>`).join('')}</tr>
-    <tr><td colspan="2" class="grp">향후 납입할 보험료</td>${grp.map(c=>{const f=futurePrem(c);return `<td class="c" style="font-size:9pt;color:#5A6678;">${f?fmtWon(f)+(isRenew(c)?' +(갱신)':''):'-'}</td>`;}).join('')}</tr>
-    <tr><td colspan="2" class="grp">계약일</td>${grp.map(c=>`<td class="c" style="font-size:9pt;">${esc(splitPeriod(c.period)[0]||'-')}</td>`).join('')}</tr>
-    <tr><td colspan="2" class="grp">보장만기</td>${grp.map(c=>`<td class="c" style="font-size:9pt;">${esc(maturityAge(c))}</td>`).join('')}</tr>
-    <tr><td colspan="2" class="grp">납입기간 및 회차</td>${grp.map(c=>`<td class="c" style="font-size:9pt;">${esc([payProgressDisp(c),(c.payTerm||'')+(isRenew(c)?' 갱신형':'')].filter(x=>x&&x.trim()).join(' · ')||'-')}</td>`).join('')}</tr>
+    <tr><td colspan="2" class="grp">월 보험료</td>${grp.map(c=>`<td class="c hl" style="font-size:9.5pt;">${infoOvOf(c,'prem')?esc(infoOvOf(c,'prem')):fmtWon(c.monthlyPremium)+(isRenew(c)?' +(갱신)':'')}</td>`).join('')}</tr>
+    <tr><td colspan="2" class="grp">향후 납입할 보험료</td>${grp.map(c=>{const o=infoOvOf(c,'future');const f=futurePrem(c);return `<td class="c" style="font-size:9pt;color:#5A6678;">${o?esc(o):(f?fmtWon(f)+(isRenew(c)?' +(갱신)':''):'-')}</td>`;}).join('')}</tr>
+    <tr><td colspan="2" class="grp">계약일</td>${grp.map(c=>`<td class="c" style="font-size:9pt;">${esc(infoOvOf(c,'sdate')||splitPeriod(c.period)[0]||'-')}</td>`).join('')}</tr>
+    <tr><td colspan="2" class="grp">보장만기</td>${grp.map(c=>`<td class="c" style="font-size:9pt;">${esc(infoOvOf(c,'mat')||maturityAge(c))}</td>`).join('')}</tr>
+    <tr><td colspan="2" class="grp">납입기간 및 회차</td>${grp.map(c=>`<td class="c" style="font-size:9pt;">${esc([infoOvOf(c,'payprog')||payProgressDisp(c), infoOvOf(c,'payterm')||((c.payTerm||'')+(isRenew(c)?' 갱신형':''))].filter(x=>x&&x.trim()).join(' · ')||'-')}</td>`).join('')}</tr>
     ${cats.map(({g,cat,catKey,span}, ri)=>`<tr class="zebra">${span?`<td class="grp" rowspan="${span}">${esc(g)}</td>`:''}
       <td class="cv">${esc(catLabel(catKey))}</td>
       ${grp.map(c=> c.special
@@ -4463,7 +4484,7 @@ function buildPrintHTML(){
     <tr><td class="grp" rowspan="2">보험료</td><td class="cv">월 납입 보험료</td><td class="c hl">${pPremDisp('prem','a')}</td><td class="c hl">${pPremDisp('prem','b')}</td><td class="c">${pWonDelta(curP,aftP)}</td></tr>
     <tr><td class="cv">향후 납입할 보험료</td><td class="c">${pPremDisp('future','a')}</td><td class="c">${pPremDisp('future','b')}</td><td class="c">${pWonDelta(futCp,futAp)}</td></tr></table>`;
   const gMk = '<span style="color:#C0392B;font-size:6.5pt;">(갱신)</span>';
-  const sideP = (side, cat)=>{ const ft=cmpTxtOf(cat, side); if(ft) return esc(ft).replace(/\n/g,'<br>'); const s=catSplitSide(side,cat); const p=[]; if(s.renew>0)p.push(fmtMan(s.renew)+gMk); if(s.normal>0)p.push(fmtMan(s.normal)); return p.join('<br>')||'-'; };
+  const sideP = (side, cat)=>{ const ft=cmpTxtOf(cat, side)||catFreeTxt(side, cat); if(ft) return esc(ft).replace(/\n/g,'<br>'); const s=catSplitSide(side,cat); const p=[]; if(s.renew>0)p.push(fmtMan(s.renew)+gMk); if(s.normal>0)p.push(fmtMan(s.normal)); return p.join('<br>')||'-'; };
   const cmpRow = (r, span) => {
     const aDisp = sideP('a', r.catKey);
     const bDisp = sideP('b', r.catKey);
