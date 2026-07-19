@@ -164,8 +164,8 @@ input:focus,select:focus{outline:none;border-color:var(--c-primary);box-shadow:0
   table.pt td.grp{background:#EEF3F9;color:#0E2C4D;font-weight:800;text-align:center;font-size:8.5pt;border-bottom:0.5pt solid #DCE5F0;}
   table.pt td.cv{text-align:left;background:#FCFDFE;color:#3A4655;font-weight:600;}
   table.pt td.hl{background:#F4F8FC;font-weight:800;color:#1B4470;}
-  table.pt.detail td{padding:0.6mm 2.3mm;font-size:9.3pt;line-height:1.12;}
-  table.pt.detail td.cv,table.pt.detail td.grp{font-size:9.3pt;white-space:nowrap;}
+  table.pt.detail td{padding:calc(0.6mm + var(--dpad,0mm)) 2.3mm;font-size:calc(9.3pt * var(--df,1));line-height:1.12;}
+  table.pt.detail td.cv,table.pt.detail td.grp{font-size:calc(9.3pt * var(--df,1));white-space:nowrap;}
   table.pt.detail td.grp{font-weight:800;}
   table.pt.detail th{padding:1.1mm 2.3mm;font-size:10.5pt;}
   table.pt tr.sum td{background:#0E2C4D;color:#fff;font-weight:800;border-bottom:none;}
@@ -3294,7 +3294,7 @@ const C = { NAVY:'0D3B66', NAVYBOX:'16406E', BLUE:'1565C0', MIDNAVY:'2F5D96',
 const ST_FILL = {'유지':C.NAVY, '리모델링':C.ORG, '이체중지':C.RED, '증권확인':C.AMBER, '제안':C.BLUE};
 const ST_HEX  = {'유지':'#0D3B66', '리모델링':'#D9730D', '이체중지':'#C0392B', '증권확인':'#B8860B', '제안':'#1565C0'};
 let FONT = 'Pretendard';
-const BUILD_TAG = 'v26.07.19-14';
+const BUILD_TAG = 'v26.07.19-15';
 
 /* ----- 한 페이지 맞춤 헬퍼 ----- */
 const fitH = (n, avail, maxH=0.3, minH=0.13) => Math.max(minH, Math.min(maxH, avail/Math.max(1,n)));
@@ -4356,8 +4356,14 @@ function buildPrintHTML(){
   const wPrint = (grp, cat) => grp.some(c=>{ if(c.special) return false; const sp=catSplit([c],cat); return sp.renew>0 && sp.normal>0; }) ? 1.65 : 1;
   const dSec = (list, eb, title) => detailChunks(list, 3, 40, wPrint).map(({grp, cats}, ci, arr)=>{
     const cw = (66/grp.length).toFixed(1);
+    // 자동핏: 남는 세로 여백만큼 담보 행 간격·글자를 키우고, 빠듯하면 그대로 (PPT와 동일 규칙)
+    const rowsN = cats.length + cats.filter(r=>r.w>1).length*0.65;
+    const prod3 = grp.some(c=> String(cleanProd(c.productName)).length > 40) ? 10 : 0;
+    const est = 48 + prod3 + rowsN*5.9;
+    const dpad = Math.max(0, Math.min(3.2, (232 - est) / (Math.max(rowsN,1)*2)));
+    const df = dpad>1.6 ? 1.16 : dpad>0.9 ? 1.09 : 1;
     return `<div class="psheet content">${chrome(eb, title + (arr.length>1?` (${ci+1}/${arr.length})`:''))}
-    <div class="pbody pbody-top"><table class="pt detail" style="font-size:11pt;"><colgroup><col style="width:12%"><col style="width:22%">${grp.map(()=>`<col style="width:${cw}%">`).join('')}</colgroup>
+    <div class="pbody pbody-top"><table class="pt detail" style="font-size:11pt;--dpad:${dpad.toFixed(2)}mm;--df:${df};"><colgroup><col style="width:12%"><col style="width:22%">${grp.map(()=>`<col style="width:${cw}%">`).join('')}</colgroup>
     <tr><th class="l" colspan="2" style="font-size:11.5pt;">보험사</th>${grp.map(c=>`<th class="c" style="background:${ST_HEX[c.status]};font-size:11.5pt;vertical-align:middle;">${esc(c.insurer)}<br><span style="font-weight:600;opacity:.9;font-size:8.5pt;">${c.status}${c.special?' · 분류외':''}</span></th>`).join('')}</tr>
     <tr><td colspan="2" class="grp">상품명</td>${grp.map(c=>`<td class="c" style="font-size:9pt;color:#5A6678;line-height:1.2;"><div class="clip2">${esc(cleanProd(c.productName))}</div></td>`).join('')}</tr>
     <tr><td colspan="2" class="grp">월 보험료</td>${grp.map(c=>`<td class="c hl" style="font-size:9.5pt;">${fmtWon(c.monthlyPremium)}${isRenew(c)?' +(갱신)':''}</td>`).join('')}</tr>
