@@ -159,7 +159,7 @@ input:focus,select:focus{outline:none;border-color:var(--c-primary);box-shadow:0
   table.pt td.l{text-align:left;} table.pt td.c{text-align:center;}
   table.pt{table-layout:fixed;}                      /* 긴 텍스트가 열 너비를 밀어내지 않도록 고정 */
   /* 긴 텍스트(상품명 등)는 최대 2줄까지만 — 표 높이가 예측을 벗어나 페이지가 잘리는 것 방지 */
-  .clip2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:keep-all;overflow-wrap:break-word;}
+  .clip2{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;word-break:keep-all;overflow-wrap:break-word;}
   table.pt tbody tr.zebra:nth-child(even){background:#F8FAFC;}
   table.pt td.grp{background:#EEF3F9;color:#0E2C4D;font-weight:800;text-align:center;font-size:8.5pt;border-bottom:0.5pt solid #DCE5F0;}
   table.pt td.cv{text-align:left;background:#FCFDFE;color:#3A4655;font-weight:600;}
@@ -327,7 +327,7 @@ table.pv td.cov{position:sticky;left:74px;z-index:3;box-shadow:2px 0 0 var(--c-l
 table.pv th:nth-child(2){min-width:132px;}
 .spwrap.free textarea.fce{width:158px;font-family:inherit;font-size:11.5px;font-weight:600;padding:5px 6px;border:1.5px solid var(--c-primary);border-radius:7px;resize:none;line-height:1.45;display:block;background:#fff;}
 table.pv td[colspan]{position:sticky;left:0;z-index:3;}
-table.pv th .ins{font-weight:800;display:block;max-width:120px;overflow:hidden;text-overflow:ellipsis;} table.pv th .st{font-size:10.5px;opacity:.9;display:block;max-width:120px;overflow:hidden;text-overflow:ellipsis;}
+table.pv th .ins{font-weight:800;display:block;max-width:120px;overflow:hidden;text-overflow:ellipsis;} table.pv th .st{font-size:10px;opacity:.9;display:block;max-width:130px;white-space:normal;word-break:keep-all;line-height:1.3;}
 table.pv th.drop{background:var(--c-orange);border-color:#d96f12;}
 table.pv th.prop{background:var(--c-purple);border-color:#5b2483;}
 table.pv td{border:1px solid var(--c-line);padding:5px 8px;text-align:right;background:#fff;line-height:1.3;}
@@ -960,6 +960,7 @@ function maturityAge(c){
   if(isRenew(c)) return '최대 100세만기';
   const mat = maturityOf(c);
   const my = (String(mat).match(/(\d{4})/)||[])[1];
+  if(my && +my>=9000) return '종신';
   if(my && S.custAge){
     const age = (+my) - ((new Date().getFullYear()) - S.custAge);
     if(age>110) return '종신';
@@ -2005,6 +2006,8 @@ function parseKBContracts(pagesCells){
       const per = periodline.match(/(\d{4}-\d{2}-\d{2})~\s*(\d{4}-\d{2}-\d{2})/);
       const prm = premline.match(/([\d,]+)\s*원/);
       const pt = payline.match(/(월납|연납|일시납|분기납|반기납)\/(\d+)년/);
+      const mm3 = payline.match(/(\d{1,4})\s*세\s*만기/) ;
+      const matu = /종신/.test(payline) ? '종신' : (mm3 ? ((+mm3[1])>=999 ? '종신' : mm3[1]+'세만기') : '');
       const key = insurer + '|' + dm[1];   // 같은 보험사+가입일자 = 같은 계약 (연속 (n/m) 페이지 병합)
       if(cur && cur._key === key){ if(!cur.productName && baseName) cur.productName = baseName; }
       else {
@@ -2012,7 +2015,7 @@ function parseKBContracts(pagesCells){
           period: per ? per[1].replace(/-/g,'.') + ' ~ ' + (per[2].startsWith('9999')?'':per[2].replace(/-/g,'.')) : '',
           monthlyPremium: /일시납/.test(payline) ? 0 : (prm ? +prm[1].replace(/,/g,'') : 0),
           payTerm: (pt && pt[2]!=='0') ? pt[1]+'/'+pt[2]+'년' : (pt ? pt[1] : ''),
-          covs: [] };
+          _matu: matu, covs: [] };
         contracts.push(cur);
       }
       i = k + (per?1:0) + ((prm || /보험료미제공/.test(premline)) ? 1 : 0);
@@ -2091,10 +2094,12 @@ async function tryParseKBReport(bytes){
       n = Math.max(0, Math.min(tot, n));
       payProgress = n + '/' + tot;
     }
-    S.contracts.push({ id: uid(), src:'report', status:'유지', _ord: idx,
+    const cid = uid();
+    S.contracts.push({ id: cid, src:'report', status:'유지', _ord: idx,
       insurer: c.insurer, productName: c.productName, monthlyPremium: c.monthlyPremium,
       payProgress, payTerm: c.payTerm, period: c.period,
       csPhone: autoCs(c.insurer), special: guessSpecial(c.productName), covs: c.covs });
+    if(c._matu){ S.matOv = S.matOv||{}; S.matOv[cid] = c._matu; }
   });
   const nCov = found.reduce((s,c)=>s+c.covs.length, 0);
   prog('#progReport', 1, `완료 — KB 보장분석에서 계약 ${found.length}건 · 담보 ${nCov}개를 직접 추출했습니다 (실손 담보 포함 · AI 호출 없음).`);
@@ -2970,7 +2975,7 @@ function renderMatrix(){
   let html = '<table class="pv"><thead><tr><th style="width:74px;">구분</th><th style="text-align:left;">담보</th>';
   cs.forEach(c=>{
     const cls = DROP_ST.includes(c.status)?'drop':c.status==='제안'?'prop':'';
-    html += `<th class="${cls}"><button class="thdel" onclick="event.stopPropagation();delContract('${c.id}')" title="이 계약(상품) 삭제">✕</button><span class="ins" onclick="renameField('${c.id}','insurer')" title="클릭하면 보험사 수정" style="cursor:pointer;">${esc(c.insurer)}</span><span class="st" onclick="renameField('${c.id}','productName')" title="클릭하면 상품명 수정" style="cursor:pointer;">${esc(short(stripMu(c.productName)))} · ${c.status}</span></th>`;
+    html += `<th class="${cls}"><button class="thdel" onclick="event.stopPropagation();delContract('${c.id}')" title="이 계약(상품) 삭제">✕</button><span class="ins" onclick="renameField('${c.id}','insurer')" title="클릭하면 보험사 수정" style="cursor:pointer;">${esc(c.insurer)}</span><span class="st" onclick="renameField('${c.id}','productName')" title="클릭하면 상품명 수정" style="cursor:pointer;">${esc(stripMu(c.productName))} · ${c.status}</span></th>`;
   });
   html += '<th>현재</th><th>개선 후</th></tr></thead><tbody>';
   const cur = curContracts(), aft = afterContracts();
@@ -3218,7 +3223,7 @@ const short = s => s.length>16 ? s.slice(0,15)+'…' : s;
 // 상품명에서 보험사 이름 제거용 (긴 이름 우선)
 const INSURER_RX = /(흥국생명|흥국화재|메리츠화재|DB손해보험|DB손보|DB생명|삼성생명|삼성화재|한화손해보험|한화손보|한화생명|현대해상|KB손해보험|KB손보|KB생명|롯데손해보험|롯데손보|농협손해보험|농협손보|NH농협|하나손해보험|하나손보|카카오페이손보|신한라이프|신한생명|동양생명|라이나생명|미래에셋생명|MG손해보험|AIA생명|메트라이프|처브라이프|교보생명|동부화재|악사손해보험|메리츠|흥국|롯데|동양|라이나|미래에셋|신한|현대|삼성|한화|교보)\s*/g;
 const stripIns = n => String(n||'').replace(INSURER_RX,'').replace(/\s{2,}/g,' ').replace(/^\s+/,'').trim();
-const stripMu = n => stripIns(String(n||'').replace(/[（(][^（()）]*[）)]/g,'').replace(/^\s*무배당\s+/,'').replace(/\s{2,}/g,' ').trim());
+const stripMu = n => stripIns(String(n||'').replace(/\s{2,}/g,' ').trim());   // 상품명 원문 유지 — 보험사 이름만 제거
 // 분류외 담보명 표시: 괄호 안 공백 제거(줄바꿈 시 단어 안 짤리게)
 const covNameDisp = n => String(n||'').replace(/[（(]\s*([^（()）]*?)\s*[）)]/g, (m,p)=>'('+p.replace(/\s+/g,'')+')');
 // 상품명에서 행 높이를 키우는 군더더기 제거 (해약환급금미지급형·날짜·최초·N종N형·코드 등) — 표시용
@@ -3248,6 +3253,7 @@ const C = { NAVY:'0D3B66', NAVYBOX:'16406E', BLUE:'1565C0', MIDNAVY:'2F5D96',
 const ST_FILL = {'유지':C.NAVY, '리모델링':C.ORG, '이체중지':C.RED, '증권확인':C.AMBER, '제안':C.BLUE};
 const ST_HEX  = {'유지':'#0D3B66', '리모델링':'#D9730D', '이체중지':'#C0392B', '증권확인':'#B8860B', '제안':'#1565C0'};
 let FONT = 'Pretendard';
+const BUILD_TAG = 'v26.07.19-9';
 
 /* ----- 한 페이지 맞춤 헬퍼 ----- */
 const fitH = (n, avail, maxH=0.3, minH=0.13) => Math.max(minH, Math.min(maxH, avail/Math.max(1,n)));
@@ -3258,15 +3264,19 @@ const short2 = (s,n=22) => { s=String(s||''); return s.length>n ? s.slice(0,n-1)
 // 열 너비(inch)·글자크기(pt) 기준 한 줄에 들어가는 글자 수 (한글 전각 폭 기준, 셀 안쪽 여백 감안)
 const cpl = (w, fs) => Math.max(4, Math.floor((w - 0.14) * 72 / fs));
 // 공백(단어) 경계에서 최대 2줄로 나눔 — 문장 중간이 잘리지 않게, 2줄 초과분은 … 처리
-function wrap2(s, per){
+function wrap2(s, per, maxL){
   s = String(s||'').replace(/\s+/g,' ').trim();
+  maxL = maxL || 3;   // 기본 3줄까지 — 상품명은 원문 그대로 최대한 다 보여준다
   if(!s || s.length <= per) return {txt:s, lines:1};
-  let cut = s.lastIndexOf(' ', per);
-  if(cut < Math.ceil(per*0.35)) cut = per;   // 공백이 너무 앞이거나 없으면 글자 단위 분할
-  const l1 = s.slice(0, cut).trim();
-  let l2 = s.slice(cut).trim();
-  if(l2.length > per) l2 = l2.slice(0, per-1) + '…';
-  return {txt: l1 + '\n' + l2, lines:2};
+  const out = []; let rest = s;
+  while(rest.length > per && out.length < maxL-1){
+    let cut = rest.lastIndexOf(' ', per);
+    if(cut < Math.ceil(per*0.35)) cut = per;
+    out.push(rest.slice(0, cut).trim());
+    rest = rest.slice(cut).trim();
+  }
+  if(rest){ if(rest.length > per+2) rest = rest.slice(0, per+1) + '…'; out.push(rest); }
+  return {txt: out.join('\n'), lines: out.length};
 }
 const wrap2t = (s, per) => wrap2(s, per).txt;
 
@@ -3841,10 +3851,11 @@ function addDetailSlidesP(p, list, eyebrow, baseTitle){
     rows.push([ corner('보장만기'), ...grp.map(c=> tdP(maturityAge(c), {fontSize:7.5, fill:{color:PC.ZEB}})) ]);
     rows.push([ corner('납입기간 및 회차'),
       ...grp.map(c=> tdP([payProgressDisp(c),(c.payTerm||'')+(isRenew(c)?' 갱신형':'')].filter(x=>x&&x.trim()).join(' · ')||'-', {fontSize:7.5, fill:{color:PC.ZEB}})) ]);
-    const rowH = [0.38, 0.42, 0.26, 0.26, 0.24, 0.24, 0.26];
+    const prodL = Math.max(1, ...grp.map(c=> wrap2(cleanProd(c.productName), PRD).lines));
+    const rowH = [0.38, prodL>=3?0.56:(prodL===2?0.42:0.3), 0.26, 0.26, 0.24, 0.24, 0.26];
     const metaSum = rowH.reduce((a,b)=>a+b,0);
     const totalW = cats.reduce((s2,r)=>s2+(r.w||1),0) || 1;
-    const unit = Math.max(0.16, Math.min(0.24, ((P_BOT - P_TOP) - metaSum) / totalW));
+    const unit = Math.max(0.16, Math.min(0.32, ((P_BOT - P_TOP) - metaSum) / totalW));
     cats.forEach(({g, catKey, span, w}, ri)=>{
       const row = [];
       if(span) row.push({text:g, options:{bold:true, color:'FFFFFF', fill:{color:PC.NAVY2}, align:'center', valign:'middle', fontSize:7.5, rowspan:span}});
@@ -3957,24 +3968,27 @@ function addComparePagesP(p, cust){
     const s = p.addSlide();
     chromeP(s, 'BEFORE & AFTER', `${cust}님 컨설팅 전후 보장 비교${pages.length>1?` (${pi+1}/${pages.length})`:''}`);
     let y = P_TOP;
-    
-    const t = [[thP('구분'), thP('담보',{align:'left'}),
-      {text:'현재', options:{bold:true, color:'FFFFFF', fill:{color:PC.GRAY}, align:'center', valign:'middle', fontSize:8.5}},
-      {text:'개선 후', options:{bold:true, color:'FFFFFF', fill:{color:PC.BLUE}, align:'center', valign:'middle', fontSize:8.5}},
-      thP('증감')]];
-    const rh = [HEAD];
+    // 자동핏: 이 페이지 사용 높이 대비 가용 높이만큼 행·글자 확대/축소 (PDF와 동일 규칙)
+    const usedH = HEAD + rows.reduce((a2,r)=>a2+r.h, 0);
+    const sc = Math.min(1.5, Math.max(0.8, (P_BOT - P_TOP) / usedH));
+    const fsc = n => Math.round(n * Math.min(sc,1.28) * 10) / 10;
+    const t = [[thP('구분',{fontSize:fsc(8.5)}), thP('담보',{align:'left', fontSize:fsc(8.5)}),
+      {text:'현재', options:{bold:true, color:'FFFFFF', fill:{color:PC.GRAY}, align:'center', valign:'middle', fontSize:fsc(8.5)}},
+      {text:'개선 후', options:{bold:true, color:'FFFFFF', fill:{color:PC.BLUE}, align:'center', valign:'middle', fontSize:fsc(8.5)}},
+      thP('증감',{fontSize:fsc(8.5)})]];
+    const rh = [HEAD * Math.min(sc, 1.2)];
     rows.forEach((r, ri)=>{
       t.push([
-        grpP(r.g, {fontSize:7.5}),
-        tdP(r.cat, {align:'left', fill:{color: ri%2?PC.ZEB:PC.CV}, color:'3A4655', bold:false}),
-        tdP(r.aTxt, {color:'94A3B5'}),
-        tdP(r.bTxt, {fill:{color:PC.ZEB}, color:PC.NAVY}),
-        tdP(r.d===0?'유지':(r.d>0?'▲ '+fmtMan(r.d):'▼ '+fmtMan(-r.d)), {fontSize:7.5, color: r.d>0?PC.GREEN : r.d<0?PC.RED : 'C5CDD8'})
+        grpP(r.g, {fontSize:fsc(7.5)}),
+        tdP(r.cat, {align:'left', fill:{color: ri%2?PC.ZEB:PC.CV}, color:'3A4655', bold:false, fontSize:fsc(8)}),
+        tdP(r.aTxt, {color:'94A3B5', fontSize:fsc(8)}),
+        tdP(r.bTxt, {fill:{color:PC.ZEB}, color:PC.NAVY, fontSize:fsc(8)}),
+        tdP(r.d===0?'유지':(r.d>0?'▲ '+fmtMan(r.d):'▼ '+fmtMan(-r.d)), {fontSize:fsc(7.5), color: r.d>0?PC.GREEN : r.d<0?PC.RED : 'C5CDD8'})
       ]);
-      rh.push(r.h);
+      rh.push(r.h * sc);
     });
     s.addTable(t, {x:PX, y, w:PCW, colW:[0.85, 2.35, 1.5, 1.5, 1.07],
-      border:{type:'solid', color:PC.LINE, pt:0.5}, rowH:rh, fontSize:8, fontFace:FONT, valign:'middle'});
+      border:{type:'solid', color:PC.LINE, pt:0.5}, rowH:rh, fontSize:fsc(8), fontFace:FONT, valign:'middle'});
   });
 }
 
@@ -4086,7 +4100,7 @@ function pChrome(eyebrow, title, cust, dstr, pn){
   </div>`;
 }
 function pFoot(cust){
-  return `<div class="pfoot"><span>ROYAL Insurance · ${esc(cust)}님 보장분석 리포트</span>
+  return `<div class="pfoot"><span>ROYAL Insurance · ${esc(cust)}님 보장분석 리포트 · ${BUILD_TAG}</span>
     <span>본 자료는 보험 이해를 돕기 위한 참고자료이며, 정확한 내용은 약관 및 증권을 따릅니다</span>
     <span class="pg">${String(PPG).padStart(2,'0')}</span></div>`;
 }
@@ -4381,14 +4395,14 @@ function buildPrintHTML(){
       if(r.g){ span = 1; while(bi+span<part.length && !part[bi+span].g) span++; }
       body += cmpRow(r, span);
     }
-    return `<table class="pt cmpfit" style="width:100%;font-size:${(8.1*(scale||1)).toFixed(2)}pt;--pv:${(1.55*(scale||1)).toFixed(2)}mm;"><colgroup>${['12%','30%','19%','19%','20%'].map(w=>`<col style=\"width:${w}\">`).join('')}</colgroup>
+    return `<table class="pt cmpfit" style="width:100%;font-size:${(8.1*(scale||1)).toFixed(2)}pt;--pv:${(1.55*(scale||1)).toFixed(2)}mm;"><colgroup>${['10%','34%','19%','19%','18%'].map(w=>`<col style=\"width:${w}\">`).join('')}</colgroup>
     <tr><th class="c">구분</th><th class="l">담보</th><th class="c">현재</th><th class="c">개선 후</th><th class="c">증감</th></tr>
     ${body}</table>`;
   };
   // 세로 1단 — 행 높이 추정 기반 페이지 분할 (2줄 행·긴 담보명 반영, 하단 잘림 방지)
   const cmpRowH = r => {
     const a = catSplitSide('a', r.catKey), b = catSplitSide('b', r.catKey);
-    const twoLine = (a.renew>0 && a.normal>0) || (b.renew>0 && b.normal>0) || String(r.cat||'').length>16;
+    const twoLine = (a.renew>0 && a.normal>0) || (b.renew>0 && b.normal>0) || String(r.cat||'').length>12;
     return twoLine ? 10.6 : 6.5;   // mm (배지·패딩 포함 여유값)
   };
   const CMP_HEAD = 9;       // mm — 표 헤더
