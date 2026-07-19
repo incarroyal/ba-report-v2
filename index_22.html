@@ -320,10 +320,10 @@ table.pv td.grp:hover .rowacts.g{opacity:1;}
 table.pv{border-collapse:collapse;width:100%;font-size:13.5px;white-space:nowrap;}
 table.pv th{background:var(--c-teal-deep);color:#fff;padding:6px 10px;font-size:12.5px;border:1px solid #0c8278;position:sticky;top:0;z-index:6;}
 /* 좌측 구분·담보 열 고정 — 가로 스크롤 시 대분류·중분류(담보명)가 함께 보이도록 (구분 열 폭 고정으로 겹침 방지) */
-table.pv th:nth-child(1){position:sticky;left:0;z-index:7;width:74px;min-width:74px;max-width:74px;}
-table.pv th:nth-child(2){position:sticky;left:74px;z-index:7;}
-table.pv td.grp{position:sticky;left:0;z-index:4;width:74px;min-width:74px;max-width:74px;white-space:normal;word-break:keep-all;}
-table.pv td.cov{position:sticky;left:74px;z-index:3;box-shadow:2px 0 0 var(--c-line);min-width:132px;}
+table.pv th:nth-child(1){position:sticky;left:0;z-index:7;width:96px;min-width:96px;max-width:96px;}
+table.pv th:nth-child(2){position:sticky;left:96px;z-index:7;}
+table.pv td.grp{position:sticky;left:0;z-index:4;width:96px;min-width:96px;max-width:96px;white-space:nowrap;}
+table.pv td.cov{position:sticky;left:96px;z-index:3;box-shadow:2px 0 0 var(--c-line);min-width:132px;}
 table.pv th:nth-child(2){min-width:132px;}
 .spwrap.free textarea.fce{width:158px;font-family:inherit;font-size:11.5px;font-weight:600;padding:5px 6px;border:1.5px solid var(--c-primary);border-radius:7px;resize:none;line-height:1.45;display:block;background:#fff;}
 table.pv td[colspan]{position:sticky;left:0;z-index:3;}
@@ -2824,8 +2824,7 @@ function renderCmpTable(){
     ['a','b'].forEach(f=>{
       const over = !!(S.cmpAmt && S.cmpAmt[r.catKey] && S.cmpAmt[r.catKey][f]!=null);
       if(mCmpEdit && mCmpEdit.where==='cmp' && mCmpEdit.cat===r.catKey && mCmpEdit.field===f){
-        const s = catSplitSide(f, r.catKey);
-        html += `<td class="mcell ed">${splitEditorHTML(s.renew, s.normal, `saveCmpCell('${esc(r.catKey)}','${f}')`)}</td>`;
+        html += `<td class="mcell ed">${cmpFreeEditorHTML(r.catKey, f)}</td>`;
       } else {
         html += `<td class="mcell${over?' over':''}" onclick="editCmpCell('${esc(r.catKey)}','${f}','cmp')" title="클릭하면 갱신·일반 금액을 각각 수정합니다">${sideFmt(f, r.catKey)}</td>`;
       }
@@ -2842,6 +2841,7 @@ function renderCmpTable(){
 let mCmpEdit = null;   // {cat, field:'a'|'b', where:'cmp'|'mtx'}
 function revertCmpCell(cat, field){
   if(S.cmpAmt && S.cmpAmt[cat]){ delete S.cmpAmt[cat][field]; if(S.cmpAmt[cat].a==null && S.cmpAmt[cat].b==null) delete S.cmpAmt[cat]; }
+  if(S.cmpTxt && S.cmpTxt[cat]){ delete S.cmpTxt[cat][field]; if(S.cmpTxt[cat].a==null && S.cmpTxt[cat].b==null) delete S.cmpTxt[cat]; }
   refreshPreviewOnly(); persist();
 }
 
@@ -2986,7 +2986,7 @@ function revertInfoTot(key, side){ if(S.infoTot && S.infoTot[key]){ delete S.inf
 function renderMatrix(){
   const cs = S.contracts;
   if(!cs.length){ $('#mtxWrap').innerHTML=''; return; }
-  let html = '<table class="pv"><thead><tr><th style="width:74px;">구분</th><th style="text-align:left;">담보</th>';
+  let html = '<table class="pv"><thead><tr><th style="width:96px;">구분</th><th style="text-align:left;">담보</th>';
   cs.forEach(c=>{
     const cls = DROP_ST.includes(c.status)?'drop':c.status==='제안'?'prop':'';
     html += `<th class="${cls}"><button class="thdel" onclick="event.stopPropagation();delContract('${c.id}')" title="이 계약(상품) 삭제">✕</button><span class="ins" onclick="renameField('${c.id}','insurer')" title="클릭하면 보험사 수정" style="cursor:pointer;">${esc(c.insurer)}</span><span class="st" onclick="renameField('${c.id}','productName')" title="클릭하면 상품명 수정" style="cursor:pointer;">${esc(stripMu(c.productName))} · ${c.status}</span></th>`;
@@ -3060,8 +3060,7 @@ function renderMatrix(){
         const over = !!(S.cmpAmt && S.cmpAmt[cat] && S.cmpAmt[cat][f]!=null);
         const dc = f==='a'?'cur':'aft';
         if(mCmpEdit && mCmpEdit.where==='mtx' && mCmpEdit.cat===cat && mCmpEdit.field===f){
-          const s = catSplitSide(f, cat);
-          html += `<td class="tot mcell ed" data-col="${dc}">${splitEditorHTML(s.renew, s.normal, `saveCmpCell('${esc(cat)}','${f}')`)}</td>`;
+          html += `<td class="tot mcell ed" data-col="${dc}">${cmpFreeEditorHTML(cat, f)}</td>`;
         } else {
           html += `<td class="tot mcell${over?' over':''}" data-col="${dc}" onclick="editCmpCell('${esc(cat)}','${f}','mtx')" title="클릭하면 합계(갱신·일반)를 각각 수정합니다">${sideFmt(f,cat)}</td>`;
         }
@@ -3113,11 +3112,9 @@ function freeEditorHTML(cid, cat){
   const cancel = `mEdit=null;mCmpEdit=null;renderMatrix();renderCmpTable();`;
   const save = `saveCellFree('${cid}','${esc(cat)}')`;
   const c = S.contracts.find(x=>x.id===cid);
-  const s = c ? catSplit([c], cat) : {renew:0, normal:0};
-  const saved = (S.cellTxt && S.cellTxt[cid] && S.cellTxt[cid][cat]) || '';
-  const cur = saved || [s.normal?`${s.normal.toLocaleString()}만원`:'', s.renew?`${s.renew.toLocaleString()}만원(갱신)`:''].filter(Boolean).join('\n');
+  const cur = (S.cellTxt && S.cellTxt[cid] && S.cellTxt[cid][cat]) || '';   // 직접 쓴 값만 표시 — 그 외엔 빈칸
   return `<div class="spwrap free">
-    <textarea class="fce" rows="3" placeholder="여기 쓴 내용이 이 칸에 그대로 표시됩니다&#10;예) 암진단 3,000만원(갱신)&#10;예) 증권 확인 필요" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();${save}}else if(event.key==='Escape'){${cancel}}">${esc(cur)}</textarea>
+    <textarea class="fce" rows="3" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();${save}}else if(event.key==='Escape'){${cancel}}">${esc(cur)}</textarea>
     <div class="spbtns"><button class="spok" onmousedown="event.preventDefault();${save}">저장</button><button class="spcancel" onmousedown="event.preventDefault();${cancel}">취소</button></div>
   </div>`;
 }
@@ -3147,6 +3144,16 @@ function saveCellFree(cid, clickedCat){
 }
 // 이 칸(계약×담보)에 사용자가 직접 쓴 표시 텍스트
 const cellTxtOf = (c, cat) => (S.cellTxt && S.cellTxt[c.id] && S.cellTxt[c.id][cat]) || '';
+// 합계(현재/개선후) 칸 자유 입력 — 쓴 내용이 그대로 표시된다
+function cmpFreeEditorHTML(cat, field){
+  const cancel = `mEdit=null;mCmpEdit=null;renderMatrix();renderCmpTable();`;
+  const save = `saveCmpCell('${esc(cat)}','${field}')`;
+  const cur = (S.cmpTxt && S.cmpTxt[cat] && S.cmpTxt[cat][field]) || '';
+  return `<div class="spwrap free">
+    <textarea class="fce" rows="3" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();${save}}else if(event.key==='Escape'){${cancel}}">${esc(cur)}</textarea>
+    <div class="spbtns"><button class="spok" onmousedown="event.preventDefault();${save}">저장</button><button class="spcancel" onmousedown="event.preventDefault();${cancel}">취소</button></div>
+  </div>`;
+}
 function splitEditorHTML(r, n, saveCall){
   const cancel = `mEdit=null;mCmpEdit=null;renderMatrix();renderCmpTable();`;
   const ent = `if(event.key==='Enter'){event.preventDefault();${saveCall}}else if(event.key==='Escape'){${cancel}}`;
@@ -3173,23 +3180,36 @@ function saveCell(cid, cat){
 function revertCell(cid, cat){ if(S.cellAmt && S.cellAmt[cid]) delete S.cellAmt[cid][cat]; if(S.cellTxt && S.cellTxt[cid]) delete S.cellTxt[cid][cat]; refreshPreviewOnly(); persist(); }
 function revertAllCells(){ S.cellAmt = {}; S.cellTxt = {}; refreshPreviewOnly(); persist(); }
 // 종합비교/합계(현재 a·개선후 b) 한쪽 분리 표기 HTML
-function sideFmt(side, cat){ const s=catSplitSide(side,cat); const p=[]; if(s.renew>0)p.push(fmtMan(s.renew)+GMK_SCR); if(s.normal>0)p.push(fmtMan(s.normal)); return p.join('<br>')||'-'; }
+function sideFmt(side, cat){ const ft=cmpTxtOf(cat, side); if(ft) return esc(ft).replace(/\n/g,'<br>'); const s=catSplitSide(side,cat); const p=[]; if(s.renew>0)p.push(fmtMan(s.renew)+GMK_SCR); if(s.normal>0)p.push(fmtMan(s.normal)); return p.join('<br>')||'-'; }
 function editCmpCell(cat, field, where){ mCmpEdit={cat, field, where:where||'cmp'}; mEdit=null; if(mCmpEdit.where==='mtx') renderMatrix(); else renderCmpTable(); }
 function saveCmpCell(cat, field){
   const where = (mCmpEdit&&mCmpEdit.where)||'cmp';
   const root = where==='mtx' ? $('#mtxWrap') : $('#cmpWrap');
-  const td = root && root.querySelector('td.mcell.ed');
-  const r = td ? parseInt((td.querySelector('.er')||{}).value)||0 : 0;
-  const n = td ? parseInt((td.querySelector('.en')||{}).value)||0 : 0;
+  const ta = root && root.querySelector('td.mcell.ed textarea.fce');
+  const text = ta ? ta.value.trim() : '';
   mCmpEdit = null;
-  S.cmpAmt = S.cmpAmt || {};
-  const auto = catSplit(field==='a'?curContracts():afterContracts(), cat);
-  const rec = S.cmpAmt[cat] || {};
-  if(r===auto.renew && n===auto.normal) delete rec[field];
-  else rec[field] = {r, n};
+  S.cmpTxt = S.cmpTxt || {}; S.cmpAmt = S.cmpAmt || {};
+  const rec = S.cmpAmt[cat] || {}, recT = S.cmpTxt[cat] || {};
+  if(!text){   // 비우면 원래 자동 합계로 복귀
+    delete recT[field]; delete rec[field];
+  } else {
+    recT[field] = text;   // 쓴 그대로 표시
+    let r=0, n=0, found=false;
+    String(text).split(/\n+/).forEach(line=>{
+      line = line.trim(); if(!line) return;
+      const amt = parseFreeAmt(line);
+      if(!(amt>0)) return;
+      found = true;
+      if(/갱신/.test(line)) r += amt; else n += amt;
+    });
+    if(found) rec[field] = {r, n}; else delete rec[field];
+  }
   if(rec.a==null && rec.b==null) delete S.cmpAmt[cat]; else S.cmpAmt[cat] = rec;
+  if(recT.a==null && recT.b==null) delete S.cmpTxt[cat]; else S.cmpTxt[cat] = recT;
   refreshPreviewOnly(); persist();
 }
+// 합계 칸에 사용자가 직접 쓴 표시 텍스트
+const cmpTxtOf = (cat, field) => (S.cmpTxt && S.cmpTxt[cat] && S.cmpTxt[cat][field]) || '';
 function renderCellRestoreBar(){
   const bar = $('#cellRestoreBar'); if(!bar) return;
   const items = [];
@@ -3257,7 +3277,7 @@ const C = { NAVY:'0D3B66', NAVYBOX:'16406E', BLUE:'1565C0', MIDNAVY:'2F5D96',
 const ST_FILL = {'유지':C.NAVY, '리모델링':C.ORG, '이체중지':C.RED, '증권확인':C.AMBER, '제안':C.BLUE};
 const ST_HEX  = {'유지':'#0D3B66', '리모델링':'#D9730D', '이체중지':'#C0392B', '증권확인':'#B8860B', '제안':'#1565C0'};
 let FONT = 'Pretendard';
-const BUILD_TAG = 'v26.07.19-10';
+const BUILD_TAG = 'v26.07.19-11';
 
 /* ----- 한 페이지 맞춤 헬퍼 ----- */
 const fitH = (n, avail, maxH=0.3, minH=0.13) => Math.max(minH, Math.min(maxH, avail/Math.max(1,n)));
@@ -3880,8 +3900,15 @@ function addDetailSlidesP(p, list, eyebrow, baseTitle){
 
 /* ----- 3P. 분류 외 보험 카드 (3장/페이지) ----- */
 function addSpecialCardsP(p, list, eyebrow, title){
-  // 길이 기반 패킹: 긴 카드 1행(3개/장), 짧은 카드 2행(최대 6개/장)
-  const estP = c => 2.5 + Math.min([...(c.covs||[])].filter(v=>+v.amt>0).length, 30)*0.26 + 0.5;
+  // 길이 기반 패킹: 긴 카드 1행(3개/장), 짧은 카드 2행(최대 6개/장) — 담보는 전부 표시(자름 없음)
+  const gap = 0.14;
+  const cardW = (PCW - gap*2) / 3;
+  const cplC0 = cpl(cardW*0.72, 7.5);
+  const covHs = c => [...(c.covs||[])].filter(v=>+v.amt>0).map(v=>{
+    let cvn = covNameDisp(v.name||catLabel(v.category)||'담보'); const kb2 = krBreak(cvn, cplC0, '\n'); if(kb2) cvn = kb2;
+    return (cvn.includes('\n') || cvn.length>cplC0) ? 0.4 : 0.225;
+  });
+  const estP = c => 2.62 + covHs(c).reduce((a,b)=>a+b,0);
   const sorted = [...list].sort((a,b)=>estP(b)-estP(a));
   const pagesSp = []; let ii = 0;
   const AVAIL = P_BOT - P_TOP;
@@ -3897,9 +3924,7 @@ function addSpecialCardsP(p, list, eyebrow, title){
     const s = p.addSlide(); chromeP(s, eyebrow, title + (pagesSp.length>1?` (${ci+1}/${pagesSp.length})`:''));
     let yBase = P_TOP;
     rowsArr.forEach(grp=>{
-    const rowMax = Math.max(...grp.map(estP));
-    const gap = 0.14;
-    const cardW = (PCW - gap*2) / 3;
+    const rowMax = Math.min(AVAIL, Math.max(...grp.map(estP)));
     grp.forEach((c, i)=>{
       const x = PX + i*(cardW+gap);
       let y = yBase;
@@ -3926,17 +3951,20 @@ function addSpecialCardsP(p, list, eyebrow, title){
       y += 0.3;
       const covs = [...(c.covs||[])].filter(v=>+v.amt>0).sort((a,b)=>b.amt-a.amt);
       if(!covs.length){ s.addText('담보 정보 없음', {x, y, w:cardW, h:0.3, fontSize:8, color:PC.MUTE, fontFace:FONT}); return; }
-      const cplC = cpl(cardW*0.72, 7.5);
-      const cRows = [], cH = []; let used = 0, shown = 0;
-      for(const v of covs){
+      const cplC = cplC0;
+      // 담보 전부 표시 — 공간이 빠듯하면 이 카드만 행높이·글자를 자동 축소
+      const hs = covHs(c);
+      const need = hs.reduce((a,b)=>a+b,0);
+      const room = Math.max(0.5, yBase + rowMax - y - 0.06);
+      const fit = Math.min(1, room / need);
+      const fs2 = Math.max(6.2, Math.round(7.5*Math.max(fit,0.83)*10)/10);
+      const cRows = [], cH = [];
+      covs.forEach((v, vi)=>{
         let cvn = covNameDisp(v.name||catLabel(v.category)||'담보'); const kb2 = krBreak(cvn, cplC, '\n'); if(kb2) cvn = kb2;
-        const h = (cvn.includes('\n') || cvn.length>cplC) ? 0.4 : 0.225;
-        if(used + h > (yBase + rowMax - y - 0.24)) break;
-        cRows.push([ tdP(cvn, {align:'left', fontSize:7.5, color:'3A4655', bold:false}),
-                     tdP(fmtMan(v.amt), {align:'right', fontSize:7.5, color:PC.NAVY}) ]);
-        cH.push(h); used += h; shown++;
-      }
-      if(covs.length > shown){ cRows.push([ tdP(`외 ${covs.length-shown}건 (증권·설계서 참조)`, {align:'left', fontSize:7, color:'8B96A5', colspan:2, bold:false}) ]); cH.push(0.22); }
+        cRows.push([ tdP(cvn, {align:'left', fontSize:fs2, color:'3A4655', bold:false}),
+                     tdP(fmtMan(v.amt), {align:'right', fontSize:fs2, color:PC.NAVY}) ]);
+        cH.push(Math.max(0.16, hs[vi]*fit));
+      });
       s.addTable(cRows, {x, y, w:cardW, colW:[cardW*0.72, cardW*0.28],
         border:{type:'solid', color:'EEF1F6', pt:0.5}, rowH:cH, fontFace:FONT, valign:'middle'});
     });
@@ -3950,15 +3978,16 @@ function addComparePagesP(p, cust){
   const curP = sumPrem(curContracts()), aftP = sumPrem(afterContracts());
   const dropP = sumPrem(dropContracts());
   const propP = sumPrem(S.contracts.filter(c=>c.status==='제안'));
-  const sideTxtP = (list, catKey, fb)=>{
+  const sideTxtP = (list, catKey, fb, side)=>{
+    if(side){ const ft = cmpTxtOf(catKey, side); if(ft) return {t: ft, n: ft.split('\n').length}; }
     const sp2 = catSplit(list, catKey); const parts = [];
     if(sp2.renew>0) parts.push(fmtMan(sp2.renew)+'(갱신)'); if(sp2.normal>0) parts.push(fmtMan(sp2.normal));
     if(!parts.length) return {t: fb||'-', n:1};
     return {t: parts.join('\n'), n: parts.length};
   };
   const items = compareData(true).map(r=>{
-    const a = sideTxtP(curContracts(), r.catKey, r.a?fmtMan(r.a):'-');
-    const b = sideTxtP(afterContracts(), r.catKey, r.b?fmtMan(r.b):'-');
+    const a = sideTxtP(curContracts(), r.catKey, r.a?fmtMan(r.a):'-', 'a');
+    const b = sideTxtP(afterContracts(), r.catKey, r.b?fmtMan(r.b):'-', 'b');
     return {...r, aTxt:a.t, bTxt:b.t, h: Math.max(a.n,b.n)>1 ? 0.36 : 0.225};
   });
   const HEAD = 0.28, FIRST_EXTRA = 0;
@@ -4292,20 +4321,20 @@ function buildPrintHTML(){
   // 분류외(special) 계약은 표준 분류 매트릭스 대신, 담보 내용을 세로 목록(병합 셀)으로 함께 표기한다.
   const spList = c => {
     const arr = [...c.covs].filter(v=>+v.amt>0).sort((a,b)=>b.amt-a.amt);
+    const spFs = arr.length>26 ? 'font-size:7.6pt;' : arr.length>20 ? 'font-size:8.4pt;' : '';
     if(!arr.length) return '<span style="color:#9AA6B6;">담보 정보 없음</span>';
-    const MAXSP = 22;   // 카드가 페이지를 넘지 않도록 상한 — 넘으면 개수만 표기
-    const list2 = arr.slice(0, MAXSP);
+    const list2 = arr;   // 담보 전부 표시 — 많으면 글자 크기로 흡수
     // 담보명은 음절 단위로 자연 줄바꿈(word-break:normal), 금액은 절대 줄어들거나 잘리지 않게(flex 고정폭)
-    return list2.map(v=>`<div style="display:flex;justify-content:space-between;align-items:baseline;gap:3mm;padding:0.8mm 0;border-bottom:0.3pt solid #EEF1F6;">`
-      + `<span style="flex:1 1 auto;min-width:0;word-break:keep-all;overflow-wrap:break-word;">${(()=>{const nm0=covNameDisp(v.name||catLabel(v.category)||'담보');const kb=krBreak(nm0,15,'<br>');return kb? kb.split('<br>').map(esc).join('<br>') : esc(nm0);})()}</span><b style="flex:0 0 auto;white-space:nowrap;color:#0E2C4D;">${fmtMan(v.amt)}</b></div>`).join('')
-      + (arr.length>MAXSP ? `<div style="padding:1.2mm 0;color:#8B96A5;font-size:8.5pt;font-weight:700;">외 ${arr.length-MAXSP}건 (상세는 증권·설계서 참조)</div>` : '');
+    const items = list2.map(v=>`<div style="display:flex;justify-content:space-between;align-items:baseline;gap:3mm;padding:0.8mm 0;border-bottom:0.3pt solid #EEF1F6;">`
+      + `<span style="flex:1 1 auto;min-width:0;word-break:keep-all;overflow-wrap:break-word;">${(()=>{const nm0=covNameDisp(v.name||catLabel(v.category)||'담보');const kb=krBreak(nm0,15,'<br>');return kb? kb.split('<br>').map(esc).join('<br>') : esc(nm0);})()}</span><b style="flex:0 0 auto;white-space:nowrap;color:#0E2C4D;">${fmtMan(v.amt)}</b></div>`).join('');
+    return spFs ? `<div style="${spFs}">${items}</div>` : items;
   };
   // 갱신/비갱신 분리 표기(<br> 2줄)가 생기는 행은 무게 1.65로 계산 — 페이지 하단 잘림 방지
   const wPrint = (grp, cat) => grp.some(c=>{ if(c.special) return false; const sp=catSplit([c],cat); return sp.renew>0 && sp.normal>0; }) ? 1.65 : 1;
   const dSec = (list, eb, title) => detailChunks(list, 3, 40, wPrint).map(({grp, cats}, ci, arr)=>{
-    const cw = (71/grp.length).toFixed(1);
+    const cw = (68/grp.length).toFixed(1);
     return `<div class="psheet content">${chrome(eb, title + (arr.length>1?` (${ci+1}/${arr.length})`:''))}
-    <div class="pbody pbody-top"><table class="pt detail" style="font-size:11pt;"><colgroup><col style="width:7%"><col style="width:22%">${grp.map(()=>`<col style="width:${cw}%">`).join('')}</colgroup>
+    <div class="pbody pbody-top"><table class="pt detail" style="font-size:11pt;"><colgroup><col style="width:10%"><col style="width:22%">${grp.map(()=>`<col style="width:${cw}%">`).join('')}</colgroup>
     <tr><th class="l" colspan="2" style="font-size:11.5pt;">보험사</th>${grp.map(c=>`<th class="c" style="background:${ST_HEX[c.status]};font-size:11.5pt;vertical-align:middle;">${esc(c.insurer)}<br><span style="font-weight:600;opacity:.9;font-size:8.5pt;">${c.status}${c.special?' · 분류외':''}</span></th>`).join('')}</tr>
     <tr><td colspan="2" class="grp">상품명</td>${grp.map(c=>`<td class="c" style="font-size:9pt;color:#5A6678;line-height:1.2;"><div class="clip2">${esc(cleanProd(c.productName))}</div></td>`).join('')}</tr>
     <tr><td colspan="2" class="grp">월 보험료</td>${grp.map(c=>`<td class="c hl" style="font-size:9.5pt;">${fmtWon(c.monthlyPremium)}${isRenew(c)?' +(갱신)':''}</td>`).join('')}</tr>
@@ -4325,7 +4354,7 @@ function buildPrintHTML(){
   const chunk3 = a => { const o=[]; for(let i=0;i<a.length;i+=3) o.push(a.slice(i,i+3)); return o; };
   const lab = t => `<span style="color:#8B96A5;font-weight:600;">${t}</span>`;
   // 분류외 카드 — 길이 기반 패킹: 긴 카드는 1행(3개/장), 짧은 카드는 2행(최대 6개/장)
-  const estSp = c => 58 + Math.min([...(c.covs||[])].filter(v=>+v.amt>0).length, 22) * 7.6;   // mm 추정 높이 (2줄 담보명 여유)
+  const estSp = c => { const n=[...(c.covs||[])].filter(v=>+v.amt>0).length; return 58 + n * (n>26?5.9 : n>20?6.6 : 7.6); };   // 전부 표시 — 많으면 글자 축소분 반영
   const spCard = c => { const f = futurePrem(c); return `<div style="flex:1 1 0;max-width:33.4%;border:0.6pt solid #DCE5F0;border-radius:3mm;overflow:hidden;display:flex;flex-direction:column;">
       <div style="background:${ST_HEX[c.status]};color:#fff;padding:3mm 4mm;">
         <div style="font-size:12.5pt;font-weight:800;line-height:1.1;">${esc(c.insurer)}</div>
@@ -4380,7 +4409,7 @@ function buildPrintHTML(){
     <tr><td class="grp" rowspan="2">보험료</td><td class="cv">월 납입 보험료</td><td class="c hl">${pPremDisp('prem','a')}</td><td class="c hl">${pPremDisp('prem','b')}</td><td class="c">${pWonDelta(curP,aftP)}</td></tr>
     <tr><td class="cv">향후 납입할 보험료</td><td class="c">${pPremDisp('future','a')}</td><td class="c">${pPremDisp('future','b')}</td><td class="c">${pWonDelta(futCp,futAp)}</td></tr></table>`;
   const gMk = '<span style="color:#C0392B;font-size:6.5pt;">(갱신)</span>';
-  const sideP = (side, cat)=>{ const s=catSplitSide(side,cat); const p=[]; if(s.renew>0)p.push(fmtMan(s.renew)+gMk); if(s.normal>0)p.push(fmtMan(s.normal)); return p.join('<br>')||'-'; };
+  const sideP = (side, cat)=>{ const ft=cmpTxtOf(cat, side); if(ft) return esc(ft).replace(/\n/g,'<br>'); const s=catSplitSide(side,cat); const p=[]; if(s.renew>0)p.push(fmtMan(s.renew)+gMk); if(s.normal>0)p.push(fmtMan(s.normal)); return p.join('<br>')||'-'; };
   const cmpRow = (r, span) => {
     const aDisp = sideP('a', r.catKey);
     const bDisp = sideP('b', r.catKey);
