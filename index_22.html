@@ -327,7 +327,8 @@ table.pv td.cov{position:sticky;left:96px;z-index:3;box-shadow:2px 0 0 var(--c-l
 table.pv th:nth-child(2){min-width:132px;}
 .spwrap.free textarea.fce{width:158px;font-family:inherit;font-size:11.5px;font-weight:600;padding:5px 6px;border:1.5px solid var(--c-primary);border-radius:7px;resize:none;line-height:1.45;display:block;background:#fff;}
 table.pv td[colspan]{position:sticky;left:0;z-index:3;}
-table.pv th .ins{font-weight:800;display:block;max-width:120px;overflow:hidden;text-overflow:ellipsis;} table.pv th .st{font-size:10px;opacity:.9;display:block;max-width:130px;white-space:normal;word-break:keep-all;line-height:1.3;}
+table.pv th .ins{font-weight:800;display:block;max-width:120px;overflow:hidden;text-overflow:ellipsis;} table.pv th .st{font-size:10px;opacity:.92;display:block;max-width:130px;white-space:normal;word-break:keep-all;line-height:1.3;border-top:1px solid rgba(255,255,255,.35);margin-top:3px;padding-top:3px;}
+table.pv th .stbadge{display:inline-block;margin-top:4px;padding:1px 8px;border-radius:8px;background:rgba(255,255,255,.22);font-size:9.5px;font-weight:800;letter-spacing:.3px;}
 table.pv th.drop{background:var(--c-orange);border-color:#d96f12;}
 table.pv th.prop{background:var(--c-purple);border-color:#5b2483;}
 table.pv td{border:1px solid var(--c-line);padding:5px 8px;text-align:right;background:#fff;line-height:1.3;}
@@ -2989,7 +2990,7 @@ function renderMatrix(){
   let html = '<table class="pv"><thead><tr><th style="width:96px;">구분</th><th style="text-align:left;">담보</th>';
   cs.forEach(c=>{
     const cls = DROP_ST.includes(c.status)?'drop':c.status==='제안'?'prop':'';
-    html += `<th class="${cls}"><button class="thdel" onclick="event.stopPropagation();delContract('${c.id}')" title="이 계약(상품) 삭제">✕</button><span class="ins" onclick="renameField('${c.id}','insurer')" title="클릭하면 보험사 수정" style="cursor:pointer;">${esc(c.insurer)}</span><span class="st" onclick="renameField('${c.id}','productName')" title="클릭하면 상품명 수정" style="cursor:pointer;">${esc(stripMu(c.productName))} · ${c.status}</span></th>`;
+    html += `<th class="${cls}"><button class="thdel" onclick="event.stopPropagation();delContract('${c.id}')" title="이 계약(상품) 삭제">✕</button><span class="ins" onclick="renameField('${c.id}','insurer')" title="클릭하면 보험사 수정" style="cursor:pointer;">${esc(c.insurer)}</span><span class="st" onclick="renameField('${c.id}','productName')" title="클릭하면 상품명 수정" style="cursor:pointer;">${esc(stripMu(c.productName))}</span><span class="stbadge">${c.status}${c.special?' · 분류외':''}</span></th>`;
   });
   html += '<th>현재</th><th>개선 후</th></tr></thead><tbody>';
   const cur = curContracts(), aft = afterContracts();
@@ -3277,7 +3278,7 @@ const C = { NAVY:'0D3B66', NAVYBOX:'16406E', BLUE:'1565C0', MIDNAVY:'2F5D96',
 const ST_FILL = {'유지':C.NAVY, '리모델링':C.ORG, '이체중지':C.RED, '증권확인':C.AMBER, '제안':C.BLUE};
 const ST_HEX  = {'유지':'#0D3B66', '리모델링':'#D9730D', '이체중지':'#C0392B', '증권확인':'#B8860B', '제안':'#1565C0'};
 let FONT = 'Pretendard';
-const BUILD_TAG = 'v26.07.19-11';
+const BUILD_TAG = 'v26.07.19-12';
 
 /* ----- 한 페이지 맞춤 헬퍼 ----- */
 const fitH = (n, avail, maxH=0.3, minH=0.13) => Math.max(minH, Math.min(maxH, avail/Math.max(1,n)));
