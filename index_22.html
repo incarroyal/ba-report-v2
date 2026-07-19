@@ -375,6 +375,7 @@ table.pv td.mcell.ed .spwrap .spbtns{display:flex;gap:3px;margin-top:1px;}
 table.pv td.mcell.ed .spwrap .spbtns button{flex:1;font-size:10px;padding:2px 0;border:none;border-radius:4px;cursor:pointer;font-weight:700;}
 table.pv td.mcell.ed .spwrap .spok{background:var(--c-primary);color:#fff;}
 table.pv td.mcell.ed .spwrap .spcancel{background:#e5e9f0;color:#5a6678;}
+.spzero{background:#fff;color:#c0392b;border:1px solid #e5b8b2 !important;}
 .legend{display:flex;gap:16px;font-size:12.5px;font-weight:700;margin:0 0 10px;}
 .legend i{display:inline-block;width:11px;height:11px;margin-right:5px;border-radius:3px;vertical-align:-1px;}
 /* overlay */
@@ -3116,7 +3117,7 @@ function freeEditorHTML(cid, cat){
   const cur = (S.cellTxt && S.cellTxt[cid] && S.cellTxt[cid][cat]) || '';   // 직접 쓴 값만 표시 — 그 외엔 빈칸
   return `<div class="spwrap free">
     <textarea class="fce" rows="3" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();${save}}else if(event.key==='Escape'){${cancel}}">${esc(cur)}</textarea>
-    <div class="spbtns"><button class="spok" onmousedown="event.preventDefault();${save}">저장</button><button class="spcancel" onmousedown="event.preventDefault();${cancel}">취소</button></div>
+    <div class="spbtns"><button class="spok" onmousedown="event.preventDefault();${save}">저장</button><button class="spzero" onmousedown="event.preventDefault();zeroCellFree('${cid}','${esc(cat)}')">0원</button><button class="spcancel" onmousedown="event.preventDefault();${cancel}">취소</button></div>
   </div>`;
 }
 function saveCellFree(cid, clickedCat){
@@ -3152,8 +3153,23 @@ function cmpFreeEditorHTML(cat, field){
   const cur = (S.cmpTxt && S.cmpTxt[cat] && S.cmpTxt[cat][field]) || '';
   return `<div class="spwrap free">
     <textarea class="fce" rows="3" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();${save}}else if(event.key==='Escape'){${cancel}}">${esc(cur)}</textarea>
-    <div class="spbtns"><button class="spok" onmousedown="event.preventDefault();${save}">저장</button><button class="spcancel" onmousedown="event.preventDefault();${cancel}">취소</button></div>
+    <div class="spbtns"><button class="spok" onmousedown="event.preventDefault();${save}">저장</button><button class="spzero" onmousedown="event.preventDefault();zeroCmpCell('${esc(cat)}','${field}')">0원</button><button class="spcancel" onmousedown="event.preventDefault();${cancel}">취소</button></div>
   </div>`;
+}
+// 이 칸을 빈 칸(+)으로 — 합산값 0 오버라이드
+function zeroCellFree(cid, cat){
+  mEdit = null;
+  S.cellTxt = S.cellTxt||{}; S.cellAmt = S.cellAmt||{};
+  if(S.cellTxt[cid]) delete S.cellTxt[cid][cat];
+  (S.cellAmt[cid] = S.cellAmt[cid]||{})[cat] = {r:0, n:0};
+  refreshPreviewOnly(); persist(); renderMatrix();
+}
+function zeroCmpCell(cat, field){
+  mCmpEdit = null;
+  S.cmpTxt = S.cmpTxt||{}; S.cmpAmt = S.cmpAmt||{};
+  if(S.cmpTxt[cat]) delete S.cmpTxt[cat][field];
+  (S.cmpAmt[cat] = S.cmpAmt[cat]||{})[field] = {r:0, n:0};
+  refreshPreviewOnly(); persist(); renderMatrix(); renderCmpTable();
 }
 function splitEditorHTML(r, n, saveCall){
   const cancel = `mEdit=null;mCmpEdit=null;renderMatrix();renderCmpTable();`;
@@ -3278,7 +3294,7 @@ const C = { NAVY:'0D3B66', NAVYBOX:'16406E', BLUE:'1565C0', MIDNAVY:'2F5D96',
 const ST_FILL = {'유지':C.NAVY, '리모델링':C.ORG, '이체중지':C.RED, '증권확인':C.AMBER, '제안':C.BLUE};
 const ST_HEX  = {'유지':'#0D3B66', '리모델링':'#D9730D', '이체중지':'#C0392B', '증권확인':'#B8860B', '제안':'#1565C0'};
 let FONT = 'Pretendard';
-const BUILD_TAG = 'v26.07.19-12';
+const BUILD_TAG = 'v26.07.19-13';
 
 /* ----- 한 페이지 맞춤 헬퍼 ----- */
 const fitH = (n, avail, maxH=0.3, minH=0.13) => Math.max(minH, Math.min(maxH, avail/Math.max(1,n)));
