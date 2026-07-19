@@ -384,7 +384,7 @@ table.pv td.mcell.ed .spwrap .spcancel{background:#e5e9f0;color:#5a6678;}
 <div class="toprow">
   <header class="app">
     <h1>보장분석 <b>리포트메이커</b> <span style="font-size:13px;color:var(--c-primary);font-weight:800;">v2</span></h1>
-    <span>롯데 보장분석 PDF → AI 자동 분석 → 보장비교 PPT</span>
+    <span>KB손보 보장분석 PDF → 자동 분석 → 보장비교 PPT</span>
   </header>
   <button class="btn gray sm" onclick="resetAll()">전체 초기화</button>
 </div>
@@ -403,7 +403,7 @@ table.pv td.mcell.ed .spwrap .spcancel{background:#e5e9f0;color:#5a6678;}
   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
     <div>
       <h2>보장분석 리포트 업로드</h2>
-      <p class="desc">롯데 보장분석 리포트 PDF를 올리면 AI가 모든 보유계약의 담보를 보험사별로 자동 추출하고, 회사마다 다른 담보 명칭을 표준 분류로 정리합니다.</p>
+      <p class="desc">KB손보 보장분석 리포트 PDF를 올리면 '상품별 가입담보상세'에서 모든 보유계약·담보(실손 포함)를 AI 없이 그대로 추출하고, 리포트의 신정원 담보명을 표준 분류에 그대로 연결합니다. (M보장분석·롯데 리포트도 자동 인식)</p>
     </div>
     <button class="btn ghost sm" style="flex-shrink:0;" onclick="diagnose()">⚙ 연결 진단</button>
   </div>
@@ -1532,14 +1532,34 @@ const CAT_ALIAS = {   // 신정원 구분·옛 분류 → 현행 기본틀 (M리
   '벌금비용':'기타', '벌금(대인)':'기타', '벌금(대물)':'기타', '벌금':'기타',
   '자동차부상치료비':'기타', '자동차사고부상위로금':'기타', '민사소송법률비용':'기타', '화재벌금':'기타', '화재보험':'기타',
   '골절진단':'기타', '화상진단':'기타', '보존치료':'기타', '2대질환주요치료비':'기타',
-  '장기요양자금':'재가급여', '치매진단비':'치매진단'
+  '장기요양자금':'재가급여', '치매진단비':'치매진단',
+  // ── KB손보 보장분석 '신정원 담보명' 칸 어휘 (2026.07 실측) ──
+  '기타수술':'기타', '특정질병진단':'기타', '기타 인보험(정액)담보':'기타', '기타인보험(정액)담보':'기타',
+  '상해후유장해':'상해후유장해 3%이상', '질병후유장해':'질병후유장해 3%이상',
+  '상해80%이상후유장해':'기타', '질병80%이상후유장해':'기타', '교통상해50%이상후유장해':'기타',
+  '특정상해수술':'상해수술비', '소액암진단(유사암진단)':'유사암진단',
+  '항암방사선약물치료비':'암치료비', '특정암수술':'암치료비', '고액항암치료비':'암치료비',
+  '뇌혈관질환수술':'뇌질환치료비', '허혈성심장질환수술':'심장질환치료비',
+  '치과치료(보존)':'기타', '치과통원':'기타', '응급치료':'기타', '교통상해사망':'기타',
+  '중대화상진단':'기타', '중대골절진단':'기타', '특정상해진단':'기타', '깁스치료':'기타', '인공관절수술':'기타',
+  '상급종합병원 질병입원일당':'질병입원일당', '종합병원이하 질병입원일당':'질병입원일당',
+  '상급종합병원 상해입원일당':'상해입원일당', '종합병원이하 상해입원일당':'상해입원일당',
+  '질병중환자실입원일당':'질병입원일당', '상해중환자실입원일당':'상해입원일당',
+  '암요양병원입원일당':'기타', '암입원일당':'기타', '암통원':'기타', '고액암진단':'일반암진단',
+  '상해한방치료':'기타', '상해50%이상후유장해':'기타', '간병':'질병간병인입원일당', '생활질환입원일당':'질병입원일당'
 };
 function sanitizeCov(v){
   let cat = String(v.category||'').trim();
   let stdCat = v.stdCat || null;
-  // ① M보장분석 실측 사전 최우선 — 담보명이 M보장 4건에 있으면 그 신정원 담보명 그대로 (AI·키워드 분류 무시)
-  const dictStd = sjwByName(v.name);
-  if(dictStd !== null){
+  // ⓪ 리포트의 '신정원 담보명' 칸(KB손보 등)이 있으면 그 값이 최우선 — 그대로 보장구분으로 매핑
+  const stdIn = stdCat && String(stdCat).trim().length<=16 && !/맞춤고지|회한|감액없음|\d{2}\.\d{2}/.test(stdCat) ? String(stdCat).trim() : null;
+  const dictStd = stdIn ? null : sjwByName(v.name);   // 칸 값이 없을 때만 M보장 사전으로 보완
+  if(stdIn !== null){
+    stdCat = stdIn;
+    cat = stdIn==='기타' ? '기타'
+      : (CAT_ALIAS[stdIn]!==undefined ? CAT_ALIAS[stdIn]
+      : (allCats().includes(stdIn) ? stdIn : (autoRegisterStdCat(stdIn) ? stdIn : '기타')));
+  } else if(dictStd !== null){
     stdCat = dictStd;
     cat = dictStd==='기타' ? '기타' : (CAT_ALIAS[dictStd]!==undefined ? CAT_ALIAS[dictStd] : dictStd);
     if(cat!=='기타' && !allCats().includes(cat)) autoRegisterStdCat(cat);
@@ -1968,14 +1988,21 @@ function parseKBContracts(pagesCells){
       continue;
     }
     if(cur && /^\d{1,3}$/.test(c[0]||'') && (c[1]==='정액'||c[1]==='실손')){
-      let name, amtCell;
-      if(c.length >= 5){ name = (c[1]==='실손') ? c[3] : c[2]; amtCell = c[4]; }
-      else if(c.length === 4){ name = (c[1]==='실손') ? (pendName || c[2]) : c[2]; amtCell = c[3]; }
+      let name, std = null, amtCell;
+      if(c.length >= 5){
+        if(c[1]==='실손'){ name = c[3]; } else { name = c[2]; std = c[3]; }   // 정액 행의 4번째 칸 = 신정원 담보명
+        amtCell = c[4];
+      }
+      else if(c.length === 4){
+        if(c[1]==='실손'){ name = pendName || c[2]; } else { name = c[2]; std = pendName; }
+        amtCell = c[3];
+      }
       else { pendName = null; continue; }
       const am = String(amtCell||'').replace(/\s/g,'').match(/^(?:(\d+)억)?([\d,]*)만?원?$/);
       const amt = am ? (+(am[1]||0))*10000 + (+(String(am[2]||'').replace(/,/g,''))||0) : 0;
       if(name && amt>0){
-        const sc = sanitizeCov({ name: String(name).replace(/\s+/g,' ').trim(), category:'', amt, kind: c[1], renew: /갱신/.test(name) });
+        const sc = sanitizeCov({ name: String(name).replace(/\s+/g,' ').trim(), category:'', amt, kind: c[1],
+          stdCat: std ? String(std).replace(/\s+/g,' ').trim() : null, renew: /갱신/.test(name) });
         if(sc.amt>0) cur.covs.push(sc);
       }
       pendName = null;
