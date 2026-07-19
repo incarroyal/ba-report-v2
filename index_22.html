@@ -194,7 +194,8 @@ input:focus,select:focus{outline:none;border-color:var(--c-primary);box-shadow:0
 .psheet{word-break:keep-all;font-weight:500;}
 .psheet .pt td{font-weight:500;}
 .psheet .pt th, .psheet .pt .grp, .psheet .ptit, .psheet .phead h2, .psheet .pcard .v{font-weight:800;}
-.pt.cmpfit td{padding:var(--pv,1.7mm) 2mm;font-size:inherit;}
+.pt.cmpfit td{padding:var(--pv,1.7mm) 2mm;font-size:inherit;vertical-align:middle;}
+.pt.cmpfit td.grp{background:#EEF3F9;border-bottom:0.5pt solid #DCE5F0;}
 @media screen{ .psheet{display:none;} }
 .delbtn{appearance:none;-webkit-appearance:none;background:#fde8e8;border:none;color:var(--c-danger);cursor:pointer;font-size:12px;font-weight:700;padding:3px 9px;border-radius:5px;font-family:inherit;transition:.12s;}
 .delbtn:hover{background:var(--c-danger);color:#fff;}
@@ -2069,6 +2070,13 @@ async function tryParseKBReport(bytes){
     prog('#progReport', 0.05 + 0.5*(p/doc.numPages), `KB 보장분석 인식 중... (${p}/${doc.numPages}p)`);
   }
   if(!pagesCells.length) return false;
+  // 고객 나이 추출: "조혁 (34세 ,남자)" — 만기 나이 표기(80세만기/100세만기)에 사용
+  if(!S.custAge){
+    for(const lines of pagesCells){
+      const m2 = lines.map(l=>l.join(' ')).join(' ').match(/\((\d{1,3})세\s*,/);
+      if(m2){ S.custAge = +m2[1]; break; }
+    }
+  }
   const found = parseKBContracts(pagesCells);
   if(!found.length) return false;
   S.contracts = S.contracts.filter(x=>x.src!=='report');
@@ -3011,7 +3019,7 @@ function renderMatrix(){
           <button class="ract edit g" onclick="editGroup('${esc(g)}')" title="대분류 이름 수정">✎</button>
           <button class="ract del g" onclick="delGroup('${esc(g)}')" title="대분류 전체 삭제">✕</button>
         </span></td>`:'');
-      html += `<td class="cov">${esc(catLabel(cat))}
+      html += `<td class="cov" title="${esc((()=>{ const nm2=[]; cs.forEach(c2=>repCovs(c2,cat).forEach(v=>{ if(+v.amt>0) nm2.push(v.name+' '+fmtMan(v.amt)); })); return nm2.length? '구성 담보:\n'+nm2.slice(0,14).join('\n')+(nm2.length>14?'\n외 '+(nm2.length-14)+'건':'') : '해당 담보 없음'; })())}">${esc(catLabel(cat))}
         <span class="rowacts">
           <button class="ract mv" onclick="moveCat('${esc(g)}','${esc(cat)}',-1)" title="담보 위로">▲</button>
           <button class="ract mv" onclick="moveCat('${esc(g)}','${esc(cat)}',1)" title="담보 아래로">▼</button>
@@ -3024,7 +3032,7 @@ function renderMatrix(){
         if(mEdit && mEdit.cid===c.id && mEdit.cat===cat){
           html += `<td class="mcell ed" data-col="c${ci}">${freeEditorHTML(c.id, cat)}</td>`;
         } else {
-          html += `<td class="mcell${over?' over':''}" data-col="c${ci}" onclick="editCell('${c.id}','${esc(cat)}')" title="클릭하면 갱신·일반 금액을 각각 수정합니다">${v?catSplitFmt([c],cat,GMK_SCR,'<br>'):'<span class="add">+</span>'}</td>`;
+          html += `<td class="mcell${over?' over':''}" data-col="c${ci}" onclick="editCell('${c.id}','${esc(cat)}')" title="${esc((()=>{ const nm2=repCovs(c,cat).filter(v2=>+v2.amt>0).map(v2=>v2.name+' '+fmtMan(v2.amt)); return (nm2.length? nm2.join('\n')+'\n' : '')+'클릭하면 수정'; })())}">${v?catSplitFmt([c],cat,GMK_SCR,'<br>'):'<span class="add">+</span>'}</td>`;
         }
       });
       // 현재·개선 후 합계도 직접 수정(갱신/일반 각각)·복원 가능
@@ -3215,19 +3223,9 @@ const stripMu = n => stripIns(String(n||'').replace(/[（(][^（()）]*[）)]/g,
 const covNameDisp = n => String(n||'').replace(/[（(]\s*([^（()）]*?)\s*[）)]/g, (m,p)=>'('+p.replace(/\s+/g,'')+')');
 // 상품명에서 행 높이를 키우는 군더더기 제거 (해약환급금미지급형·날짜·최초·N종N형·코드 등) — 표시용
 function cleanProd(name){
-  let s = String(name||'');
-  s = s.replace(/[（(][^（()）]*[）)]/g,' ')   // 괄호와 그 안 내용 전부 제거 (무)·(多)·(2104)·(갱신형) 등
-       .replace(/^\s*무배당\s+/,'')                                   // 맨 앞 '무배당 ' 제거
-       .replace(/\(?\s*무?해[약지]환급금?\s*미지급형?\s*\)?/g,' ')   // 해약/해지환급금 미지급(형)
-       .replace(/무\s*해지\s*환급형?/g,' ')
-       .replace(/최초\s*가입/g,' ').replace(/최초/g,' ')
-       .replace(/\d+\s*종\s*\d*\s*형?/g,' ')        // 1종1형, 1종, 1종 1형
-       .replace(/(?:^|\s)\d+형(?=\s|$)/g,' ')         // 단독 N형
-       .replace(/\(\s*\d{3,4}\s*\)/g,' ')             // (2104) 코드
-       .replace(/\d{4}[.\-]\d{1,2}(?:[.\-]\d{1,2})?/g,' ')  // 날짜
-       .replace(/\s*[·,]\s*/g,' ')
-       .replace(/\s{2,}/g,' ').trim();
-  s = stripIns(s);   // 보험사 이름 제거
+  // 상품명은 리포트에 나온 그대로 표시 — 보험사 이름만 제거 (사용자 지정 2026.07)
+  let s = String(name||'').replace(/\s{2,}/g,' ').trim();
+  s = stripIns(s);
   return s || String(name||'');
 }
 
@@ -3867,7 +3865,7 @@ function addDetailSlidesP(p, list, eyebrow, baseTitle){
 /* ----- 3P. 분류 외 보험 카드 (3장/페이지) ----- */
 function addSpecialCardsP(p, list, eyebrow, title){
   // 길이 기반 패킹: 긴 카드 1행(3개/장), 짧은 카드 2행(최대 6개/장)
-  const estP = c => 2.2 + Math.min([...(c.covs||[])].filter(v=>+v.amt>0).length, 30)*0.225 + 0.5;
+  const estP = c => 2.5 + Math.min([...(c.covs||[])].filter(v=>+v.amt>0).length, 30)*0.26 + 0.5;
   const sorted = [...list].sort((a,b)=>estP(b)-estP(a));
   const pagesSp = []; let ii = 0;
   const AVAIL = P_BOT - P_TOP;
@@ -4308,7 +4306,7 @@ function buildPrintHTML(){
   const chunk3 = a => { const o=[]; for(let i=0;i<a.length;i+=3) o.push(a.slice(i,i+3)); return o; };
   const lab = t => `<span style="color:#8B96A5;font-weight:600;">${t}</span>`;
   // 분류외 카드 — 길이 기반 패킹: 긴 카드는 1행(3개/장), 짧은 카드는 2행(최대 6개/장)
-  const estSp = c => 42 + Math.min([...(c.covs||[])].filter(v=>+v.amt>0).length, 22) * 6.2;   // mm 추정 높이
+  const estSp = c => 58 + Math.min([...(c.covs||[])].filter(v=>+v.amt>0).length, 22) * 7.6;   // mm 추정 높이 (2줄 담보명 여유)
   const spCard = c => { const f = futurePrem(c); return `<div style="flex:1 1 0;max-width:33.4%;border:0.6pt solid #DCE5F0;border-radius:3mm;overflow:hidden;display:flex;flex-direction:column;">
       <div style="background:${ST_HEX[c.status]};color:#fff;padding:3mm 4mm;">
         <div style="font-size:12.5pt;font-weight:800;line-height:1.1;">${esc(c.insurer)}</div>
@@ -4333,7 +4331,7 @@ function buildPrintHTML(){
     while(i2 < sorted.length){
       const row1 = sorted.slice(i2, i2+3); i2 += row1.length;
       const rows = [row1];
-      if(i2 < sorted.length && Math.max(...row1.map(estSp)) + estSp(sorted[i2]) + 8 <= 234){
+      if(i2 < sorted.length && Math.max(...row1.map(estSp)) + estSp(sorted[i2]) + 8 <= 222){
         rows.push(sorted.slice(i2, i2+3)); i2 += rows[1].length;
       }
       pages.push(rows);
@@ -4391,25 +4389,25 @@ function buildPrintHTML(){
   const cmpRowH = r => {
     const a = catSplitSide('a', r.catKey), b = catSplitSide('b', r.catKey);
     const twoLine = (a.renew>0 && a.normal>0) || (b.renew>0 && b.normal>0) || String(r.cat||'').length>16;
-    return twoLine ? 9.4 : 5.8;   // mm (배지·패딩 포함 여유값)
+    return twoLine ? 10.6 : 6.5;   // mm (배지·패딩 포함 여유값)
   };
   const CMP_HEAD = 9;       // mm — 표 헤더
-  const CMP_BUDGET = 238;   // mm — 표 전용 한 페이지 예산
+  const CMP_BUDGET = 228;   // mm — 표 전용 한 페이지 예산 (하단 잘림 방지 여유)
   const totH = cmp.reduce((s2,r)=>s2+cmpRowH(r), 0) + CMP_HEAD;
   const fitScale = CMP_BUDGET / totH;
   if(fitScale >= 0.78){
     // 한 페이지 자동핏: 행이 적으면 키우고(≤1.3) 많으면 줄여서(≥0.78) 여백 없이 꽉 차게
-    const scale = Math.min(1.3, Math.max(0.78, fitScale));
+    const scale = Math.min(1.45, Math.max(0.78, fitScale));   // 여백 남으면 행·글씨 확대, 빠듯하면 축소
     h += `<div class="psheet content">${chrome('BEFORE & AFTER', `${cust}님 컨설팅 전후 보장 비교`)}
       <div class="pbody pbody-top">${cmpTbl(cmp, scale)}</div>${pFoot(cust)}</div>`;
   } else {
     // 행이 아주 많으면 2장 분할 (각 장도 자동핏)
-    const half = Math.ceil(cmp.length/2);
-    let cut = half;
-    for(let ci2=half; ci2<cmp.length; ci2++){ if(cmp[ci2].g){ cut = ci2; break; } }   // 그룹 경계에서 자르기
+    let acc = 0, cut = Math.ceil(cmp.length/2), bestDiff = Infinity;
+    const target = totH/2;
+    cmp.forEach((r, ci2)=>{ if(r.g && ci2>0){ const diff = Math.abs(acc - target); if(diff < bestDiff){ bestDiff = diff; cut = ci2; } } acc += cmpRowH(r); });
     [[cmp.slice(0,cut),1],[cmp.slice(cut),2]].forEach(([part,pn])=>{
       const ph = part.reduce((s2,r)=>s2+cmpRowH(r),0) + CMP_HEAD;
-      const sc = Math.min(1.3, Math.max(0.78, CMP_BUDGET/ph));
+      const sc = Math.min(1.45, Math.max(0.78, CMP_BUDGET/ph));
       h += `<div class="psheet content">${chrome('BEFORE & AFTER', `${cust}님 컨설팅 전후 보장 비교 (${pn}/2)`)}
         <div class="pbody pbody-top">${cmpTbl(part, sc)}</div>${pFoot(cust)}</div>`;
     });
