@@ -202,7 +202,7 @@ input:focus,select:focus{outline:none;border-color:var(--c-primary);box-shadow:0
 .rowacts{display:inline-flex;gap:4px;margin-left:6px;vertical-align:middle;opacity:0;transition:.12s;}
 .rowacts.g{display:grid;grid-template-columns:1fr 1fr;justify-items:center;gap:2px;margin:5px 0 0;opacity:0;transition:.12s;max-width:60px;margin-left:auto;margin-right:auto;}
 .rowacts.g .ract{font-size:9px;padding:1px 5px;line-height:1.4;}
-table.pv tr:hover .rowacts{opacity:1;}
+table.pv td:hover > .rowacts, table.pv td.cov:hover .rowacts{opacity:1;}   /* 담보 아이콘은 해당 칸에 올렸을 때만 */
 table.pv td.grp:hover .rowacts.g{opacity:1;}
 .ract{appearance:none;-webkit-appearance:none;border:none;border-radius:5px;font-size:10.5px;font-weight:700;cursor:pointer;padding:2px 7px;font-family:inherit;white-space:nowrap;line-height:1.5;transition:.12s;}
 .ract.edit{background:var(--c-teal-bg-2);color:var(--c-teal-deep);}
@@ -341,7 +341,11 @@ table.pv tr.info td:first-child{color:var(--c-teal-deepest);}
 table.pv tr.info.b td{border-bottom:2px solid var(--c-line-teal);}
 table.pv td.infomerge{background:#f4f7fa;}
 /* 현재·개선 후 합계 스택(월보험료·향후납입) — 세로 중앙 */
-table.pv td.tot .ts-row{padding:5px 0;cursor:pointer;border-radius:5px;line-height:1.3;}
+table.pv td.tot .ts-row{padding:7px 10px;cursor:pointer;border-radius:8px;line-height:1.3;text-align:right;background:#fff;border:1px solid var(--c-line);}
+.ts-row .ts-lb{display:block;font-size:10px;font-weight:700;color:var(--c-text-muted);letter-spacing:.3px;margin-bottom:3px;}
+.ts-row .ts-v{font-size:14.5px;font-weight:800;color:#41556e;}
+table.pv td.tot[data-col="aft"] .ts-row{background:var(--c-teal-bg-1);border-color:var(--c-line-teal);}
+table.pv td.tot[data-col="aft"] .ts-row .ts-v{color:var(--c-teal-deepest);}
 table.pv td.tot .ts-row:hover{background:var(--c-teal-bg-1);outline:1.5px solid var(--c-line-teal);outline-offset:-1.5px;}
 table.pv td.tot .ts-row.ov{color:var(--c-primary);font-weight:800;}
 table.pv td.tot .ts-row+.ts-row{margin-top:3px;}
@@ -409,7 +413,7 @@ table.pv td.mcell.ed .spwrap .spcancel{background:#e5e9f0;color:#5a6678;}
   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
     <div>
       <h2>보장분석 리포트 업로드</h2>
-      <p class="desc">KB손보 보장분석 리포트 PDF를 올리면 '상품별 가입담보상세'에서 모든 보유계약·담보(실손 포함)를 AI 없이 그대로 추출하고, 리포트의 신정원 담보명을 표준 분류에 그대로 연결합니다. (M보장분석·롯데 리포트도 자동 인식)</p>
+      <p class="desc">KB손보 보장분석 리포트 PDF를 올리면 '상품별 가입담보상세'에서 모든 보유계약·담보를 AI 없이 그대로 추출하고, 리포트의 신정원 담보명을 표준 분류에 그대로 연결합니다.</p>
     </div>
     <button class="btn ghost sm" style="flex-shrink:0;" onclick="diagnose()">⚙ 연결 진단</button>
   </div>
@@ -469,7 +473,7 @@ table.pv td.mcell.ed .spwrap .spcancel{background:#e5e9f0;color:#5a6678;}
     <span><i style="background:var(--c-purple)"></i>신규 제안</span>
   </div>
   <h2 style="font-size:14px;margin:14px 0 8px;">유지 계약 담보상세
-    <span style="font-size:11.5px;font-weight:600;color:var(--c-text-muted);margin-left:8px;">계약별 담보 가입금액과 월 보험료·향후 납입할 보험료·납입기간·납입회차·만기를 함께 표시합니다. (갱신형은 100세까지 기준)</span></h2>
+    <span style="font-size:11.5px;font-weight:600;color:var(--c-text-muted);margin-left:8px;">계약별 담보 가입금액과 월 보험료·향후 납입할 보험료·납입기간·납입회차·만기를 함께 표시합니다.</span></h2>
   <div class="tblwrap" id="mtxWrap"></div>
   <div class="hidbar" id="cellRestoreBar" style="display:none;"></div>
   <div style="margin:8px 0 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
@@ -587,8 +591,8 @@ const GROUPS = [
   ['심장질환',   ['허혈성진단','급성심근경색진단','심장질환치료비','급성심근경색수술']],
   ['수술비',     ['상해수술비','상해종수술비','질병수술비','질병종수술비','N대수술비']],
   ['입원·간병',  ['상해입원일당','상해간병인입원일당','질병입원일당','질병간병인입원일당','간병일당']],
-  ['기타',       ['일상생활배상책임']],
-  ['실손의료비', ['질병입원','질병통원','상해입원','상해통원']]
+  ['실손의료비', ['질병입원','질병통원','상해입원','상해통원']],
+  ['기타',       ['일상생활배상책임']]
 ];
 // 기본 GROUPS + 사용자가 추가한 대분류(extraGroups)/중분류(extraCats) 병합
 function effectiveGroups(){
@@ -927,9 +931,9 @@ const totalPrem = c => (+c.monthlyPremium||0) * totalPayCount(c);
 const isRenew = c => /갱신/.test(String(c.productName||'')+String(c.payTerm||''));
 function autoFuture(c){
   const monthly = +c.monthlyPremium||0; if(!monthly) return 0;
-  if(isRenew(c) && S.custAge){ return monthly * Math.max(0, (100 - S.custAge) * 12); }
+  // 갱신형도 100세 가정이 아니라 계약된 납입기간(잔여 회차) 기준으로 정상 계산
   const m = String(c.payProgress||'').match(/(\d+)\s*\/\s*(\d+)/);
-  if(m){ return monthly * Math.max(0, (+m[2]) - (+m[1])); }
+  if(m && +m[2] > 0){ return monthly * Math.max(0, (+m[2]) - (+m[1])); }
   return monthly * totalPayCount(c);
 }
 function futurePrem(c){
@@ -2034,9 +2038,16 @@ function parseKBContracts(pagesCells){
       const am = String(amtCell||'').replace(/\s/g,'').match(/^(?:(\d+)억)?([\d,]*)만?원?$/);
       const amt = am ? (+(am[1]||0))*10000 + (+(String(am[2]||'').replace(/,/g,''))||0) : 0;
       if(name && amt>0){
-        const sc = sanitizeCov({ name: String(name).replace(/\s+/g,' ').trim(), category:'', amt, kind: c[1],
-          stdCat: std ? String(std).replace(/\s+/g,' ').trim() : null, renew: /갱신/.test(name) });
-        if(sc.amt>0) cur.covs.push(sc);
+        const nm2 = String(name).replace(/\s+/g,' ').trim();
+        const mk = cat2 => { const sc = sanitizeCov({ name: nm2, category: cat2||'', amt, kind: c[1],
+          stdCat: cat2 ? null : (std ? String(std).replace(/\s+/g,' ').trim() : null), renew: /갱신/.test(nm2) });
+          if(sc.amt>0) cur.covs.push(sc); };
+        // '상해+질병(포괄)' 통합 실손 담보는 상해·질병 양쪽 행에 반영
+        if(c[1]==='실손' && /상해\s*\+\s*질병|전체상해\s*및\s*전체질병|상해및질병/.test(nm2)){
+          if(/입원의료비/.test(nm2)){ mk('상해입원'); mk('질병입원'); }
+          else if(/외래|통원|처방조제/.test(nm2)){ mk('상해통원'); mk('질병통원'); }
+          else mk();
+        } else mk();
       }
       pendName = null;
       continue;
@@ -2425,7 +2436,8 @@ function renderContracts(){
         <div class="prem">${(+c.monthlyPremium)? (+c.monthlyPremium).toLocaleString()+'<i>원</i>'+(isRenew(c)?'<i> +(갱신)</i>':'') : '<span style="font-size:13px;color:var(--c-text-faint);font-weight:700;">미표시</span>'}</div>
         ${st?`<div class="kv"><span>납입횟수</span><b>약 ${st.paid}/${st.tot}회</b></div>
         <div class="kv"><span>납입률</span><b>${st.rate}%</b></div>
-        ${st.paidAmt?`<div class="kv"><span>납입보험료</span><b>${st.paidAmt.toLocaleString()}원</b></div>`:''}`:''}
+        ${st.paidAmt?`<div class="kv"><span>납입보험료</span><b>${st.paidAmt.toLocaleString()}원</b></div>`:''}
+        ${futurePrem(c)?`<div class="kv"><span>향후 납입보험료</span><b>${futurePrem(c).toLocaleString()}원</b></div>`:''}`:''}
       </div>
       <div class="lfoot">
         ${isProp ? '' : `<span class="stchip">
@@ -2981,7 +2993,7 @@ function renderMatrix(){
           if(mEditInfoTot && mEditInfoTot.key===rr.key && mEditInfoTot.side===side){
             return `<div class="ts-row"><input type="text" value="${esc(ov!=null?ov:cs2sum(list,rr.key))}" onblur="saveInfoTot('${rr.key}','${side}',this.value)" onkeydown="if(event.key==='Enter'){this.blur();}else if(event.key==='Escape'){mEditInfoTot=null;renderMatrix();}"></div>`;
           }
-          return `<div class="ts-row${ov!=null?' ov':''}" onclick="editInfoTot('${rr.key}','${side}')" title="${rr.label} 수정 (+(갱신) 포함 자유 입력)">${ov!=null?esc(ov):cs2sum(list,rr.key)}</div>`;
+          return `<div class="ts-row${ov!=null?' ov':''}" onclick="editInfoTot('${rr.key}','${side}')" title="${rr.label} 수정 (+(갱신) 포함 자유 입력)"><span class="ts-lb">${rr.label}</span><b class="ts-v">${ov!=null?esc(ov):cs2sum(list,rr.key)}</b></div>`;
         }).join('');
         html += `<td class="tot${editingHere?' ed':''}" data-col="${dc}" rowspan="${visInfo.length}" style="vertical-align:middle;text-align:right;">${inner}</td>`;
       });
