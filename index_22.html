@@ -3294,7 +3294,7 @@ const C = { NAVY:'0D3B66', NAVYBOX:'16406E', BLUE:'1565C0', MIDNAVY:'2F5D96',
 const ST_FILL = {'유지':C.NAVY, '리모델링':C.ORG, '이체중지':C.RED, '증권확인':C.AMBER, '제안':C.BLUE};
 const ST_HEX  = {'유지':'#0D3B66', '리모델링':'#D9730D', '이체중지':'#C0392B', '증권확인':'#B8860B', '제안':'#1565C0'};
 let FONT = 'Pretendard';
-const BUILD_TAG = 'v26.07.19-15';
+const BUILD_TAG = 'v26.07.19-16';
 
 /* ----- 한 페이지 맞춤 헬퍼 ----- */
 const fitH = (n, avail, maxH=0.3, minH=0.13) => Math.max(minH, Math.min(maxH, avail/Math.max(1,n)));
@@ -4357,11 +4357,11 @@ function buildPrintHTML(){
   const dSec = (list, eb, title) => detailChunks(list, 3, 40, wPrint).map(({grp, cats}, ci, arr)=>{
     const cw = (66/grp.length).toFixed(1);
     // 자동핏: 남는 세로 여백만큼 담보 행 간격·글자를 키우고, 빠듯하면 그대로 (PPT와 동일 규칙)
-    const rowsN = cats.length + cats.filter(r=>r.w>1).length*0.65;
-    const prod3 = grp.some(c=> String(cleanProd(c.productName)).length > 40) ? 10 : 0;
-    const est = 48 + prod3 + rowsN*5.9;
-    const dpad = Math.max(0, Math.min(3.2, (232 - est) / (Math.max(rowsN,1)*2)));
-    const df = dpad>1.6 ? 1.16 : dpad>0.9 ? 1.09 : 1;
+    const rowsN = cats.length + cats.filter(r=>r.w>1).length*0.7;
+    const prod3 = grp.some(c=> String(cleanProd(c.productName)).length > 40) ? 9 : 0;
+    const est = 42 + prod3 + rowsN*5.3;   // 실측 기반: 행 5.3mm, 메타 42mm
+    const dpad = Math.max(0, Math.min(3.2, (250 - est) / (Math.max(rowsN,1)*2)));
+    const df = dpad>1.5 ? 1.16 : dpad>0.8 ? 1.09 : 1;
     return `<div class="psheet content">${chrome(eb, title + (arr.length>1?` (${ci+1}/${arr.length})`:''))}
     <div class="pbody pbody-top"><table class="pt detail" style="font-size:11pt;--dpad:${dpad.toFixed(2)}mm;--df:${df};"><colgroup><col style="width:12%"><col style="width:22%">${grp.map(()=>`<col style="width:${cw}%">`).join('')}</colgroup>
     <tr><th class="l" colspan="2" style="font-size:11.5pt;">보험사</th>${grp.map(c=>`<th class="c" style="background:${ST_HEX[c.status]};font-size:11.5pt;vertical-align:middle;">${esc(c.insurer)}<br><span style="font-weight:600;opacity:.9;font-size:8.5pt;">${c.status}${c.special?' · 분류외':''}</span></th>`).join('')}</tr>
