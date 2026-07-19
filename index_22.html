@@ -3294,7 +3294,7 @@ const C = { NAVY:'0D3B66', NAVYBOX:'16406E', BLUE:'1565C0', MIDNAVY:'2F5D96',
 const ST_FILL = {'유지':C.NAVY, '리모델링':C.ORG, '이체중지':C.RED, '증권확인':C.AMBER, '제안':C.BLUE};
 const ST_HEX  = {'유지':'#0D3B66', '리모델링':'#D9730D', '이체중지':'#C0392B', '증권확인':'#B8860B', '제안':'#1565C0'};
 let FONT = 'Pretendard';
-const BUILD_TAG = 'v26.07.19-13';
+const BUILD_TAG = 'v26.07.19-14';
 
 /* ----- 한 페이지 맞춤 헬퍼 ----- */
 const fitH = (n, avail, maxH=0.3, minH=0.13) => Math.max(minH, Math.min(maxH, avail/Math.max(1,n)));
@@ -3875,7 +3875,7 @@ function addDetailSlidesP(p, list, eyebrow, baseTitle){
   const chunks = detailChunks(list, 3, 40, weighP);
   chunks.forEach(({grp, cats}, ci)=>{
     const s = p.addSlide(); chromeP(s, eyebrow, baseTitle + (chunks.length>1?` (${ci+1}/${chunks.length})`:''));
-    const catW = 0.4, subW = 1.85;
+    const catW = 0.74, subW = 1.85;
     const cw = (PCW - catW - subW) / grp.length;
     const PRD = cpl(cw, 7.5);
     const corner = t => ({text:t, options:{colspan:2, bold:true, color:'FFFFFF', fill:{color:PC.NAVY}, align:'left', valign:'middle', fontSize:8.5}});
@@ -3920,7 +3920,7 @@ function addSpecialCardsP(p, list, eyebrow, title){
   // 길이 기반 패킹: 긴 카드 1행(3개/장), 짧은 카드 2행(최대 6개/장) — 담보는 전부 표시(자름 없음)
   const gap = 0.14;
   const cardW = (PCW - gap*2) / 3;
-  const cplC0 = cpl(cardW*0.72, 7.5);
+  const cplC0 = cpl(cardW*0.64, 7.5);
   const covHs = c => [...(c.covs||[])].filter(v=>+v.amt>0).map(v=>{
     let cvn = covNameDisp(v.name||catLabel(v.category)||'담보'); const kb2 = krBreak(cvn, cplC0, '\n'); if(kb2) cvn = kb2;
     return (cvn.includes('\n') || cvn.length>cplC0) ? 0.4 : 0.225;
@@ -3982,7 +3982,7 @@ function addSpecialCardsP(p, list, eyebrow, title){
                      tdP(fmtMan(v.amt), {align:'right', fontSize:fs2, color:PC.NAVY}) ]);
         cH.push(Math.max(0.16, hs[vi]*fit));
       });
-      s.addTable(cRows, {x, y, w:cardW, colW:[cardW*0.72, cardW*0.28],
+      s.addTable(cRows, {x, y, w:cardW, colW:[cardW*0.64, cardW*0.36],
         border:{type:'solid', color:'EEF1F6', pt:0.5}, rowH:cH, fontFace:FONT, valign:'middle'});
     });
     yBase += rowMax + 0.2;
@@ -4008,10 +4008,11 @@ function addComparePagesP(p, cust){
     return {...r, aTxt:a.t, bTxt:b.t, h: Math.max(a.n,b.n)>1 ? 0.36 : 0.225};
   });
   const HEAD = 0.28, FIRST_EXTRA = 0;
-  const pages = []; let pg = [], used = HEAD;
+  const pages = []; let pg = [], used = HEAD, lastG = '';
   items.forEach(it=>{
+    if(it.g) lastG = it.g;
     const budget = (P_BOT - P_TOP) - (pages.length===0 ? FIRST_EXTRA : 0);
-    if(pg.length && used + it.h > budget){ pages.push(pg); pg=[]; used=HEAD; }
+    if(pg.length && used + it.h > budget){ pages.push(pg); pg=[]; used=HEAD; if(!it.g) it = {...it, g:lastG}; }
     pg.push(it); used += it.h;
   });
   if(pg.length || !pages.length) pages.push(pg);
@@ -4029,13 +4030,18 @@ function addComparePagesP(p, cust){
       thP('증감',{fontSize:fsc(8.5)})]];
     const rh = [HEAD * Math.min(sc, 1.2)];
     rows.forEach((r, ri)=>{
-      t.push([
-        grpP(r.g, {fontSize:fsc(7.5)}),
+      const row = [];
+      if(r.g){   // 페이지 내 연속 구간 대분류 셀병합
+        let sp = 1; for(let j=ri+1; j<rows.length && !rows[j].g; j++) sp++;
+        row.push(grpP(r.g, {fontSize:fsc(7.5), rowspan:sp, valign:'middle'}));
+      }
+      row.push(
         tdP(r.cat, {align:'left', fill:{color: ri%2?PC.ZEB:PC.CV}, color:'3A4655', bold:false, fontSize:fsc(8)}),
         tdP(r.aTxt, {color:'94A3B5', fontSize:fsc(8)}),
         tdP(r.bTxt, {fill:{color:PC.ZEB}, color:PC.NAVY, fontSize:fsc(8)}),
         tdP(r.d===0?'유지':(r.d>0?'▲ '+fmtMan(r.d):'▼ '+fmtMan(-r.d)), {fontSize:fsc(7.5), color: r.d>0?PC.GREEN : r.d<0?PC.RED : 'C5CDD8'})
-      ]);
+      );
+      t.push(row);
       rh.push(r.h * sc);
     });
     s.addTable(t, {x:PX, y, w:PCW, colW:[0.85, 2.35, 1.5, 1.5, 1.07],
@@ -4349,9 +4355,9 @@ function buildPrintHTML(){
   // 갱신/비갱신 분리 표기(<br> 2줄)가 생기는 행은 무게 1.65로 계산 — 페이지 하단 잘림 방지
   const wPrint = (grp, cat) => grp.some(c=>{ if(c.special) return false; const sp=catSplit([c],cat); return sp.renew>0 && sp.normal>0; }) ? 1.65 : 1;
   const dSec = (list, eb, title) => detailChunks(list, 3, 40, wPrint).map(({grp, cats}, ci, arr)=>{
-    const cw = (68/grp.length).toFixed(1);
+    const cw = (66/grp.length).toFixed(1);
     return `<div class="psheet content">${chrome(eb, title + (arr.length>1?` (${ci+1}/${arr.length})`:''))}
-    <div class="pbody pbody-top"><table class="pt detail" style="font-size:11pt;"><colgroup><col style="width:10%"><col style="width:22%">${grp.map(()=>`<col style="width:${cw}%">`).join('')}</colgroup>
+    <div class="pbody pbody-top"><table class="pt detail" style="font-size:11pt;"><colgroup><col style="width:12%"><col style="width:22%">${grp.map(()=>`<col style="width:${cw}%">`).join('')}</colgroup>
     <tr><th class="l" colspan="2" style="font-size:11.5pt;">보험사</th>${grp.map(c=>`<th class="c" style="background:${ST_HEX[c.status]};font-size:11.5pt;vertical-align:middle;">${esc(c.insurer)}<br><span style="font-weight:600;opacity:.9;font-size:8.5pt;">${c.status}${c.special?' · 분류외':''}</span></th>`).join('')}</tr>
     <tr><td colspan="2" class="grp">상품명</td>${grp.map(c=>`<td class="c" style="font-size:9pt;color:#5A6678;line-height:1.2;"><div class="clip2">${esc(cleanProd(c.productName))}</div></td>`).join('')}</tr>
     <tr><td colspan="2" class="grp">월 보험료</td>${grp.map(c=>`<td class="c hl" style="font-size:9.5pt;">${fmtWon(c.monthlyPremium)}${isRenew(c)?' +(갱신)':''}</td>`).join('')}</tr>
