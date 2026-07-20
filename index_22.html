@@ -201,7 +201,7 @@ input:focus,select:focus{outline:none;border-color:var(--c-primary);box-shadow:0
 .delbtn:hover{background:var(--c-danger);color:#fff;}
 /* 비교표 담보·구분 수정/삭제 — 색상 구분 칩 */
 .rowacts{display:inline-flex;gap:4px;margin-left:6px;vertical-align:middle;opacity:0;transition:.12s;}
-.rowacts.g{display:grid;grid-template-columns:1fr 1fr;justify-items:center;gap:2px;margin:5px 0 0;opacity:0;transition:.12s;max-width:60px;margin-left:auto;margin-right:auto;}
+.rowacts.g{display:grid;grid-template-columns:1fr 1fr;justify-items:center;gap:2px;opacity:0;transition:.12s;max-width:60px;position:absolute;left:50%;bottom:4px;top:auto;right:auto;transform:translateX(-50%);margin:0;background:rgba(252,254,253,.96);padding:1px 2px;border-radius:4px;z-index:2;}
 .rowacts.g .ract{font-size:9px;padding:1px 5px;line-height:1.4;}
 table.pv td:hover > .rowacts, table.pv td.cov:hover .rowacts{opacity:1;}   /* 담보 아이콘은 해당 칸에 올렸을 때만 */
 table.pv td.grp:hover .rowacts.g{opacity:1;}
@@ -3370,7 +3370,7 @@ const C = { NAVY:'0D3B66', NAVYBOX:'16406E', BLUE:'1565C0', MIDNAVY:'2F5D96',
 const ST_FILL = {'유지':C.NAVY, '리모델링':C.ORG, '이체중지':C.RED, '증권확인':C.AMBER, '제안':C.BLUE};
 const ST_HEX  = {'유지':'#0D3B66', '리모델링':'#D9730D', '이체중지':'#C0392B', '증권확인':'#B8860B', '제안':'#1565C0'};
 let FONT = 'Pretendard';
-const BUILD_TAG = 'v26.07.19-22';
+const BUILD_TAG = 'v26.07.19-23';
 
 /* ----- 한 페이지 맞춤 헬퍼 ----- */
 const fitH = (n, avail, maxH=0.3, minH=0.13) => Math.max(minH, Math.min(maxH, avail/Math.max(1,n)));
