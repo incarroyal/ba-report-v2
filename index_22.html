@@ -198,7 +198,9 @@ input:focus,select:focus{outline:none;border-color:var(--c-primary);box-shadow:0
 .pt.cmpfit td.grp{background:#EEF3F9;border-bottom:0.5pt solid #DCE5F0;}
 @media screen{ .psheet{display:none;}
 #printArea.fitmeasure{position:absolute;left:-9999px;top:0;width:210mm;display:block;}
-#printArea.fitmeasure .psheet.content{display:flex;flex-direction:column;width:210mm;height:296.6mm;overflow:hidden;padding:13mm 13mm 12mm;box-sizing:border-box;position:relative;} }
+#printArea.fitmeasure .psheet.content{display:flex;flex-direction:column;width:210mm;height:296.6mm;overflow:hidden;padding:13mm 13mm 12mm;box-sizing:border-box;position:relative;}
+#printArea.fitmeasure .pbody{flex:1 1 auto;display:flex;flex-direction:column;justify-content:center;min-height:0;margin-top:4mm;}
+#printArea.fitmeasure .pbody-top{justify-content:flex-start;} }
 .delbtn{appearance:none;-webkit-appearance:none;background:#fde8e8;border:none;color:var(--c-danger);cursor:pointer;font-size:12px;font-weight:700;padding:3px 9px;border-radius:5px;font-family:inherit;transition:.12s;}
 .delbtn:hover{background:var(--c-danger);color:#fff;}
 /* 비교표 담보·구분 수정/삭제 — 색상 구분 칩 */
@@ -3372,7 +3374,7 @@ const C = { NAVY:'0D3B66', NAVYBOX:'16406E', BLUE:'1565C0', MIDNAVY:'2F5D96',
 const ST_FILL = {'유지':C.NAVY, '리모델링':C.ORG, '이체중지':C.RED, '증권확인':C.AMBER, '제안':C.BLUE};
 const ST_HEX  = {'유지':'#0D3B66', '리모델링':'#D9730D', '이체중지':'#C0392B', '증권확인':'#B8860B', '제안':'#1565C0'};
 let FONT = 'Pretendard';
-const BUILD_TAG = 'v26.07.20-25';
+const BUILD_TAG = 'v26.07.20-26';
 
 /* ----- 한 페이지 맞춤 헬퍼 ----- */
 const fitH = (n, avail, maxH=0.3, minH=0.13) => Math.max(minH, Math.min(maxH, avail/Math.max(1,n)));
