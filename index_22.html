@@ -3386,7 +3386,7 @@ const C = { NAVY:'0D3B66', NAVYBOX:'16406E', BLUE:'1565C0', MIDNAVY:'2F5D96',
 const ST_FILL = {'유지':C.NAVY, '리모델링':C.ORG, '이체중지':C.RED, '증권확인':C.AMBER, '제안':C.BLUE};
 const ST_HEX  = {'유지':'#0D3B66', '리모델링':'#D9730D', '이체중지':'#C0392B', '증권확인':'#B8860B', '제안':'#1565C0'};
 let FONT = 'Pretendard';
-const BUILD_TAG = 'v26.07.20-28';
+const BUILD_TAG = 'v26.07.20-29';
 
 /* ----- 한 페이지 맞춤 헬퍼 ----- */
 const fitH = (n, avail, maxH=0.3, minH=0.13) => Math.max(minH, Math.min(maxH, avail/Math.max(1,n)));
@@ -3884,6 +3884,7 @@ const PC = { NAVY:'0E2C4D', NAVY2:'16406E', GOLD:'B0894C', BLUE:'1565C0', INK:'1
   HL:'F4F8FC', HLTX:'1B4470', GREEN:'1F8A5B', RED:'C0392B', DARKSUB:'A9C2DD' };
 const PW = 8.27, PH = 11.69, PX = 0.5, PCW = 7.27;   // A4 세로 페이지·여백·본문폭 (inch)
 const P_TOP = 1.32, P_BOT = 11.05;                    // 본문 세로 범위
+const DT_TOP = 0.88, DT_BOT = 11.16;                  // 상세·비교표 고정 범위 (사용자 확정 레이아웃 — 행·글씨만 유동)
 const stHexP = st => String(ST_HEX[st]||'#0E2C4D').replace('#','');
 const thP  = (t, o={}) => ({text:t, options:{bold:true, color:'FFFFFF', fill:{color:PC.NAVY}, align:'center', valign:'middle', fontSize:8.5, ...o}});
 const tdP  = (t, o={}) => ({text:String(t??''), options:{bold:true, color:PC.TXT, valign:'middle', align:'center', fontSize:8, ...o}});
@@ -3988,8 +3989,8 @@ function addDetailSlidesP(p, list, eyebrow, baseTitle){
     const rowH = [0.38, prodL>=3?0.56:(prodL===2?0.42:0.3), 0.26, 0.26, 0.24, 0.24, 0.26];
     const metaSum = rowH.reduce((a,b)=>a+b,0);
     const totalW = cats.reduce((s2,r)=>s2+(r.w||1),0) || 1;
-    const unit = Math.max(0.15, ((P_BOT - P_TOP) - metaSum) / totalW);   // 남는 공간 전부 분배 — 하단 딱 맞춤
-    const fu = Math.max(0.88, Math.min(1.25, unit / 0.215));             // 행높이에 비례해 글자도 유동
+    const unit = Math.max(0.15, ((DT_BOT - DT_TOP) - metaSum) / totalW);   // 남는 공간 전부 분배 — 하단(11.16") 딱 맞춤
+    const fu = Math.max(0.88, Math.min(1.25, unit / 0.215));               // 행높이에 비례해 글자도 유동
     cats.forEach(({g, catKey, span, w}, ri)=>{
       const row = [];
       if(span) row.push({text:g, options:{bold:true, color:'FFFFFF', fill:{color:PC.NAVY2}, align:'center', valign:'middle', fontSize:7.5, rowspan:span}});
@@ -4003,7 +4004,7 @@ function addDetailSlidesP(p, list, eyebrow, baseTitle){
       rows.push(row);
       rowH.push(unit * ((w||1)>1 ? 1.65 : 1));
     });
-    s.addTable(rows, {x:PX, y:P_TOP, w:PCW, colW:[catW, subW, ...grp.map(()=>cw)],
+    s.addTable(rows, {x:PX, y:DT_TOP, w:PCW, colW:[catW, subW, ...grp.map(()=>cw)],
       border:{type:'solid', color:PC.LINE, pt:0.5}, rowH, fontSize:8, fontFace:FONT, valign:'middle'});
   });
 }
@@ -4104,7 +4105,7 @@ function addComparePagesP(p, cust){
   const pages = []; let pg = [], used = HEAD, lastG = '';
   items.forEach(it=>{
     if(it.g) lastG = it.g;
-    const budget = (P_BOT - P_TOP) - (pages.length===0 ? FIRST_EXTRA : 0);
+    const budget = (DT_BOT - DT_TOP) - (pages.length===0 ? FIRST_EXTRA : 0);
     if(pg.length && used + it.h > budget){ pages.push(pg); pg=[]; used=HEAD; if(!it.g) it = {...it, g:lastG}; }
     pg.push(it); used += it.h;
   });
@@ -4112,10 +4113,10 @@ function addComparePagesP(p, cust){
   pages.forEach((rows, pi)=>{
     const s = p.addSlide();
     chromeP(s, 'BEFORE & AFTER', `${cust}님 컨설팅 전후 보장 비교${pages.length>1?` (${pi+1}/${pages.length})`:''}`);
-    let y = P_TOP;
-    // 자동핏: 이 페이지 사용 높이 대비 가용 높이만큼 행·글자 확대/축소 (PDF와 동일 규칙)
+    let y = DT_TOP;
+    // 자동핏: 이 페이지 사용 높이 대비 가용 높이만큼 행·글자 확대/축소 (표 상단 0.88"~하단 11.16" 고정)
     const usedH = HEAD + rows.reduce((a2,r)=>a2+r.h, 0);
-    const sc = Math.min(1.5, Math.max(0.8, (P_BOT - P_TOP) / usedH));
+    const sc = Math.min(1.6, Math.max(0.8, (DT_BOT - DT_TOP) / usedH));
     const fsc = n => Math.round(n * Math.min(sc,1.28) * 10) / 10;
     const t = [[thP('구분',{fontSize:fsc(8.5)}), thP('담보',{align:'left', fontSize:fsc(8.5)}),
       {text:'현재', options:{bold:true, color:'FFFFFF', fill:{color:PC.GRAY}, align:'center', valign:'middle', fontSize:fsc(8.5)}},
