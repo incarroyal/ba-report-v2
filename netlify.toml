@@ -13,3 +13,14 @@
   force = true
 
 # build v26.07.19-23
+
+# HTML은 항상 최신으로 (캐시로 인한 구버전 사용 방지)
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "no-cache"
