@@ -3394,7 +3394,7 @@ const C = { NAVY:'0D3B66', NAVYBOX:'16406E', BLUE:'1565C0', MIDNAVY:'2F5D96',
 const ST_FILL = {'유지':C.NAVY, '리모델링':C.ORG, '이체중지':C.RED, '증권확인':C.AMBER, '제안':C.BLUE};
 const ST_HEX  = {'유지':'#0D3B66', '리모델링':'#D9730D', '이체중지':'#C0392B', '증권확인':'#B8860B', '제안':'#1565C0'};
 let FONT = 'Pretendard';
-const BUILD_TAG = 'v26.07.20-31';
+const BUILD_TAG = 'v26.07.20-32';
 
 /* ----- 한 페이지 맞춤 헬퍼 ----- */
 const fitH = (n, avail, maxH=0.3, minH=0.13) => Math.max(minH, Math.min(maxH, avail/Math.max(1,n)));
@@ -3918,7 +3918,7 @@ function chromeP(s, eyebrow, title, compact){
     ], {x:5.55, y:0.36, w:2.22, h:0.78, align:'right', fontFace:FONT, lineSpacingMultiple:1.25, valign:'top'});
   }
   s.addShape('line', {x:PX, y:11.16, w:PCW, h:0, line:{color:PC.LINE, width:0.75}});
-  s.addText(`ROYAL Insurance · ${GINFO.cust}님 보장분석 리포트`, {x:PX, y:11.37, w:3.4, h:0.22, fontSize:7, color:PC.MUTE, bold:true, fontFace:FONT});
+  s.addText(`ROYAL Insurance · ${GINFO.cust}님 보장분석 리포트 · ${BUILD_TAG}`, {x:PX, y:11.37, w:3.4, h:0.22, fontSize:7, color:PC.MUTE, bold:true, fontFace:FONT});
   s.addText('본 자료는 보험 이해를 돕기 위한 참고자료이며, 정확한 내용은 약관 및 증권을 따릅니다',
     {x:2.9, y:11.37, w:4.5, h:0.22, fontSize:6.5, color:PC.MUTE, align:'right', fontFace:FONT});
   s.addText(String(PAGE).padStart(2,'0'), {x:7.48, y:11.37, w:0.29, h:0.22, fontSize:8, color:PC.GRAY, bold:true, align:'right', fontFace:FONT});
@@ -4668,6 +4668,24 @@ function fitDetailPages(root){
     }
   });
 }
+// 새 버전 감지: 서버의 BUILD_TAG가 다르면 상단 배너로 안내 (새로고침해도 저장 데이터 유지)
+async function checkNewBuild(){
+  try{
+    const t = await fetch(location.pathname + '?bv=' + Date.now(), {cache:'no-store'}).then(r=>r.text());
+    const m = t.match(/BUILD_TAG = '([^']+)'/);
+    if(m && m[1] !== BUILD_TAG && !document.querySelector('#updBar')){
+      const d = document.createElement('div');
+      d.id = 'updBar';
+      d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#0E2C4D;color:#fff;padding:9px 16px;text-align:center;font-size:13px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.25);';
+      d.innerHTML = `새 버전(${m[1]})이 배포되었습니다 — 지금 화면은 이전 버전(${BUILD_TAG})입니다. 저장된 데이터는 그대로 유지됩니다. <button onclick="location.reload()" style="margin-left:10px;padding:4px 14px;border-radius:6px;border:0;background:#fff;color:#0E2C4D;font-weight:800;cursor:pointer;">새로고침</button>`;
+      document.body.appendChild(d);
+    }
+  }catch(e){}
+}
+setTimeout(checkNewBuild, 4000);
+setInterval(checkNewBuild, 60000);
+window.addEventListener('focus', checkNewBuild);
+
 function exportPDF(){
   if(!S.contracts.length){ alert('출력할 계약이 없습니다.'); return; }
   const pa = $('#printArea');
