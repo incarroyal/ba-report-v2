@@ -3394,7 +3394,7 @@ const C = { NAVY:'0D3B66', NAVYBOX:'16406E', BLUE:'1565C0', MIDNAVY:'2F5D96',
 const ST_FILL = {'유지':C.NAVY, '리모델링':C.ORG, '이체중지':C.RED, '증권확인':C.AMBER, '제안':C.BLUE};
 const ST_HEX  = {'유지':'#0D3B66', '리모델링':'#D9730D', '이체중지':'#C0392B', '증권확인':'#B8860B', '제안':'#1565C0'};
 let FONT = 'Pretendard';
-const BUILD_TAG = 'v26.07.20-30';
+const BUILD_TAG = 'v26.07.20-31';
 
 /* ----- 한 페이지 맞춤 헬퍼 ----- */
 const fitH = (n, avail, maxH=0.3, minH=0.13) => Math.max(minH, Math.min(maxH, avail/Math.max(1,n)));
@@ -3899,17 +3899,17 @@ const tdP  = (t, o={}) => ({text:String(t??''), options:{bold:true, color:PC.TXT
 const grpP = (t, o={}) => tdP(t, {fill:{color:PC.GRP}, color:PC.NAVY, fontSize:8, ...o});
 
 // 페이지 공통 (머리글·바닥글·쪽번호)
-function chromeP(s, eyebrow, title){
+function chromeP(s, eyebrow, title, compact){
   PAGE++;
   s.background = {color:'FFFFFF'};
-  s.addText(eyebrow, {x:PX, y:0.34, w:5, h:0.24, fontSize:9.5, bold:true, color:PC.GOLD, charSpacing:2.5, fontFace:FONT});
-  s.addText(title, {x:PX-0.02, y:0.58, w:5.5, h:0.5, fontSize:20, bold:true, color:PC.NAVY, fontFace:FONT, charSpacing:-0.3});
+  if(!compact) s.addText(eyebrow, {x:PX, y:0.34, w:5, h:0.24, fontSize:9.5, bold:true, color:PC.GOLD, charSpacing:2.5, fontFace:FONT});
+  s.addText(title, {x:PX-0.02, y: compact?0.28:0.58, w:5.5, h:0.5, fontSize:20, bold:true, color:PC.NAVY, fontFace:FONT, charSpacing:-0.3});
   if(LOGO_ROYAL){
-    s.addImage({data:LOGO_ROYAL, x:6.7, y:0.36, h:0.2, w:1.07});
+    s.addImage({data:LOGO_ROYAL, x:6.7, y: compact?0.26:0.36, h:0.2, w:1.07});
     s.addText([
       {text:`${GINFO.cust}님 보장분석\n`, options:{color:PC.NAVY, bold:true, fontSize:9}},
       {text:GINFO.dstr + (GINFO.pn?` · ${GINFO.pn}`:''), options:{color:PC.MUTE, fontSize:7.5}}
-    ], {x:5.55, y:0.6, w:2.22, h:0.54, align:'right', fontFace:FONT, lineSpacingMultiple:1.25, valign:'top'});
+    ], {x:5.55, y: compact?0.30:0.6, w:2.22, h:0.54, align:'right', fontFace:FONT, lineSpacingMultiple:1.25, valign:'top'});
   } else {
     s.addText([
       {text:'ROYAL INSURANCE\n', options:{color:PC.GOLD, bold:true, fontSize:7.5, charSpacing:1.2}},
@@ -3918,10 +3918,10 @@ function chromeP(s, eyebrow, title){
     ], {x:5.55, y:0.36, w:2.22, h:0.78, align:'right', fontFace:FONT, lineSpacingMultiple:1.25, valign:'top'});
   }
   s.addShape('line', {x:PX, y:11.16, w:PCW, h:0, line:{color:PC.LINE, width:0.75}});
-  s.addText(`ROYAL Insurance · ${GINFO.cust}님 보장분석 리포트`, {x:PX, y:11.21, w:3.4, h:0.22, fontSize:7, color:PC.MUTE, bold:true, fontFace:FONT});
+  s.addText(`ROYAL Insurance · ${GINFO.cust}님 보장분석 리포트`, {x:PX, y:11.37, w:3.4, h:0.22, fontSize:7, color:PC.MUTE, bold:true, fontFace:FONT});
   s.addText('본 자료는 보험 이해를 돕기 위한 참고자료이며, 정확한 내용은 약관 및 증권을 따릅니다',
-    {x:2.9, y:11.21, w:4.5, h:0.22, fontSize:6.5, color:PC.MUTE, align:'right', fontFace:FONT});
-  s.addText(String(PAGE).padStart(2,'0'), {x:7.48, y:11.21, w:0.29, h:0.22, fontSize:8, color:PC.GRAY, bold:true, align:'right', fontFace:FONT});
+    {x:2.9, y:11.37, w:4.5, h:0.22, fontSize:6.5, color:PC.MUTE, align:'right', fontFace:FONT});
+  s.addText(String(PAGE).padStart(2,'0'), {x:7.48, y:11.37, w:0.29, h:0.22, fontSize:8, color:PC.GRAY, bold:true, align:'right', fontFace:FONT});
 }
 
 /* ----- 1P. 표지 (인쇄 표지와 동일 구성) ----- */
@@ -3975,7 +3975,7 @@ function addDetailSlidesP(p, list, eyebrow, baseTitle){
   const weighP = (grp, cat) => grp.some(c=>{ const sp=catSplit([c],cat); return sp.renew>0 && sp.normal>0; }) ? 1.65 : 1;
   const chunks = detailChunks(list, 3, 40, weighP);
   chunks.forEach(({grp, cats}, ci)=>{
-    const s = p.addSlide(); chromeP(s, eyebrow, baseTitle + (chunks.length>1?` (${ci+1}/${chunks.length})`:''));
+    const s = p.addSlide(); chromeP(s, eyebrow, baseTitle + (chunks.length>1?` (${ci+1}/${chunks.length})`:''), true);
     const catW = 0.9, subW = 1.85;
     const cw = (PCW - catW - subW) / grp.length;
     const PRD = cpl(cw, 7.5);
@@ -4120,7 +4120,7 @@ function addComparePagesP(p, cust){
   if(pg.length || !pages.length) pages.push(pg);
   pages.forEach((rows, pi)=>{
     const s = p.addSlide();
-    chromeP(s, 'BEFORE & AFTER', `${cust}님 컨설팅 전후 보장 비교${pages.length>1?` (${pi+1}/${pages.length})`:''}`);
+    chromeP(s, 'BEFORE & AFTER', `${cust}님 컨설팅 전후 보장 비교${pages.length>1?` (${pi+1}/${pages.length})`:''}`, true);
     let y = DT_TOP;
     // 자동핏: 이 페이지 사용 높이 대비 가용 높이만큼 행·글자 확대/축소 (표 상단 0.88"~하단 11.16" 고정)
     const usedH = HEAD + rows.reduce((a2,r)=>a2+r.h, 0);
