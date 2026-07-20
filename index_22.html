@@ -3394,7 +3394,7 @@ const C = { NAVY:'0D3B66', NAVYBOX:'16406E', BLUE:'1565C0', MIDNAVY:'2F5D96',
 const ST_FILL = {'유지':C.NAVY, '리모델링':C.ORG, '이체중지':C.RED, '증권확인':C.AMBER, '제안':C.BLUE};
 const ST_HEX  = {'유지':'#0D3B66', '리모델링':'#D9730D', '이체중지':'#C0392B', '증권확인':'#B8860B', '제안':'#1565C0'};
 let FONT = 'Pretendard';
-const BUILD_TAG = 'v26.07.20-33';
+const BUILD_TAG = 'v26.07.20-34';
 
 /* ----- 한 페이지 맞춤 헬퍼 ----- */
 const fitH = (n, avail, maxH=0.3, minH=0.13) => Math.max(minH, Math.min(maxH, avail/Math.max(1,n)));
@@ -3904,12 +3904,18 @@ function chromeP(s, eyebrow, title, compact){
   s.background = {color:'FFFFFF'};
   if(!compact) s.addText(eyebrow, {x:PX, y:0.34, w:5, h:0.24, fontSize:9.5, bold:true, color:PC.GOLD, charSpacing:2.5, fontFace:FONT});
   s.addText(title, {x:PX-0.02, y: compact?0.28:0.58, w:5.5, h:0.5, fontSize:20, bold:true, color:PC.NAVY, fontFace:FONT, charSpacing:-0.3});
-  if(LOGO_ROYAL){
-    s.addImage({data:LOGO_ROYAL, x:6.7, y: compact?0.26:0.36, h:0.2, w:1.07});
+  if(compact){
+    // 상세·비교 페이지: 로고 없이 텍스트만 (사용자 확정 레이아웃 그대로)
     s.addText([
       {text:`${GINFO.cust}님 보장분석\n`, options:{color:PC.NAVY, bold:true, fontSize:9}},
       {text:GINFO.dstr + (GINFO.pn?` · ${GINFO.pn}`:''), options:{color:PC.MUTE, fontSize:7.5}}
-    ], {x:5.55, y: compact?0.30:0.6, w:2.22, h:0.54, align:'right', fontFace:FONT, lineSpacingMultiple:1.25, valign:'top'});
+    ], {x:5.55, y:0.30, w:2.22, h:0.54, align:'right', fontFace:FONT, lineSpacingMultiple:1.25, valign:'top'});
+  } else if(LOGO_ROYAL){
+    s.addImage({data:LOGO_ROYAL, x:6.7, y:0.36, h:0.2, w:1.07});
+    s.addText([
+      {text:`${GINFO.cust}님 보장분석\n`, options:{color:PC.NAVY, bold:true, fontSize:9}},
+      {text:GINFO.dstr + (GINFO.pn?` · ${GINFO.pn}`:''), options:{color:PC.MUTE, fontSize:7.5}}
+    ], {x:5.55, y:0.6, w:2.22, h:0.54, align:'right', fontFace:FONT, lineSpacingMultiple:1.25, valign:'top'});
   } else {
     s.addText([
       {text:'ROYAL INSURANCE\n', options:{color:PC.GOLD, bold:true, fontSize:7.5, charSpacing:1.2}},
