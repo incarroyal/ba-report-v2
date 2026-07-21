@@ -513,9 +513,9 @@ table.pv td.mcell.ed .spwrap .spcancel{background:#e5e9f0;color:#5a6678;}
   </div>
   <div style="display:flex;gap:10px;flex-wrap:wrap;">
     <button class="btn primary" onclick="exportPPT()">📊 PPT 다운로드</button>
-    <button class="btn ghost" onclick="exportPDF()">🖨 인쇄 · PDF로 저장</button>
+    <!-- PPT 단일화: PDF가 필요하면 파워포인트에서 '다른 이름으로 저장 → PDF' (PPT와 100% 동일) -->
   </div>
-  <div class="note" style="margin-top:14px;">PPT는 파일에 폰트가 포함되지 않아 <b>여는 PC에 Pretendard 설치가 필요</b>합니다(미설치 시 자동 대체). PDF는 인쇄 대화상자에서 "PDF로 저장"을 선택하면 폰트가 그대로 적용된 A4 세로 문서로 저장됩니다.</div>
+  <div class="note" style="margin-top:14px;">PPT는 파일에 폰트가 포함되지 않아 <b>여는 PC에 Pretendard 설치가 필요</b>합니다(미설치 시 자동 대체). PDF는 인쇄 대화상자에서 "PDF로 저장"을 선택하면 폰트가 그대로 적용된 A4 세로 문서로 저장됩니다. · PDF가 필요하면 파워포인트에서 <b>파일 → 다른 이름으로 저장 → PDF</b>를 선택하세요 (PPT와 동일하게 나옵니다)</div>
 </div>
 
 </div>
@@ -3394,7 +3394,7 @@ const C = { NAVY:'0D3B66', NAVYBOX:'16406E', BLUE:'1565C0', MIDNAVY:'2F5D96',
 const ST_FILL = {'유지':C.NAVY, '리모델링':C.ORG, '이체중지':C.RED, '증권확인':C.AMBER, '제안':C.BLUE};
 const ST_HEX  = {'유지':'#0D3B66', '리모델링':'#D9730D', '이체중지':'#C0392B', '증권확인':'#B8860B', '제안':'#1565C0'};
 let FONT = 'Pretendard';
-const BUILD_TAG = 'v26.07.20-35';
+const BUILD_TAG = 'v26.07.20-36';
 
 /* ----- 한 페이지 맞춤 헬퍼 ----- */
 const fitH = (n, avail, maxH=0.3, minH=0.13) => Math.max(minH, Math.min(maxH, avail/Math.max(1,n)));
