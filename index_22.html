@@ -479,7 +479,7 @@ table.pv td.mcell.ed .spwrap .spcancel{background:#e5e9f0;color:#5a6678;}
 <div class="toprow">
   <header class="app">
     <h1>보장분석 <b>리포트메이커</b> <span style="font-size:13px;color:var(--c-primary);font-weight:800;">v2</span></h1>
-    <span>KB손보 보장분석 PDF → 자동 분석 → 보장비교 PPT</span>
+    <span>KB손보 · 메리츠화재 보장분석 PDF → 자동 분석 → 보장비교 PPT</span>
   </header>
   <button class="btn gray sm" onclick="resetAll()">전체 초기화</button>
 </div>
@@ -498,13 +498,14 @@ table.pv td.mcell.ed .spwrap .spcancel{background:#e5e9f0;color:#5a6678;}
   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
     <div>
       <h2>보장분석 리포트 업로드</h2>
-      <p class="desc">KB손보 보장분석 리포트 PDF를 올리면 '상품별 가입담보상세'에서 모든 보유계약·담보를 AI 없이 그대로 추출하고, 리포트의 신정원 담보명을 표준 분류에 그대로 연결합니다.</p>
+      <p class="desc"><b>KB손보 보장분석</b> 리포트('상품별 가입담보상세') 또는 <b>메리츠화재 보장분석</b> 리포트('별첨 상품별 보험가입현황')를 올리면 모든 보유계약·담보를 AI 없이 그대로 추출하고, 리포트의 신정원 담보명을 표준 분류에 그대로 연결합니다.</p>
     </div>
     <button class="btn ghost sm" style="flex-shrink:0;" onclick="diagnose()">⚙ 연결 진단</button>
   </div>
   <div class="note" id="diagBox" style="display:none;margin:0 0 12px;"></div>
+  <div class="note" id="meritzNote" style="margin:0 0 12px;">※ <b>메리츠화재 보장분석</b>은 고객의 <b>LMS 동의</b>를 받은 경우에만 전체 PDF(별첨 '상품별 보험가입현황' 포함)를 받을 수 있습니다. 동의 후 출력한 <b>전체 PDF</b>를 올려 주세요 — 별첨 페이지가 없는 PDF는 계약·담보를 읽을 수 없습니다.</div>
   <div class="drop" id="dropReport">
-    <div class="big">보장분석 리포트 PDF를 끌어다 놓거나 클릭</div>
+    <div class="big">보장분석 리포트 PDF(KB손보 · 메리츠화재)를 끌어다 놓거나 클릭</div>
     <div class="sm">페이지를 자동 분할해 병렬 분석하므로 빠르고 안정적입니다 (최대 30MB)</div>
   </div>
   <input type="file" id="fileReport" accept="application/pdf" class="hide">
@@ -709,7 +710,11 @@ const PAIR_PARENT = {}; Object.keys(PAIRS).forEach(p=>PAIRS[p].forEach(s2=>{ PAI
 const NO_ROW_CATS = new Set(['보존치료','보철치료','질병 및 상해수술비','2대질병주요치료비','골절진단비']);
 // v95: 합산형 분류의 이중 반영 — '질병 및 상해수술비'는 질병/상해수술비 양쪽에, '2대질병주요치료비'는 뇌·심장 치료비 양쪽에 (사용자 지시)
 const CAT_ALSO = { '질병수술비':['질병 및 상해수술비'], '상해수술비':['질병 및 상해수술비'], '뇌질환치료비':['2대질병주요치료비'], '심장질환치료비':['2대질병주요치료비'] };
-const catHit = (v, cat) => v.category === cat || (CAT_ALSO[cat]||[]).includes(String(v.category||''));
+// v113: 실손 '○○ 입통원의료비'는 입원·통원을 함께 보장하는데 리포트의 신정원 칸은 '○○입원의료' 하나뿐이라 통원 행이 비어 있었다.
+//       담보 목록에는 한 줄만 두고(사용자 지시), 통원 행 합계에서만 같은 담보를 함께 센다. 이름에 '입통원'이 있는 담보만 해당.
+const SIL_BOTH = { '상해통원':'상해입원', '질병통원':'질병입원' };
+const catHit = (v, cat) => v.category === cat || (CAT_ALSO[cat]||[]).includes(String(v.category||''))
+  || (SIL_BOTH[cat] !== undefined && v.category === SIL_BOTH[cat] && /입\s*[·․.]?\s*통원/.test(String(v.name||'')));
 // 기본 GROUPS + 사용자가 추가한 대분류(extraGroups)/중분류(extraCats) 병합
 function effectiveGroups(){
   const ec = S.extraCats||{};
@@ -748,7 +753,11 @@ const curGroupOf = cat => { const g = effectiveGroups().find(p=>p[1].includes(ca
 const isCustomCat = cat => Object.values(S.extraCats||{}).some(arr=>arr.includes(cat));
 
 /* ================= 상태 ================= */
-let S = { contracts: [], hiddenCats: [], catLabels: {}, groupLabels: {}, cmpAmt: {}, cellAmt: {}, extraGroups: [], extraCats: {}, futureOv: {}, matOv: {}, hiddenInfoRows: [], infoTot: {}, groupOrder: [], catOrder: {} };   // {id, src, status:'유지'|'리모델링'|'이체중지'|'증권확인'|'제안', insurer, productName, monthlyPremium, payProgress, period, covs:[{name,category,amt}]}
+// v113: 이 빌드가 새로 만드는 상태의 마이그레이션 버전. 종전엔 새 상태에 migV가 없어(=0) '이어서 작업'·되돌리기·보관소 불러오기 때
+//       migV45~62 옛 정규화가 갓 파싱한 데이터 위에 다시 돌면서 신정원 담보명(stdCat)이 지워지고 분류가 규칙 이전으로 되돌아갔다.
+//       마이그레이션 블록을 추가하면 이 값도 함께 올릴 것 (migrateState 마지막 블록과 한 쌍).
+const MIG_V = 62;
+let S = { migV: MIG_V, contracts: [], hiddenCats: [], catLabels: {}, groupLabels: {}, cmpAmt: {}, cellAmt: {}, extraGroups: [], extraCats: {}, futureOv: {}, matOv: {}, hiddenInfoRows: [], infoTot: {}, groupOrder: [], catOrder: {} };   // {id, src, status:'유지'|'리모델링'|'이체중지'|'증권확인'|'제안', insurer, productName, monthlyPremium, payProgress, period, covs:[{name,category,amt}]}
 let editingId = null;
 let edSnap = null, edSnapMat, edSnapFut;   // 편집 시작 시점 스냅샷 — '닫기(저장 안 함)'용
 let edCovTab = 'all';                      // 담보 내역 탭: all | 정액 | 실손
@@ -762,6 +771,19 @@ const SITE_ORIGIN = 'https://stellular-pudding-daeb72.netlify.app';
 const API = (/netlify\.app$/.test(location.hostname) ? '' : SITE_ORIGIN) + '/.netlify/functions/ai-parse';
 const LSKEY = 'baReportV2';
 
+// v113: v112 이하 메리츠 별첨 파서가 자동 등록하던 구분 → 현행 사전 매핑. 저장 상태뿐 아니라
+//       '나만의 보장분석 담보' 구성(툴 프리셋)에도 남아 있어, 프리셋을 불러오면 없어진 행이 되살아난다.
+const LEGACY_ROW_MAP = { '질병간병인사용입원일당':'질병입원일당', '상해간병인사용입원일당':'상해입원일당',
+  '질병간병인지원입원일당':'질병입원일당', '상해간병인지원입원일당':'상해입원일당',
+  '1인실입원일당':'기타', '치매진단(중증)':'기타', '치매진단(경증)':'기타' };
+// 기본틀 구성(extraGroups/extraCats)에서 위 구분과 그때 생기던 '입원·간병' 임의 대분류를 정리
+function dropLegacyRows(st){
+  if(st.extraCats) Object.keys(st.extraCats).forEach(g=>{
+    st.extraCats[g] = (st.extraCats[g]||[]).filter(c2=>LEGACY_ROW_MAP[c2]===undefined);
+    if(!st.extraCats[g].length) delete st.extraCats[g];
+  });
+  if(Array.isArray(st.extraGroups)) st.extraGroups = st.extraGroups.filter(g=>g!=='입원·간병' || (st.extraCats && st.extraCats[g] && st.extraCats[g].length));
+}
 // 구버전 데이터 호환: '해지' → '리모델링', 신규 필드 보장
 function migrateState(st){
   if(!st) return st;
@@ -1200,6 +1222,15 @@ function migrateState(st){
       if(o61 > c61b) c.productName = n61 + ')'.repeat(Math.min(3, o61 - c61b));
     });
     st.migV = 61;
+  }
+  if((+st.migV||0) < 62){
+    // v113 소급: 메리츠 보장분석(별첨) 저장분 — 자동 등록됐던 신정원 구분(간병인사용/지원 입원일당·1인실입원일당·치매진단 중증/경증)을 사전대로 재매핑하고,
+    //            그때 임의로 생긴 '입원·간병' 대분류·행을 정리 (재업로드 없이 복구, 2회 통과 안정)
+    (st.contracts||[]).forEach(c=>{
+      (Array.isArray(c.covs) ? c.covs : []).forEach(v=>{ if(v && LEGACY_ROW_MAP[v.category]!==undefined) v.category = LEGACY_ROW_MAP[v.category]; });
+    });
+    dropLegacyRows(st);
+    st.migV = MIG_V;
   }
   // 사용자가 기본틀에서 제외한 구분이 과거 자동 등록으로 남아있으면 정리
   if(st.extraCats) Object.keys(st.extraCats).forEach(g=>{
@@ -1705,7 +1736,13 @@ const CS_MAP = {
   'NH농협생명':'1544-4000','동양생명':'1577-1004','흥국생명':'1588-2288','미래에셋생명':'1588-0220',
   'KDB생명':'1588-4040','ABL생명':'1588-6500','메트라이프':'1588-9600','라이나':'1588-0058',
   'AIA':'1588-9898','DB생명':'1588-3131','카카오페이':'1544-0022','캐롯':'1566-0300',
-  'NH농협손보':'1644-9000','하나손보':'1566-3000','신한EZ':'1670-0079','삼성생명':'1588-3114'
+  'NH농협손보':'1644-9000','하나손보':'1566-3000','신한EZ':'1670-0079','삼성생명':'1588-3114',
+  'DB손보':'1588-0100','KB손보':'1544-0114','신한생명':'1588-5580',   // v113: 메리츠·KB 보장분석이 인쇄하는 축약 회사명 — 기존 항목과 같은 번호(신한생명은 신한라이프로 통합)
+  // v113: 메리츠 보장분석 실측에서 비어 있던 4곳 — 각 사 공식 홈페이지에서 확인 (2026-09-09)
+  'AIG':'1544-2792',                                    // AIG손해보험 고객서비스센터 (aig.co.kr)
+  'DGB생명':'1588-4770','iM라이프':'1588-4770',           // DGB생명 → 2024.06 iM라이프로 사명 변경 (imlifeins.co.kr)
+  '카디프생명':'1688-1118',                              // BNP파리바 카디프생명 ARS (cardif.co.kr) — 카디프손해보험과 다름
+  '우정사업본부':'1599-0100','우체국':'1599-0100'          // 우체국보험 (koreapost.go.kr — 우편 1588-1300·예금 1599-1900과 별개)
 };
 const autoCs = ins => { for(const k in CS_MAP) if((ins||'').includes(k)) return CS_MAP[k]; return ''; };
 
@@ -2169,7 +2206,12 @@ const CAT_ALIAS = {   // 신정원 구분·옛 분류 → 현행 기본틀 (M리
   '질병중환자실입원일당':'기타', '상해중환자실입원일당':'기타', '중환자실입원일당':'기타',
   '암요양병원입원일당':'기타', '암입원일당':'기타', '암통원':'기타',
   '상해한방치료':'기타', '상해50%이상후유장해':'기타', '간병일당':'기타', '간병':'기타', '생활질환입원일당':'기타',
-  '특정질병입원일당':'기타'
+  '특정질병입원일당':'기타',
+  // ── v113: 메리츠화재 보장분석 '별첨 상품별 보험가입현황' 신정원 담보명 어휘 (2026.09 실측 5건) ──
+  //    간병인(사용·지원) 일당은 기본틀 규칙대로 입원일당에 합산, 1인실(상급종합·종합병원 한정) 일당과 치매는 기타 — 자동 행 등록('입원·간병' 임의 대분류) 방지
+  '질병간병인사용입원일당':'질병입원일당', '상해간병인사용입원일당':'상해입원일당',
+  '질병간병인지원입원일당':'질병입원일당', '상해간병인지원입원일당':'상해입원일당',
+  '1인실입원일당':'기타', '치매진단(중증)':'기타', '치매진단(경증)':'기타', '치매진단':'기타'
 };
 // 신정원 담보명 정제: 괄호·대괄호 수식(맞춤고지·감액없음·회한 등) 제거
 function stdNorm(s){
@@ -2228,6 +2270,35 @@ function sanitizeCov(v){
     const alt98 = mapCovCat(v.name);
     if(alt98==='N대수술비') cat = alt98;
   }
+  // v113: 신정원 칸이 '암수술'이어도 담보 이름에 '암'이 없고 질병/상해수술이면 그 행으로 (사용자 지시 2026-09-09)
+  //   — 메리츠·KB 리포트가 '질병수술비(동일질병당1회지급)'·'유병자형 질병수술'류를 신정원 칸에서 암수술로 분류해,
+  //     고객에게 보여줄 표가 리포트 본문 표와 어긋나던 것(5건 중 4건에서 발생). 진짜 암 담보는 이름에 '암'이 있어 걸리지 않는다.
+  if(cat==='암수술'){
+    const nsu = String(v.name||'').replace(/\s+/g,'');
+    if(!/암/.test(nsu) && !/\d{2,3}\s*대/.test(nsu)){
+      if(/질병수술/.test(nsu)) cat = '질병수술비';
+      else if(/(상해|재해)수술/.test(nsu)) cat = '상해수술비';
+    }
+  }
+  // v113: 이름이 '뇌혈관…수술'·'허혈…수술'이면 신정원 칸이 뇌졸중수술·급성심근경색수술·기타여도 뇌혈관수술 / 심장질환수술 행으로 (사용자 지시 2026-09-09)
+  //   — 같은 병기 행(뇌질환치료·수술비 / 심장질환치료·수술비) 안에서 자리만 바뀌므로 행 합계는 변하지 않는다.
+  //     N대(130대 등)수술비·치료비류·중환자실 조건부는 각각 기존 규칙대로 두기 위해 제외.
+  if(cat==='뇌졸중수술' || cat==='급성심근경색수술' || cat==='기타'){
+    const nsg = String(v.name||'').replace(/\s+/g,'');
+    if(/수술/.test(nsg) && !/\d{2,3}\s*대/.test(nsg) && !/주요치료비|통합치료|치료비|중환자실|납입면제|납입지원|납면/.test(nsg)){
+      if(/뇌혈관/.test(nsg)) cat = '뇌혈관수술';
+      else if(/허혈/.test(nsg)) cat = '심장질환수술';
+    }
+  }
+  // v113: 이름에 '순환계'가 있고 진단·치료면 신정원 칸이 '2대질환주요치료비'(사전상 기타)여도 순환계 진단/치료비 행으로 (사용자 지시 2026-09-09)
+  //   — 중환자실 조건부, 그리고 납입면제·납입지원 담보(v95: 이름에 있으면 무조건 기타 — 흥국 '보험료납입면제대상(…순환계…)')는 그대로 기타 유지.
+  if(cat==='기타'){
+    const ncr = String(v.name||'').replace(/\s+/g,'');
+    if(/순환계/.test(ncr) && !/중환자실|납입면제|납입지원|납면/.test(ncr)){
+      if(/진단/.test(ncr)) cat = '순환계질환진단비';
+      else if(/치료/.test(ncr)) cat = '순환계질환치료비';
+    }
+  }
   // v99: 이름이 유사암진단비류면 칸이 '특정암진단'이어도 기본틀엔 유사암진단으로 (사용자 지시 — 롯데 갑상선암.기타피부암.유사암진단비)
   if(cat==='특정암진단' && /유사암진단/.test(String(v.name||'').replace(/\s+/g,'')) && !/유사암(?:진단[비금]?)?제외/.test(String(v.name||'').replace(/\s+/g,''))) cat = '유사암진단';
   // 일상생활배상책임 행: 이름에 일상생활·가족생활이 없으면(종업원·화재 배상 등) 기타
@@ -2248,7 +2319,9 @@ function sanitizeCov(v){
   // 암 치료류(주요치료비·치료지원금·허가치료비·항암치료) → 암 > 치료비 행 (일당·간병·유사암 제외)
   if(cat==='기타'){
     const nm3 = (String(v.name||'') + String(v.stdCat||'')).replace(/\s+/g,'');
-    if(!/유사암|일당|간병/.test(nm3)){
+    // v113: '(유사암제외)'는 유사암 담보가 아니라 일반암 담보 표기라 구제 제외 사유에서 뺀다. 단 중환자실은 반드시 남긴다 —
+    //       이 구제는 위 '중환자실→무조건 기타' 검사보다 뒤에 있어서, 빼면 중환자실 담보가 암치료비 행에 다시 합산된다(실측: 흥국 p21/p25).
+    if(!/유사암(?!제외)|일당|간병|중환자실/.test(nm3)){
       if((/암/.test(nm3) && /주요치료비|치료지원금|허가치료비/.test(nm3))
         || /암치료|암주요치료/.test(nm3)
         || (/항암/.test(nm3) && /치료비/.test(nm3))) cat = '암치료비';
@@ -2498,7 +2571,7 @@ const DENY_SJW = new Set(['재가급여','복지용구','데이케어센터','�
 // 기본틀에 없는 신정원 구분이 리포트·AI에서 나오면 알맞은 대분류에 자동 편입 (표·비교표·PPT·PDF에 바로 반영, 저장됨)
 // → 공식 전체 코드표를 몰라도 어떤 담보든 그 구분명 그대로 살아남는다. 필요 없으면 미리보기에서 숨기면 됨.
 const KNOWN_SJW = {
-  '암입원일당':'입원·간병',
+  '암입원일당':'입원',   // v113: 대분류명은 v95 개편 후 '입원' (구 '입원·간병' — 자동 등록 시 없는 대분류를 새로 만들던 잔재)
   '처방조제':'실손의료비',
 };
 function guessGroupForStd(std){
@@ -2509,7 +2582,7 @@ function guessGroupForStd(std){
   if(/뇌/.test(s)) return '뇌질환';
   if(/심장|심근/.test(s)) return '심장질환';
   if(/수술/.test(s)) return '수술비';
-  if(/일당|간병/.test(s)) return '입원·간병';
+  if(/일당|간병/.test(s)) return '입원';   // v113: v95에서 대분류 '입원·간병인'→'입원'으로 바뀐 뒤에도 옛 이름을 돌려줘 '입원·간병' 대분류가 새로 생기던 것 수정
   if(/실손|의료|통원|처방/.test(s)) return '실손의료비';
   return '기타';
 }
@@ -2550,7 +2623,7 @@ function parseMPage(txt){
   const h = txt.match(/별첨\s*상품별\s*보험가입현황\s*(\d+)\s+(\S+)\s+(.+?)\s*계약자\/피보험자/);
   // 담보 30행 초과 시 이어지는 연속 페이지: "별첨 … NN" + 계약자 정보 없이 표만 반복
   const hc = !h && txt.match(/별첨\s*상품별\s*보험가입현황\s*(\d+)\s/);
-  if(!h && !(hc && /\d{1,2}\s+(?:정액|실손)\s/.test(txt))) return null;
+  if(!h && !(hc && /\d{1,3}\s+(?:정액|실손)\s/.test(txt))) return null;   // v113: 행 번호 3자리 (담보 100건 넘는 계약 — 실측 최대 97행, KB 경로도 \d{1,3})
   const c = h
     ? { id: uid(), src:'report', status:'유지', insurer: h[2], productName: fixParen(h[3].trim()),
         monthlyPremium:0, payProgress:'', payTerm:'', period:'', csPhone:'', special:false, covs:[], _ord:+h[1] }
@@ -2562,7 +2635,14 @@ function parseMPage(txt){
     const cyc = pm[1]==='미표시' ? '' : pm[1];
     const yrs = (pm[2] && pm[2]!=='0년') ? pm[2] : '';
     c.payTerm = [cyc, yrs].filter(Boolean).join('/');
+  } else {
+    // v113: 납입기간 없이 '미표시/71세 만기'처럼 2단으로만 인쇄되는 계약(실손 전환·자동차·저축 등, 메리츠 2026.09 실측) — 만기만이라도 살린다
+    const pm2 = txt.match(/납입주기\/납입기간\/만기\s+([^\/ ]+)\/(종신|\d{1,4}\s*세\s*만기)/);
+    if(pm2){ matu = pm2[2].replace(/\s+/g,''); c.payTerm = pm2[1]==='미표시' ? '' : pm2[1]; }
   }
+  // v113: '1074세 만기'(카디프 변액연금, 보험기간 3036년)처럼 999세 이상은 종신 — KB 경로와 동일 기준
+  const ma9 = matu.match(/^(\d{3,4})세만기$/);
+  if(ma9 && +ma9[1] >= 999) matu = '종신';
   const per = txt.match(/보험기간\s+([\d.]+)\s*~\s*([\d.]+)/);
   if(per) c.period = per[1] + ' ~ ' + (per[2]==='9999.12.31' ? '' : per[2]);
   const prm = txt.match(/월\s*보험료\s+([\d,]+)\s*원/);
@@ -2582,12 +2662,13 @@ function parseMPage(txt){
   }
   // 담보 행: "N 정액|실손 회사담보명 신정원담보명 금액" — 행 시작 번호로 분할
   const body = (txt.split(/신정원\s*담보명\s*가입금액/)[1]) || txt;
-  body.split(/\s(?=\d{1,2}\s+(?:정액|실손)\s)/).forEach(sg=>{
-    sg = sg.replace(/\s*\*\s*신용정보원[^]*$/,'').replace(/(?:\s+\d{1,2})+\s*(?:\*.*)?$/,'').trim();   // 각주('* 신용정보원…')와 뒤에 붙은 빈 행 번호들(단독 포함: … 10만 41) 제거 — 금액은 만/억 접미라 안전
-    let m = sg.match(/^(\d{1,2})\s+(정액|실손)\s+(.+?)\s+(\S+)\s+((?:\d+억\s*)?[\d,]*\s*(?:만|천)?)$/);
+  // v113: 행 번호를 \d{1,2}로 가정하면 담보가 100건을 넘는 계약에서 100번 이후가 통째로 조용히 사라진다(실측 최대 97행 — 3행 차이). KB 경로와 같이 3자리로.
+  body.split(/\s(?=\d{1,3}\s+(?:정액|실손)\s)/).forEach(sg=>{
+    sg = sg.replace(/\s*\*\s*신용정보원[^]*$/,'').replace(/(?:\s+\d{1,3})+\s*(?:\*.*)?$/,'').trim();   // 각주('* 신용정보원…')와 뒤에 붙은 빈 행 번호들(단독 포함: … 10만 41) 제거 — 금액은 만/억 접미라 안전
+    let m = sg.match(/^(\d{1,3})\s+(정액|실손)\s+(.+?)\s+(\S+)\s+((?:\d+억\s*)?[\d,]*\s*(?:만|천)?)$/);
     if(!m){
       // 회사담보명+신정원명이 공백 없이 한 덩어리인 행("…자가용운전자용)기타 10만")
-      const m2 = sg.match(/^(\d{1,2})\s+(정액|실손)\s+(\S+)\s+((?:\d+억\s*)?[\d,]+\s*(?:만|천)?)$/);
+      const m2 = sg.match(/^(\d{1,3})\s+(정액|실손)\s+(\S+)\s+((?:\d+억\s*)?[\d,]+\s*(?:만|천)?)$/);
       if(m2) m = [m2[0], m2[1], m2[2], '', m2[3], m2[4]];
     }
     if(!m) return;
@@ -2596,21 +2677,24 @@ function parseMPage(txt){
     // 회사담보명+신정원명이 전부 한 덩어리로 붙은 행: 금액이 신정원명 자리에 온 경우 복구
     if(!(amt>0) && /^(?:\d+억)?[\d,]*(?:만|천)?$/.test(std) && /[가-힣]/.test(name)){ amt = parseManAmt(std); std = name; name = ''; }
     if(!(amt>0)) return;
-    // ── 보장구분 = PDF '신정원 담보명'을 기본틀로 매핑 (기타는 기타 그대로 · 담보명 키워드 재분류 금지) ──
-    let cat;
-    if(std==='기타') cat = '기타';
-    else if(CAT_ALIAS[std] !== undefined) cat = CAT_ALIAS[std];
-    else if(allCats().includes(std)) cat = std;
-    else if(std.length<=24 && autoRegisterStdCat(std)) cat = std;   // 미지의 신정원 구분 → 자동 등록
-    else {
-      // 회사담보명과 신정원명이 붙어버린 행("…자가용운전자용)기타") → 알려진 구분이 꼬리에 붙었으면 분리
-      const vocab = Object.keys(CAT_ALIAS).concat(allCats()).concat(['기타']).sort((a,b)=>b.length-a.length);
+    // 회사담보명과 신정원명이 붙어버린 행("…자가용운전자용)기타") → 알려진 구분이 꼬리에 붙었으면 분리
+    // v113: 붙어버린 행만 분리한다 — 괄호·대괄호가 남아 있거나(회사명 꼬리) 신정원명 길이 상한(24자)을 넘을 때만.
+    //       조건이 느슨하면 사전에 없는 멀쩡한 신정원명(예: '유방암진단')이 '…암진단'으로 잘리고 앞부분이 담보명에 붙는다.
+    if(std!=='기타' && CAT_ALIAS[std]===undefined && !allCats().includes(std) && !PAIR_SUBS.includes(std) && !NO_ROW_CATS.has(std)
+       && (std.length > 24 || /[)\]]/.test(std))){
+      const vocab = Object.keys(CAT_ALIAS).concat(allCats()).concat(PAIR_SUBS).concat(['기타']).sort((a,b)=>b.length-a.length);
       const tail = vocab.find(v=>std.length>v.length && std.endsWith(v));
-      if(tail){ name = (name+' '+std.slice(0, std.length-tail.length)).trim(); std = tail; cat = tail==='기타' ? '기타' : (CAT_ALIAS[tail]!==undefined ? CAT_ALIAS[tail] : tail); }
-      else cat = '기타';
+      if(tail){ name = (name+' '+std.slice(0, std.length-tail.length)).trim(); std = tail; }
     }
     if(!name) name = std;
-    c.covs.push({ name, stdCat: std, category: cat, amt, renew: /갱신/.test(name), kind: m[2] });   // kind = M보장분석 '구분' 칸 (정액|실손)
+    // ── v113: 보장구분·이름 정리를 KB 보장분석과 같은 sanitizeCov(신정원 칸 최우선 경로)로 통일 ──
+    //    종전엔 이 경로만 사전 직매핑+미지 구분 자동 행 등록이라 사용자 규칙(N대수술비·유사암·후유장해 3% 하한·중환자실·암치료류 구제)이 메리츠 리포트엔 적용되지 않았고,
+    //    새 어휘(간병인사용입원일당·1인실입원일당·치매진단)가 '입원·간병' 임의 대분류로 표에 새 행을 만들었다. kind = M보장분석 '구분' 칸 (정액|실손)
+    const sc = sanitizeCov({ name, category:'', amt, kind: m[2], stdCat: std, renew: /갱신/.test(name) });
+    // v113: 보장구분 표시는 신정원 칸 '원문'을 그대로 (v112와 동일). sanitizeCov는 매칭용으로 괄호를 벗기므로
+    //       그대로 두면 '치매진단(중증)'·'치매진단(경증)'이 둘 다 '치매진단'이 되어 화면상 같은 담보가 중복된 것처럼 보인다.
+    if(std) sc.stdCat = std;
+    if(sc.amt>0) c.covs.push(sc);
   });
   return h ? { c, matu } : { cont: c._ord, covs: c.covs };   // 연속 페이지는 담보만 반환 → 같은 번호 계약에 병합
 }
@@ -2740,7 +2824,8 @@ async function tryParseKBReport(bytes){
     }
     if(lines.some(l=>l.join(' ').includes('님의 상품별 가입담보상세'))) pagesCells.push(lines);
     if(p===3 && !pagesCells.length && !doc.numPages) break;
-    prog('#progReport', 0.05 + 0.5*(p/doc.numPages), `KB 보장분석 인식 중... (${p}/${doc.numPages}p)`);
+    // v113: KB 페이지를 실제로 찾기 전에는 중립 문구 — 메리츠(별첨 없는 동의 전 출력본)·AI 경로 PDF에까지 'KB 보장분석 인식 중'이 뜨던 것
+    prog('#progReport', 0.05 + 0.5*(p/doc.numPages), pagesCells.length ? `KB 보장분석 인식 중... (${p}/${doc.numPages}p)` : `리포트 형식 확인 중... (${p}/${doc.numPages}p)`);
   }
   if(!pagesCells.length) return false;
   // 고객 나이 추출: "조혁 (34세 ,남자)" — 만기 나이 표기(80세만기/100세만기)에 사용
@@ -2779,15 +2864,29 @@ async function tryParseKBReport(bytes){
   return true;
 }
 
-async function tryParseMReport(bytes){
+let _mNoAppendix = false;   // v113: 직전 업로드가 '메리츠 보장분석으로 보이지만 별첨(상품별 보험가입현황)이 없는 PDF'였는지 — LMS 동의 전 출력본 안내용
+async function tryParseMReport(bytes, progSel){
+  progSel = progSel || '#progReport';   // v113: 제안서 칸에서 호출되면 그쪽 진행바에 표시 (종전엔 항상 리포트 칸 진행바에 써서 제안서 칸은 30%에 멈춰 보였음)
+  _mNoAppendix = false;
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
   const doc = await pdfjsLib.getDocument({data: bytes,
     cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/', cMapPacked: true}).promise;
   const found = [];
+  let expectN = 0;   // v113: 리포트에 인쇄된 '정상계약 N 건'(간편보장분석·전체현황 페이지) — 파싱 결과 자가 대조용, KB 경로(v108)와 동일
+  let meritzLike = false;   // v113: 메리츠 보장분석 고유 페이지('간편보장분석 | 컨설팅 전', '※ 메리츠 보장분석은…')를 봤는지
+  let ageCand = 0;          // v113: 고객 나이 후보 — 메리츠 리포트로 확정됐을 때만 S.custAge에 반영(KB·타 PDF 오염 방지)
   for(let p=1; p<=doc.numPages; p++){
     const tc = await (await doc.getPage(p)).getTextContent();
     const txt = tc.items.map(i=>i.str).join(' ');
-    if(!/별첨\s*상품별\s*보험가입현황/.test(txt.replace(/\s+/g,' '))) continue;
+    const flat = txt.replace(/\s+/g,' ');
+    if(!found.length){
+      if(!expectN){ const em = flat.match(/정상\s*계약\s*(\d{1,3})\s*건/); if(em) expectN = +em[1]; }
+      // v113: 고객 나이 — 전체현황 페이지 "남 65세 · 1961.09.25" (만기 나이 표기·갱신 향후보험료 계산에 사용). 별첨 앞 페이지에서만 찾는다.
+      //       앞 경계를 요구해 '하여 90세'의 '여 90세'를 배제하고, '만기·대·이상' 등 뒤따르는 말도 배제한다('4세대'·'80세 만기'·'15세 이상').
+      if(!ageCand){ const am = flat.match(/(?:^|[\s(·,\/])(남|여)\s*(\d{1,3})\s*세(?!\s*(?:만기|대|이상|이하|이후|부터|까지))/); if(am) ageCand = +am[2]; }
+      if(!meritzLike && ((/간편\s*보장분석/.test(flat) && /컨설팅\s*전/.test(flat)) || /메리츠\s*보장분석/.test(flat))) meritzLike = true;
+    }
+    if(!/별첨\s*상품별\s*보험가입현황/.test(flat)) continue;
     const r = parseMPage(txt);
     if(r && r.c) found.push(r);
     else if(r && r.cont != null && found.length){
@@ -2795,20 +2894,37 @@ async function tryParseMReport(bytes){
       const target = found.find(x=>x.c._ord===r.cont) || found[found.length-1];
       target.c.covs.push(...r.covs);
     }
-    prog('#progReport', 0.1 + 0.8*(p/doc.numPages), `신정원 보장분석 인식 중... (${p}/${doc.numPages}p, 계약 ${found.length}건)`);
+    prog(progSel, 0.1 + 0.8*(p/doc.numPages), `메리츠 보장분석 인식 중... (${p}/${doc.numPages}p, 계약 ${found.length}건)`);
   }
-  if(!found.length) return false;
+  if(!found.length){ _mNoAppendix = meritzLike; return false; }   // v113: 별첨 없는 메리츠 리포트(LMS 동의 전 출력본)는 호출부에서 안내 후 중단
+  if(ageCand && !S.custAge) S.custAge = ageCand;   // v113: 메리츠 리포트로 확정된 뒤에만 반영
   S.contracts = S.contracts.filter(x=>x.src!=='report');   // 재업로드 대응 (제안/수동은 유지)
   found.sort((a,b)=>a.c._ord-b.c._ord);
   S.matOv = S.matOv || {};
   found.forEach(({c, matu})=>{
+    // v113: 실손 '입통원의료비'는 입원·통원 양쪽을 보장하는데 별첨의 신정원 칸은 '○○입원의료' 하나뿐이라 통원 행이 비어 버린다.
+    //       게다가 원 시스템은 같은 담보를 구분(입원/통원)마다 한 번씩 인쇄해 완전히 같은 실손 행이 2번 찍히기도 한다(박승환 실손전환 계약).
+    //       → 완전히 같은 실손 행은 1건만 채택해 2배 계상을 막는다. 통원 행 합계 반영은 catHit의 SIL_BOTH가 담당(담보 목록엔 한 줄만 — 사용자 지시).
+    //       검증: 리포트가 스스로 인쇄한 '보장별 상세 내역'의 질병입원/질병통원/상해입원/상해통원 금액과 일치.
+    const seenSil = new Set();
+    c.covs = (c.covs||[]).filter(v=>{
+      if(v.kind!=='실손') return true;
+      const key = [v.name, v.stdCat||'', v.amt].join('|');
+      if(seenSil.has(key)) return false;
+      seenSil.add(key); return true;
+    });
     if(!c.covs.length && !c.monthlyPremium) c.status = '증권확인';   // 조회 정보가 비면 원본 확인 권고
     if(guessSpecial(c.productName)) c.special = true;
+    if(!c.csPhone && typeof autoCs==='function') c.csPhone = autoCs(c.insurer) || '';   // v113: 고객센터 번호 자동 채움 (KB 경로와 동일)
     S.contracts.push(c);
     if(matu && !/9999/.test(matu)) S.matOv[c.id] = matu;
   });
   const nCov = found.reduce((s,r)=>s+r.c.covs.length, 0);
-  prog('#progReport', 1, `완료 — 신정원 M보장분석에서 계약 ${found.length}건 · 담보 ${nCov}개를 직접 추출했습니다 (AI 호출 없음).`);
+  // v113: 리포트 표기 건수와 자가 대조 — 다르면 사용자에게 바로 경고
+  const chk = expectN ? (expectN===found.length ? ` 리포트 표기 ${expectN}건과 일치합니다.` : ` ⚠ 리포트 표기는 ${expectN}건인데 ${found.length}건이 인식됐습니다 — 계약 목록을 확인해 주세요.`) : '';
+  prog(progSel, 1, `완료 — 메리츠화재 보장분석(별첨 상품별 보험가입현황)에서 계약 ${found.length}건 · 담보 ${nCov}개를 직접 추출했습니다 (신정원 담보명 기준 · AI 호출 없음).${chk}`);
+  // v113: 직전 AI 분석이 남긴 재분석 버튼이 방금 만든 계약을 덮어쓰지 못하게 — 제안서 칸을 경유해 들어온 경우까지 포함
+  $('#btnRetryChunks').style.display = 'none'; $('#btnFullScan').style.display = 'none';
   refreshAll(); persist();
   return true;
 }
@@ -2818,7 +2934,9 @@ async function handleReport(file){
   try{
     const bytes = await fileToBytes(file);
     RC = { bytes, srcDoc:null, groups:[], failed:[], expected:0, filtered:false, payMap:null, tableMap:null, covMap:null };
-    // 신정원 M보장분석(별첨 상품별 보험가입현황) 형식이면 AI 없이 즉시 파싱
+    // v113: 직전 AI 분석이 남긴 '실패 구간 재분석'·'전체 페이지 재분석' 버튼은 새 업로드 때 숨김 — 직접 파서(메리츠·KB) 결과 위에 AI 경로가 덮어쓰는 사고 방지
+    $('#btnRetryChunks').style.display = 'none'; $('#btnFullScan').style.display = 'none';
+    // 메리츠화재 보장분석(별첨 상품별 보험가입현황) 형식이면 AI 없이 즉시 파싱
     prog('#progReport', 0.05, '리포트 형식 확인 중...');
     try{
       if(await tryParseMReport(new Uint8Array(bytes).slice())) return;
@@ -2826,6 +2944,11 @@ async function handleReport(file){
     try{
       if(await tryParseKBReport(new Uint8Array(bytes).slice())) return;   // KB손보 '상품별 가입담보상세' 형식
     }catch(e){ /* 형식 감지 실패 시 기존 파이프라인으로 */ }
+    // v113: 메리츠 보장분석인데 별첨이 없는 PDF(LMS 동의 전 출력본)는 AI 경로로 넘기지 않고 안내 후 중단 — 별첨 없이는 계약·담보를 읽을 수 없다
+    if(_mNoAppendix){
+      prog('#progReport', 1, `⚠ 메리츠화재 보장분석으로 보이지만 별첨 '상품별 보험가입현황' 페이지가 없습니다. 계약·담보는 별첨에서만 읽으므로, 고객 LMS 동의 후 출력한 전체 PDF를 올려 주세요.`);
+      return;
+    }
     await analyzeReport(bytes, true);
   }catch(e){
     prog('#progReport', 1, '오류: ' + e.message);
@@ -3444,10 +3567,14 @@ async function handleProposals(files){
       }catch(_){}
       // M보장분석 PDF를 제안서 칸에 올린 경우 → 신정원 담보명 파서로 자동 전환 (AI·키워드 분류 사용 안 함)
       if(isMReport){
-        prog('#progProp', base+span*0.3, `'${f.name}' — M보장분석 형식 감지, 신정원 담보명 기준으로 인식 중...`);
+        prog('#progProp', base+span*0.3, `'${f.name}' — 메리츠화재 보장분석 형식 감지, 신정원 담보명 기준으로 인식 중...`);
         try{
-          if(await tryParseMReport(new Uint8Array(bytes).slice())){ done++; continue; }
+          if(await tryParseMReport(new Uint8Array(bytes).slice(), '#progProp')){ done++; continue; }   // v113: 진행·완료 메시지를 제안서 칸 진행바에
         }catch(_){ /* 실패 시 일반 제안서 흐름으로 */ }
+      } else if(/간편보장분석/.test(propTxtNS) && /컨설팅전/.test(propTxtNS) && /정상계약\d{1,3}건/.test(propTxtNS)){
+        // v113: 별첨 없는 메리츠 보장분석(LMS 동의 전 출력본)을 제안서 칸에 올린 경우 — AI 제안서 파서로 넘기면 엉뚱한 계약이 생기므로 건너뛰고 안내
+        prog('#progProp', base+span, `'${f.name}' — 메리츠화재 보장분석으로 보이지만 별첨 '상품별 보험가입현황' 페이지가 없어 건너뜁니다. 고객 LMS 동의 후 출력한 전체 PDF를 STEP 1(보장분석 리포트)에 올려 주세요.`);
+        done++; continue;
       }
       const src = await PDFLib.PDFDocument.load(bytes,{ignoreEncryption:true});
       const pages = Array.from({length: Math.min(src.getPageCount(), 12)}, (_,k)=>k);
@@ -4079,6 +4206,7 @@ function loadTool(file){
       // 누락 키 기본값 보정
       S.extraGroups=S.extraGroups||[]; S.extraCats=S.extraCats||{}; S.catLabels=S.catLabels||{}; S.groupLabels=S.groupLabels||{};
       S.hiddenCats=S.hiddenCats||[]; S.groupOrder=S.groupOrder||[]; S.catOrder=S.catOrder||{}; S.hiddenInfoRows=S.hiddenInfoRows||[];
+      dropLegacyRows(S);   // v113: v112에 저장한 구성이면 없어진 구분·'입원·간병' 대분류가 되살아나므로 정리
       refreshPreviewOnly(); persist();
       alert('내 툴을 불러왔습니다. 담보 분류 구성이 저장해 두신 대로 적용되었습니다.');
     }catch(err){ alert('툴 파일을 읽지 못했습니다: '+err.message); }
@@ -4120,6 +4248,7 @@ function toolSetLoad(){
   TOOL_KEYS.forEach(k=>{ if(tool[k]!==undefined && tool[k]!==null) S[k] = JSON.parse(JSON.stringify(tool[k])); });
   S.extraGroups=S.extraGroups||[]; S.extraCats=S.extraCats||{}; S.catLabels=S.catLabels||{}; S.groupLabels=S.groupLabels||{};
   S.hiddenCats=S.hiddenCats||[]; S.groupOrder=S.groupOrder||[]; S.catOrder=S.catOrder||{}; S.hiddenInfoRows=S.hiddenInfoRows||[];
+  dropLegacyRows(S);   // v113: v112에 저장한 구성이면 없어진 구분·'입원·간병' 대분류가 되살아나므로 정리
   refreshPreviewOnly(); persist();
   alert(`'${tool.name}' 구성을 적용했습니다.`);
 }
@@ -4849,7 +4978,7 @@ const C = { NAVY:'0D3B66', NAVYBOX:'16406E', BLUE:'1565C0', MIDNAVY:'2F5D96',
 const ST_FILL = {'유지':C.NAVY, '리모델링':C.ORG, '이체중지':C.RED, '증권확인':C.AMBER, '제안':C.BLUE};
 const ST_HEX  = {'유지':'#0D3B66', '리모델링':'#D9730D', '이체중지':'#C0392B', '증권확인':'#B8860B', '제안':'#1565C0'};
 let FONT = 'Pretendard';
-const BUILD_TAG = 'v26.08.14-112';   // v112: 상품명 끝 ')' 소실 보정(파서+migV61 소급) + 실손 세대 배지 정액 일당 오탐 차단
+const BUILD_TAG = 'v26.09.09-113';   // v113: 메리츠화재 보장분석(별첨) 정식 지원 — 신정원 어휘·분류 sanitizeCov 통일·2단 납입표기·999세↑ 종신·건수 자가검증·고객나이·LMS 안내/가드 (+migV62) / 적대적 검토 반영: 담보 행번호 3자리·새 상태 migV 기록·중환자실 구제 제외 / 사용자 결정: 담보명 기준 질병수술비·실손 입통원 합산·고객센터 4곳 추가
 // ── 표지 로고 (사용자 표지 템플릿 원본 추출) ──
 const CVR_INCAR = 'data:image/png;base64,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';
 const CVR_KOSDAQ = 'data:image/png;base64,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';
