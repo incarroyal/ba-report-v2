@@ -1,6 +1,9 @@
 // netlify/functions/ai-parse.mjs
 // 보장분석 리포트 / 가입제안서 PDF를 Claude(Anthropic)로 구조화 추출하는 통합 프록시.
 // ANTHROPIC_API_KEY 는 Netlify 환경변수에만 설정 (클라이언트 노출 금지).
+// [2026-10-21 로그인 잠금] 로얄전산(incar-royal) 로그인 세션 토큰(body.token)이 Supabase 에서 유효한 royal 계정으로
+//   확인될 때만 Claude 를 호출한다. 토큰 없음/만료/타 계정 → 401 {step:"auth"} (프런트는 재시도 없이 안내).
+//   토큰은 로얄전산 부모 창이 postMessage 로 iframe(리포트메이커)에 넘기고, 프런트가 요청 본문에 동봉한다.
 // mode: "report"   → 롯데 보장분석 리포트(분할된 페이지 묶음)에서 [별첨] 계약별 담보 추출
 // mode: "list"     → '보유계약 리스트' 요약표에서 보험사·상품명·납입회차 등 정확한 계약 메타 추출
 // mode: "proposal" → 타사 가입제안서에서 담보 추출
@@ -12,6 +15,41 @@
 const MODEL = process.env.CLAUDE_MODEL || "claude-haiku-4-5-20251001";
 const API_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
+
+// ── 로얄전산 로그인 검증 (Supabase Auth) ──
+// SUPABASE_ANON_KEY 는 공개키(로얄전산 HTML 에 이미 노출)라 기본값 하드코딩 가능. 필요 시 Netlify 환경변수로 교체.
+const SUPABASE_URL = (process.env.SUPABASE_URL || "https://cvuipshbubyecamrprcx.supabase.co").replace(/\/+$/, "");
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || "sb_publishable_nesc1ZwZd3YSX6WN3XxEMQ_PgLd8VdA";
+const ROYAL_EMAIL_SUFFIX = "@login.royal.internal";   // royal-login 함수가 만드는 그림자 계정(emp-사번@…)만 허용
+
+// 결과: {ok:true,user} / {ok:false,why} (인증 실패 → 401) / {ok:false,unavailable:true,why} (Supabase 장애·지연 → 503, 재시도 대상)
+async function verifyRoyalToken(token) {
+  if (typeof token !== "string" || !token || token.length > 4096 || !/^[A-Za-z0-9._-]+$/.test(token)) return { ok: false, why: "no-token" };
+  // 값싼 사전 검사 — 서명 검증은 Supabase 에 맡기되, 형식·role·만료가 틀린 토큰은 네트워크 호출 없이 거른다(호출량·지연 방어)
+  const parts = token.split(".");
+  if (parts.length !== 3) return { ok: false, why: "bad-format" };
+  try {
+    const payload = JSON.parse(Buffer.from(parts[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8"));
+    if (payload.role !== "authenticated") return { ok: false, why: "bad-claims" };
+    if (!(Number(payload.exp) > Date.now() / 1000)) return { ok: false, why: "expired" };
+  } catch { return { ok: false, why: "bad-format" }; }
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 2500);
+  try {
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
+      signal: ac.signal
+    });
+    if (r.status === 401 || r.status === 403) return { ok: false, why: `auth-${r.status}` };   // 만료·위조·로그아웃·삭제 계정
+    if (!r.ok) return { ok: false, unavailable: true, why: `supabase-${r.status}` };           // 5xx/429 = 검증 서버 문제
+    const u = await r.json();
+    const email = String((u && u.email) || "").toLowerCase();
+    if (!email.endsWith(ROYAL_EMAIL_SUFFIX)) return { ok: false, why: "not-royal" };
+    return { ok: true, user: email };
+  } catch (e) {
+    return { ok: false, unavailable: true, why: "supabase-error:" + String((e && e.name) || e).slice(0, 40) };
+  } finally { clearTimeout(timer); }
+}
 
 // 표준 담보 카테고리 — 신정원(보험신용정보원) 보장구분 기준, 프런트(index_22.html) GROUPS와 1:1 동기화
 const CATEGORIES = [
@@ -188,10 +226,10 @@ const CORS = {
 const json = (obj, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json", ...CORS } });
 
-// Claude(Anthropic) 호출 — Netlify 10초 강제 종료 전에 자체 9초 컷
-async function callClaude(body) {
+// Claude(Anthropic) 호출 — Netlify 10초 강제 종료 전에 자체 컷. [2026-10-21] 예산은 호출부가 9초-인증소요 로 계산해 넘김(기본 8.5초)
+async function callClaude(body, budgetMs = 8500) {
   const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), 9000);
+  const timer = setTimeout(() => ac.abort(), budgetMs);
   try {
     return await fetch(API_URL, {
       method: "POST",
@@ -215,19 +253,32 @@ function finalize(obj, isReport) {
 }
 
 export default async (req) => {
-  if (req.method === "OPTIONS") return new Response("", { status: 204, headers: CORS });   // CORS preflight
+  const t0 = Date.now();   // [2026-10-21] 시간 예산: 로그인 검증 + Claude ≤ 9초(Netlify 10초 한도)
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });   // CORS preflight (204 는 본문 null — 2026-10-21)
   if (req.method !== "POST") return new Response("Method Not Allowed", { status: 405, headers: CORS });
 
-  let mode, pdfBase64;
-  try { ({ mode = "report", pdfBase64 } = await req.json()); }
+  let mode, pdfBase64, token;
+  try { ({ mode = "report", pdfBase64, token } = await req.json()); }
   catch { return json({ error: "잘못된 요청 본문" }, 400); }
+
+  // ---- [2026-10-21] 로그인 잠금: 모든 모드(ping 포함)에서 로얄전산 로그인 토큰 필수 ----
+  const auth = await verifyRoyalToken(token);
+  if (!auth.ok) {
+    if (auth.unavailable)
+      return json({ ok: false, step: "auth-unavailable", error: "로그인 확인 서버가 응답하지 않습니다. 잠시 후 다시 시도해 주세요.", why: auth.why }, 503);
+    const msg = auth.why === "no-token"
+      ? "로얄전산 화면을 새로고침(F5)한 뒤 '보장분석' 탭에서 다시 시도해 주세요. (로얄전산에 로그인되어 있어야 AI 분석이 동작합니다)"
+      : "로얄전산 로그인 세션이 만료되었거나 유효하지 않습니다. 로얄전산을 새로고침(F5)하거나 다시 로그인해 주세요.";
+    return json({ ok: false, step: "auth", error: msg, why: auth.why }, 401);
+  }
+  console.log("[ai-parse]", JSON.stringify({ u: auth.user, mode, kb: Math.round(((pdfBase64 || "").length) / 1024) }));   // 감사 기록(토큰은 남기지 않음)
 
   // ---- 진단 모드: 키·연결 상태를 점검 ----
   if (mode === "ping") {
     if (!process.env.ANTHROPIC_API_KEY)
       return json({ ok: false, step: "env", error: "ANTHROPIC_API_KEY 환경변수가 설정되지 않았습니다. Netlify → Site configuration → Environment variables 에 추가 후 재배포하세요." });
     try {
-      const r = await callClaude({ model: MODEL, max_tokens: 16, messages: [{ role: "user", content: "ping" }] });
+      const r = await callClaude({ model: MODEL, max_tokens: 16, messages: [{ role: "user", content: "ping" }] }, Math.max(1500, 9000 - (Date.now() - t0)));
       if (!r.ok) {
         const t = await r.text();
         return json({ ok: false, step: "claude", error: `Claude 호출 실패 (HTTP ${r.status}, 모델: ${MODEL})`, detail: t.slice(0, 400) });
@@ -265,7 +316,7 @@ export default async (req) => {
   };
 
   try {
-    const r = await callClaude(body);
+    const r = await callClaude(body, Math.max(1500, 9000 - (Date.now() - t0)));   // 인증에 쓴 시간만큼 차감
     if (!r.ok) {
       const t = await r.text();
       if (r.status === 429) return json({ error: "API 사용량 제한 (HTTP 429) — 잠시 후 자동 재시도됩니다", detail: t.slice(0, 200) }, 429);
